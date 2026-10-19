@@ -21,6 +21,7 @@ A small browser DAW for a five-piece light-music club band. Listen to each membe
 - **Chinese and English.** The 中 / EN button in the header switches the whole interface. A first visit picks Chinese for any `zh-*` browser language.
 - **Works on phones.** Below 760px the layout stacks into one column, the transport bar stays pinned to the top (it slides away while you scroll down and comes back when you scroll up), and the play-along member picker fits all five members on one row. Touch screens get bigger controls and no computer-keyboard hints.
 - **Pick who you play along as** from the member chips above the live instrument, or by clicking a name in the mixer. Arrow keys move the choice.
+- **Video overlay zone for editing.** The clapperboard button on the timeline shows a flat chroma-key box (green, blue, magenta or black; 16:9, 4:3, 1:1 or 9:16; three sizes) under the timeline. Record the screen, then key the colour out in your video editor to put other footage, such as animation, in its place. The box has no text or border, and its settings row hides while the song plays, so the layout doesn't shift during a recording.
 - **Saved in your browser.** Settings go in `localStorage`; the session and the original MIDI file go in IndexedDB. Refreshing the page restores everything, and the audio engine is rebuilt from the saved data.
 
 ## Getting started
@@ -90,7 +91,7 @@ Packs load lazily and are shared by every track that uses them. Each mixer strip
 
 ## Testing
 
-`pnpm test` runs 56 tests covering:
+`pnpm test` runs 61 tests covering:
 - mute and solo rules
 - tick and second conversions, and tempo scaling
 - the keyboard map
@@ -101,6 +102,7 @@ Packs load lazily and are shared by every track that uses them. Each mixer strip
 - mixer UI behaviour
 - the play-along member picker, and English / Chinese string parity
 - fretboard tuning, chord voicings, each member's live layout, strumming, and the scroll-to-hide rule
+- the video overlay zone and its stored settings
 
 Behaviour checked by hand in Chromium:
 - playback and stop at the end of the song

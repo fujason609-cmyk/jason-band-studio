@@ -986,6 +986,68 @@ select {
   }
 }
 
+// ---------- video overlay zone (chroma-key box) ----------
+
+.overlay-zone {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+
+  &__controls {
+    align-self: stretch;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px 16px;
+    &.is-hidden {
+      visibility: hidden;
+    }
+  }
+  &__title {
+    flex: 1 1 260px;
+    h2 {
+      font-size: 15px;
+      font-weight: 800;
+    }
+    p {
+      font-size: 13px;
+      color: var(--ink-soft);
+    }
+  }
+  &__options {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+  }
+  // flat key colour: no radius, border or shadow, so the keyer gets clean edges
+  &__key {
+    display: block;
+    max-width: 100%;
+    border-radius: 0;
+  }
+}
+
+.swatches {
+  display: flex;
+  gap: 6px;
+}
+
+.swatch {
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border-radius: 50%;
+  border: 2px solid var(--rule-strong);
+  background: var(--swatch);
+
+  &[aria-checked="true"] {
+    box-shadow: 0 0 0 2px var(--surface), 0 0 0 4px var(--ink);
+  }
+}
+
 // ---------- MIDI mapping dialog ----------
 
 .mapping-dialog {

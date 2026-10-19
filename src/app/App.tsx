@@ -6,6 +6,7 @@ import { InstrumentPanel } from "@/features/instruments/InstrumentPanel";
 import { MidiMappingDialog } from "@/features/midi/MidiImport";
 import { useMidiImport } from "@/features/midi/useMidiImport";
 import { TrackMixer } from "@/features/mixer/TrackMixer";
+import { VideoOverlayZone } from "@/features/overlay/VideoOverlayZone";
 import { LANE_HEIGHT, RULER_HEIGHT } from "@/features/timeline/layout";
 import { Timeline } from "@/features/timeline/Timeline";
 import { useAudioEngineBridge } from "@/hooks/useAudioEngine";
@@ -47,6 +48,7 @@ function Studio() {
           <TrackMixer />
           <Timeline />
         </div>
+        <VideoOverlayZone />
         <InstrumentPanel />
       </main>
       <footer className="app-footer">

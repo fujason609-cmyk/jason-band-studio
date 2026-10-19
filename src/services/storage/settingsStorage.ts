@@ -1,5 +1,6 @@
 import { isMemberId } from "@/features/band/members";
 import type { MemberId } from "@/features/band/types";
+import { DEFAULT_OVERLAY, sanitizeOverlay, type OverlaySettings } from "@/features/overlay/overlay";
 import { detectLanguage, type Language } from "@/i18n/strings";
 
 export type ThemeSetting = "system" | "light" | "dark";
@@ -12,6 +13,8 @@ export interface StudioSettings {
   followPlayhead: boolean;
   /** pixels per song second on the timeline */
   zoom: number;
+  /** chroma-key box for video editing */
+  overlay: OverlaySettings;
 }
 
 export const DEFAULT_SETTINGS: StudioSettings = {
@@ -21,6 +24,7 @@ export const DEFAULT_SETTINGS: StudioSettings = {
   loop: false,
   followPlayhead: true,
   zoom: 60,
+  overlay: DEFAULT_OVERLAY,
 };
 
 const KEY = "kon-band-studio:settings:v1";
@@ -36,6 +40,7 @@ export function sanitizeSettings(raw: unknown): StudioSettings {
     followPlayhead: typeof r.followPlayhead === "boolean" ? r.followPlayhead : DEFAULT_SETTINGS.followPlayhead,
     zoom:
       typeof r.zoom === "number" && Number.isFinite(r.zoom) ? Math.min(240, Math.max(15, r.zoom)) : DEFAULT_SETTINGS.zoom,
+    overlay: sanitizeOverlay(r.overlay),
   };
 }
 

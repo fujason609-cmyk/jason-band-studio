@@ -65,6 +65,10 @@ One breakpoint, `$narrow: 760px` in `studio.scss`, mirrored by `NARROW_QUERY` in
 
 `liveLayoutFor(instrument)` in `src/lib/fretboard.ts` picks the on-screen instrument: `fretboard` (lead guitar, bass, with tunings in the same file), `chords` (rhythm guitar strum pads, `CHORDS`), `piano` (keys) or `drums` (kit laid out by `DrumPad.area` grid areas). All of them feed `useKeyboardInput`, which tracks every sounding note by *source* (`key:a`, `ptr:<id>`). A strum is one source with a sub-source per string (`src|0`, `src|1`, ...), started `STRUM_MS` apart; `release(src)` stops the whole group and cancels strings that haven't started yet. On the fretboard the octave control only moves the computer-keyboard notes, so it is hidden on touch screens.
 
+### Video overlay zone
+
+`src/features/overlay/` draws a chroma-key box under the timeline, toggled from the timeline toolbar and stored in `settings.overlay`. Its colours in `OVERLAY_COLORS` are exact key values: never theme them, and never add a border, radius, shadow or text inside the box, or keying breaks. The controls use `visibility: hidden` while playing (not `display: none`) so the box doesn't move mid-recording.
+
 ### Tests
 
 Tests sit next to their source files (`*.test.ts(x)`). `src/test/setup.ts` loads jest-dom and `fake-indexeddb/auto`, and stubs `matchMedia` as a wide mouse screen (every media query is false). Tone/Web Audio is not available under jsdom, so component tests mock `@/audio/AudioEngine` (see `TrackControls.test.tsx`). Keep logic that needs testing in pure modules (`src/lib`, mapper, validation, stores).

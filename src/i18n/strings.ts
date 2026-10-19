@@ -89,6 +89,17 @@ const en = {
   zoomIn: "Zoom in",
   zoomOut: "Zoom out",
   followPlayhead: "Follow the playhead",
+  showOverlay: "Show the video overlay zone",
+
+  // video overlay zone
+  overlayZone: "Video overlay zone",
+  overlayHint: "Key out this colour in your video editor (chroma key) to put other footage here. These controls hide while the song plays.",
+  overlayColor: "Key colour",
+  overlayColors: { green: "Green", blue: "Blue", magenta: "Magenta", black: "Black" } as Record<string, string>,
+  overlayAspect: "Shape",
+  overlaySize: "Size",
+  overlaySizes: { s: "Small", m: "Medium", l: "Full width" } as Record<string, string>,
+  hideOverlay: "Hide the video overlay zone",
 
   // MIDI import
   importMidi: "Import MIDI",
@@ -225,6 +236,16 @@ const zh: Strings = {
   zoomIn: "放大",
   zoomOut: "缩小",
   followPlayhead: "跟随播放位置",
+  showOverlay: "显示视频叠加区",
+
+  overlayZone: "视频叠加区",
+  overlayHint: "剪辑时用抠像（色度键）去掉这个颜色，就能把其他画面贴在这里。播放时这一行会自动隐藏。",
+  overlayColor: "抠像颜色",
+  overlayColors: { green: "绿幕", blue: "蓝幕", magenta: "品红", black: "黑色" },
+  overlayAspect: "比例",
+  overlaySize: "大小",
+  overlaySizes: { s: "小", m: "中", l: "全宽" },
+  hideOverlay: "隐藏视频叠加区",
 
   importMidi: "导入 MIDI",
   whoPlaysWhat: "谁来演奏哪一轨？",

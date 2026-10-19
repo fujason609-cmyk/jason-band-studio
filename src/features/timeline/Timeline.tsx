@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
-import { Crosshair, ZoomIn, ZoomOut } from "lucide-react";
+import { Clapperboard, Crosshair, ZoomIn, ZoomOut } from "lucide-react";
 import { audioEngine } from "@/audio/AudioEngine";
 import { IconButton } from "@/components/common/IconButton";
 import { MEMBERS } from "@/features/band/members";
@@ -31,7 +31,7 @@ function readPalette(): Palette & { members: Record<string, string> } {
 
 export function Timeline() {
   const project = useProjectStore((s) => s.project);
-  const { zoom, followPlayhead, selectedMember, theme } = useStudioStore((s) => s.settings);
+  const { zoom, followPlayhead, selectedMember, theme, overlay } = useStudioStore((s) => s.settings);
   const updateSettings = useStudioStore((s) => s.updateSettings);
   const transport = useStudioStore((s) => s.transport);
   const { seek } = useTransport();
@@ -206,6 +206,14 @@ export function Timeline() {
           onClick={() => updateSettings({ followPlayhead: !followPlayhead })}
         >
           <Crosshair size={16} />
+        </IconButton>
+        <IconButton
+          label={t.showOverlay}
+          variant="quiet"
+          pressed={overlay.enabled}
+          onClick={() => updateSettings({ overlay: { ...overlay, enabled: !overlay.enabled } })}
+        >
+          <Clapperboard size={16} />
         </IconButton>
       </div>
     </section>
