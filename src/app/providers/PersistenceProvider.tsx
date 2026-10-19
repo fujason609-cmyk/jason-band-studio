@@ -1,4 +1,5 @@
 import { useEffect, type ReactNode } from "react";
+import { getT } from "@/i18n/useT";
 import { loadCurrentProject, saveCurrentProject } from "@/services/storage/projectStorage";
 import { loadSettings, saveSettings } from "@/services/storage/settingsStorage";
 import { useProjectStore } from "@/stores/useProjectStore";
@@ -28,10 +29,10 @@ export function PersistenceProvider({ children }: { children: ReactNode }) {
       if (cancelled) return;
       if (result.kind === "ok") useProjectStore.getState().replaceProject(result.project);
       if (result.kind === "corrupt") {
-        studio.notify({ kind: "error", text: "Your saved session couldn't be read, so the demo song is loaded instead." });
+        studio.notify({ kind: "error", text: getT().sessionCorrupt });
       }
       if (result.kind === "unavailable") {
-        studio.notify({ kind: "info", text: "This browser blocks local storage, so changes will be lost on refresh." });
+        studio.notify({ kind: "info", text: getT().storageBlocked });
       }
       studio.setHydrated();
 
@@ -44,7 +45,7 @@ export function PersistenceProvider({ children }: { children: ReactNode }) {
             warnedSaveFailure = true;
             useStudioStore
               .getState()
-              .notify({ kind: "error", text: "Couldn't save the session in this browser. Free up storage and keep the tab open." });
+              .notify({ kind: "error", text: getT().saveFailed });
           });
         }, SAVE_DELAY_MS);
       });

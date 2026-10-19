@@ -3,7 +3,10 @@ import { Minus, Pause, Play, Plus, Repeat, Square, Volume2 } from "lucide-react"
 import { IconButton } from "@/components/common/IconButton";
 import { Fader } from "@/components/common/Fader";
 import { ensureAudio } from "@/hooks/useAudioEngine";
+import { useHideOnScroll } from "@/hooks/useHideOnScroll";
+import { NARROW_QUERY, useMediaQuery } from "@/hooks/useMediaQuery";
 import { usePlaybackPosition, useSpacebarToggle, useTransport } from "@/hooks/useTransport";
+import { useT } from "@/i18n/useT";
 import { MAX_BPM, MIN_BPM, barBeat, formatClock, songToRealSeconds } from "@/lib/time";
 import { useProjectStore } from "@/stores/useProjectStore";
 import { useStudioStore } from "@/stores/useStudioStore";
@@ -12,12 +15,13 @@ function PositionReadout() {
   const clockRef = useRef<HTMLSpanElement>(null);
   const barRef = useRef<HTMLParagraphElement>(null);
   const { baseBpm, bpm, beatsPerBar, durationSeconds } = useProjectStore((s) => s.project);
+  const t = useT();
 
   usePlaybackPosition((pos) => {
     if (clockRef.current) clockRef.current.textContent = formatClock(songToRealSeconds(pos, baseBpm, bpm));
     if (barRef.current) {
       const { bar, beat } = barBeat(pos, baseBpm, beatsPerBar);
-      barRef.current.textContent = `Bar ${bar}, beat ${beat}`;
+      barRef.current.textContent = t.barBeat(bar, beat);
     }
   });
 
@@ -28,7 +32,7 @@ function PositionReadout() {
         <span className="readout__total"> / {formatClock(songToRealSeconds(durationSeconds, baseBpm, bpm))}</span>
       </p>
       <p className="readout__bar" ref={barRef}>
-        Bar 1, beat 1
+        {t.barBeat(1, 1)}
       </p>
     </div>
   );
@@ -39,14 +43,15 @@ function BpmControl() {
   const baseBpm = useProjectStore((s) => s.project.baseBpm);
   const setBpm = useProjectStore((s) => s.setBpm);
   const roundedBase = Math.round(baseBpm);
+  const t = useT();
 
   return (
     <div className="bpm">
       <label htmlFor="bpm-input" className="bpm__label">
-        Tempo
+        {t.tempo}
       </label>
       <div className="bpm__field">
-        <IconButton label="Slower" variant="quiet" onClick={() => setBpm(bpm - 1)} disabled={bpm <= MIN_BPM}>
+        <IconButton label={t.slower} variant="quiet" onClick={() => setBpm(bpm - 1)} disabled={bpm <= MIN_BPM}>
           <Minus size={16} />
         </IconButton>
         <input
@@ -63,14 +68,14 @@ function BpmControl() {
           }}
           onBlur={(e) => setBpm(Number(e.currentTarget.value))}
         />
-        <IconButton label="Faster" variant="quiet" onClick={() => setBpm(bpm + 1)} disabled={bpm >= MAX_BPM}>
+        <IconButton label={t.faster} variant="quiet" onClick={() => setBpm(bpm + 1)} disabled={bpm >= MAX_BPM}>
           <Plus size={16} />
         </IconButton>
         <span className="bpm__unit">BPM</span>
       </div>
       {bpm !== roundedBase && (
         <button type="button" className="link-btn" onClick={() => setBpm(roundedBase)}>
-          Back to {roundedBase}
+          {t.backToTempo(roundedBase)}
         </button>
       )}
     </div>
@@ -87,20 +92,24 @@ export function TransportBar() {
   const tracks = useProjectStore((s) => s.project.tracks);
   const masterVolume = useProjectStore((s) => s.project.masterVolume);
   const setMasterVolume = useProjectStore((s) => s.setMasterVolume);
+  const t = useT();
+  // On phones the bar is pinned to the top; it slides away while scrolling down
+  // and comes back on any scroll up, or when it gets keyboard focus.
+  const [hidden, show] = useHideOnScroll(useMediaQuery(NARROW_QUERY));
 
   const loading = audioStarted && tracks.some((t) => instrumentStates[t.instrument]?.status === "loading");
   const playing = status === "playing";
 
   return (
-    <section className="transport" aria-label="Transport">
+    <section className={`transport ${hidden ? "is-hidden" : ""}`} aria-label={t.transport} onFocus={show}>
       <div className="transport__buttons">
         {playing ? (
-          <IconButton label="Pause" variant="solid" className="transport__main" onClick={pause}>
+          <IconButton label={t.pause} variant="solid" className="transport__main" onClick={pause}>
             <Pause size={22} />
           </IconButton>
         ) : (
           <IconButton
-            label={loading ? "Loading sounds" : "Play"}
+            label={loading ? t.loadingSounds : t.play}
             variant="solid"
             className="transport__main"
             onClick={() => void play()}
@@ -109,10 +118,10 @@ export function TransportBar() {
             <Play size={22} />
           </IconButton>
         )}
-        <IconButton label="Stop and go back to the start" onClick={stop} disabled={status === "stopped" && !audioStarted}>
+        <IconButton label={t.stop} onClick={stop} disabled={status === "stopped" && !audioStarted}>
           <Square size={18} />
         </IconButton>
-        <IconButton label="Loop the song" pressed={loop} onClick={() => updateSettings({ loop: !loop })}>
+        <IconButton label={t.loop} pressed={loop} onClick={() => updateSettings({ loop: !loop })}>
           <Repeat size={18} />
         </IconButton>
       </div>
@@ -123,7 +132,7 @@ export function TransportBar() {
       <div className="master">
         <Volume2 size={18} aria-hidden="true" />
         <Fader
-          label="Master volume"
+          label={t.masterVolume}
           value={masterVolume}
           onChange={setMasterVolume}
           valueText={`${Math.round(masterVolume * 100)}%`}
@@ -132,15 +141,15 @@ export function TransportBar() {
 
       {!audioStarted && (
         <div className="audio-gate" role="status">
-          <p>Sound is off until you start it. Your browser needs one click first.</p>
+          <p>{t.audioGate}</p>
           <button type="button" className="btn btn--primary" onClick={() => void ensureAudio()}>
-            Start audio
+            {t.startAudio}
           </button>
         </div>
       )}
       {loading && (
         <p className="transport__loading" role="status">
-          Loading sounds
+          {t.loadingSounds}
         </p>
       )}
     </section>

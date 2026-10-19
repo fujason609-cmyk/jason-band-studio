@@ -1,7 +1,7 @@
 import { useEffect, useId, useRef } from "react";
 import { FileMusic } from "lucide-react";
-import { MEMBERS } from "@/features/band/members";
-import { isMemberId } from "@/features/band/members";
+import { MEMBERS, isMemberId } from "@/features/band/members";
+import { useT } from "@/i18n/useT";
 import { useStudioStore } from "@/stores/useStudioStore";
 import { useMidiImport } from "./useMidiImport";
 
@@ -9,11 +9,17 @@ import { useMidiImport } from "./useMidiImport";
 export function MidiImportButton() {
   const inputRef = useRef<HTMLInputElement>(null);
   const { openFile } = useMidiImport();
+  const t = useT();
   return (
     <>
-      <button type="button" className="btn btn--primary" onClick={() => inputRef.current?.click()}>
+      <button
+        type="button"
+        className="btn btn--primary btn--import"
+        aria-label={t.importMidi}
+        onClick={() => inputRef.current?.click()}
+      >
         <FileMusic size={18} aria-hidden="true" />
-        Import MIDI
+        <span className="btn__text">{t.importMidi}</span>
       </button>
       <input
         ref={inputRef}
@@ -37,6 +43,7 @@ export function MidiMappingDialog() {
   const { confirm, cancel } = useMidiImport();
   const dialogRef = useRef<HTMLDialogElement>(null);
   const titleId = useId();
+  const t = useT();
 
   useEffect(() => {
     const dialog = dialogRef.current;
@@ -58,12 +65,8 @@ export function MidiMappingDialog() {
           }}
         >
           <header className="mapping-dialog__head">
-            <h2 id={titleId}>Who plays what?</h2>
-            <p>
-              {pending.parsed.meta.fileName} has {pending.parsed.tracks.length} track
-              {pending.parsed.tracks.length === 1 ? "" : "s"}. Give each one to a member, or leave it out. Several
-              tracks can go to the same member.
-            </p>
+            <h2 id={titleId}>{t.whoPlaysWhat}</h2>
+            <p>{t.mappingIntro(pending.parsed.meta.fileName, pending.parsed.tracks.length)}</p>
           </header>
           <ul className="mapping-list">
             {pending.parsed.tracks.map((track) => {
@@ -73,9 +76,7 @@ export function MidiMappingDialog() {
                 <li key={track.index} className="mapping-row">
                   <label htmlFor={selectId} className="mapping-row__track">
                     <strong>{track.name}</strong>
-                    <span>
-                      {track.instrumentName}, {track.notes.length} notes
-                    </span>
+                    <span>{t.trackInfo(track.isPercussion ? t.drumKit : track.instrumentName, track.notes.length)}</span>
                   </label>
                   <select
                     id={selectId}
@@ -85,10 +86,10 @@ export function MidiMappingDialog() {
                       setAssignment(track.index, isMemberId(v) ? v : null);
                     }}
                   >
-                    <option value="">Leave out</option>
+                    <option value="">{t.leaveOut}</option>
                     {MEMBERS.map((m) => (
                       <option key={m.id} value={m.id}>
-                        {m.name} ({m.role.toLowerCase()})
+                        {t.memberOption(t.memberName[m.id], t.memberRole[m.id])}
                       </option>
                     ))}
                   </select>
@@ -96,13 +97,13 @@ export function MidiMappingDialog() {
               );
             })}
           </ul>
-          {nothingAssigned && <p className="mapping-dialog__hint">Give at least one track to a member to load the song.</p>}
+          {nothingAssigned && <p className="mapping-dialog__hint">{t.nothingAssigned}</p>}
           <footer className="mapping-dialog__foot">
             <button type="button" className="btn" onClick={cancel}>
-              Cancel
+              {t.cancel}
             </button>
             <button type="submit" className="btn btn--primary" disabled={nothingAssigned}>
-              Load song
+              {t.loadSong}
             </button>
           </footer>
         </form>

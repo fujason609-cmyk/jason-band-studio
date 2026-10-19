@@ -1,3 +1,4 @@
+import { useT } from "@/i18n/useT";
 import { DRUM_PADS } from "@/lib/drums";
 
 interface Props {
@@ -7,13 +8,15 @@ interface Props {
 }
 
 export function DrumPads({ active, press, release }: Props) {
+  const t = useT();
   return (
-    <div className="pads">
+    <div className="pads drum-kit">
       {DRUM_PADS.map((pad) => (
         <button
           key={pad.key}
           type="button"
-          className={`pad ${active.has(pad.pitch) ? "is-down" : ""}`}
+          className={`pad pad--${pad.kind} ${active.has(pad.pitch) ? "is-down" : ""}`}
+          style={{ gridArea: pad.area }}
           onPointerDown={(e) => {
             e.preventDefault();
             press(`ptr:${e.pointerId}:${pad.key}`, pad.pitch);
@@ -27,7 +30,7 @@ export function DrumPads({ active, press, release }: Props) {
             }
           }}
         >
-          <span className="pad__label">{pad.label}</span>
+          <span className="pad__label">{t.drumPad[pad.key] ?? pad.label}</span>
           <span className="pad__hint">{pad.key.toUpperCase()}</span>
         </button>
       ))}

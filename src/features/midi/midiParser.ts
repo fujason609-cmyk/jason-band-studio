@@ -1,8 +1,14 @@
 import { Midi } from "@tonejs/midi";
 import type { NoteEvent, ParsedMidi, ParsedMidiTrack } from "@/types/midi";
 
+export type MidiParseErrorCode = "unreadable" | "no-notes";
+
 export class MidiParseError extends Error {
-  constructor(message: string) {
+  constructor(
+    readonly code: MidiParseErrorCode,
+    readonly fileName: string,
+    message: string,
+  ) {
     super(message);
     this.name = "MidiParseError";
   }
@@ -15,6 +21,8 @@ export function parseMidi(data: ArrayBuffer | Uint8Array, fileName: string): Par
     midi = new Midi(data);
   } catch {
     throw new MidiParseError(
+      "unreadable",
+      fileName,
       `${fileName} isn't a readable MIDI file. Export it again as a Standard MIDI File (.mid) and try once more.`,
     );
   }
@@ -44,7 +52,7 @@ export function parseMidi(data: ArrayBuffer | Uint8Array, fileName: string): Par
     .filter((t) => t.notes.length > 0);
 
   if (tracks.length === 0) {
-    throw new MidiParseError(`${fileName} has no notes to play. Pick a MIDI file that contains note data.`);
+    throw new MidiParseError("no-notes", fileName, `${fileName} has no notes to play. Pick a MIDI file that contains note data.`);
   }
 
   const tempos = midi.header.tempos.map((t) => ({

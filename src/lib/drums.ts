@@ -24,16 +24,20 @@ export interface DrumPad {
   key: string;
   label: string;
   pitch: number;
+  /** what the pad looks like in the on-screen kit */
+  kind: "cymbal" | "drum" | "kick";
+  /** grid area in the kit layout */
+  area: string;
 }
 
 export const DRUM_PADS: DrumPad[] = [
-  { key: "a", label: "Kick", pitch: 36 },
-  { key: "s", label: "Snare", pitch: 38 },
-  { key: "d", label: "Closed hat", pitch: 42 },
-  { key: "f", label: "Open hat", pitch: 46 },
-  { key: "g", label: "Low tom", pitch: 43 },
-  { key: "h", label: "Mid tom", pitch: 47 },
-  { key: "j", label: "High tom", pitch: 50 },
-  { key: "k", label: "Crash", pitch: 49 },
-  { key: "l", label: "Ride", pitch: 51 },
+  { key: "a", label: "Kick", pitch: 36, kind: "kick", area: "kick" },
+  { key: "s", label: "Snare", pitch: 38, kind: "drum", area: "snare" },
+  { key: "d", label: "Closed hat", pitch: 42, kind: "cymbal", area: "chat" },
+  { key: "f", label: "Open hat", pitch: 46, kind: "cymbal", area: "ohat" },
+  { key: "g", label: "Low tom", pitch: 43, kind: "drum", area: "ltom" },
+  { key: "h", label: "Mid tom", pitch: 47, kind: "drum", area: "mtom" },
+  { key: "j", label: "High tom", pitch: 50, kind: "drum", area: "htom" },
+  { key: "k", label: "Crash", pitch: 49, kind: "cymbal", area: "crash" },
+  { key: "l", label: "Ride", pitch: 51, kind: "cymbal", area: "ride" },
 ];

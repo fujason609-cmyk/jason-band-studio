@@ -1,5 +1,6 @@
 import { useEffect } from "react";
 import { audioEngine } from "@/audio/AudioEngine";
+import { getT } from "@/i18n/useT";
 import { useProjectStore } from "@/stores/useProjectStore";
 import { useStudioStore } from "@/stores/useStudioStore";
 
@@ -15,16 +16,16 @@ export async function ensureAudio(): Promise<boolean> {
 /** Mount once: keeps the engine in sync with the stores and reports engine events back. */
 export function useAudioEngineBridge() {
   useEffect(() => {
-    const studio = useStudioStore.getState();
     audioEngine.setEvents({
       onInstrumentState: (instrument, state) => {
         useStudioStore.getState().setInstrumentState(instrument, state);
-        if (state.status === "error" && state.error) {
-          useStudioStore.getState().notify({ kind: "error", text: state.error });
+        if (state.status === "error") {
+          const t = getT();
+          useStudioStore.getState().notify({ kind: "error", text: t.samplesFailed(t.instrument[instrument]) });
         }
       },
       onTransportEnd: () => useStudioStore.getState().setTransport("stopped"),
-      onError: (text) => studio.notify({ kind: "error", text }),
+      onStartError: (detail) => useStudioStore.getState().notify({ kind: "error", text: getT().audioBlocked(detail) }),
     });
 
     audioEngine.sync(useProjectStore.getState().project);

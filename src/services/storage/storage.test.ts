@@ -39,8 +39,10 @@ describe("settings", () => {
 
   it("falls back to defaults for junk", () => {
     expect(sanitizeSettings("x")).toEqual(DEFAULT_SETTINGS);
-    expect(sanitizeSettings({ theme: "neon", zoom: 9000, selectedMember: "sawako" })).toMatchObject({
+    expect(sanitizeSettings({ language: "zh" }).language).toBe("zh");
+    expect(sanitizeSettings({ theme: "neon", zoom: 9000, selectedMember: "sawako", language: "fr" })).toMatchObject({
       theme: "system",
+      language: DEFAULT_SETTINGS.language,
       zoom: 240,
       selectedMember: "yui",
     });

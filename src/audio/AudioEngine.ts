@@ -12,7 +12,8 @@ import { TransportController } from "./TransportController";
 export interface EngineEvents {
   onInstrumentState?: (instrument: InstrumentId, state: InstrumentLoadState) => void;
   onTransportEnd?: () => void;
-  onError?: (message: string) => void;
+  /** audio couldn't be unlocked; `detail` is the browser's reason */
+  onStartError?: (detail: string) => void;
 }
 
 /**
@@ -55,9 +56,7 @@ export class AudioEngine {
       if (this.lastProject) this.sync(this.lastProject);
       return true;
     } catch (err) {
-      this.events.onError?.(
-        `The browser didn't allow audio to start (${err instanceof Error ? err.message : String(err)}). Click Start audio to try again.`,
-      );
+      this.events.onStartError?.(err instanceof Error ? err.message : String(err));
       return false;
     }
   }

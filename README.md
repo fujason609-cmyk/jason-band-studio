@@ -11,11 +11,16 @@ A small browser DAW for a five-piece light-music club band. Listen to each membe
 - **One clock for the band.** Every note is scheduled on a single Tone.js Transport, so the parts can't drift apart. Tempo changes keep the playhead where it is, and pause, resume, seek and loop act on all tracks at once.
 - **MIDI import** from the file picker or by dropping a `.mid` file on the page. Tracks are matched to members by General MIDI family (drums, bass, guitar, keys, lead) and you can reassign or leave out any of them before loading. The tempo map, PPQ and time signatures are kept.
 - **Timeline** drawn on a canvas, with staff-paper lanes, bar numbers, zoom, an optional follow mode and click or drag to seek. With keyboard focus on it, the arrow keys move one bar and Home goes to the start.
+- **A live instrument that fits the part.** Lead guitar and bass get a fretboard (6 and 4 strings, frets 0–15; phones show six frets at a time with arrows to move up the neck). Rhythm guitar gets strum pads for nine open chords. Keys get a piano and drums get a kit: cymbals, toms and snare, and a kick pedal.
 - **Live playing** for the selected member:
   - Melodic instruments: the `A`–`;` keys play the white notes, `W E T Y U O P` the sharps, and `Z` / `X` change octave.
   - Drums: the `A`–`L` keys play the pads.
+  - Rhythm guitar: the `A`–`L` keys strum C, G, Am, F, D, Em, A, E and Dm. Letting go mutes the strings.
   - The on-screen keyboard and pads work with mouse and touch.
   - Space plays or pauses.
+- **Chinese and English.** The 中 / EN button in the header switches the whole interface. A first visit picks Chinese for any `zh-*` browser language.
+- **Works on phones.** Below 760px the layout stacks into one column, the transport bar stays pinned to the top (it slides away while you scroll down and comes back when you scroll up), and the play-along member picker fits all five members on one row. Touch screens get bigger controls and no computer-keyboard hints.
+- **Pick who you play along as** from the member chips above the live instrument, or by clicking a name in the mixer. Arrow keys move the choice.
 - **Saved in your browser.** Settings go in `localStorage`; the session and the original MIDI file go in IndexedDB. Refreshing the page restores everything, and the audio engine is rebuilt from the saved data.
 
 ## Getting started
@@ -59,6 +64,7 @@ src/
     instruments/  live keyboard / drum pads and computer-keyboard input
   stores/         Zustand: useProjectStore (song + mix), useStudioStore (UI, transport, settings)
   services/       storage (localStorage settings, IndexedDB projects and MIDI blobs), MIDI file checks
+  i18n/           en / zh UI strings, useT() / getT()
   hooks/          engine bridge, transport, playback position, media queries
   lib/            pure logic: time model, mute/solo rules, keyboard map, GM drums
 ```
@@ -84,7 +90,7 @@ Packs load lazily and are shared by every track that uses them. Each mixer strip
 
 ## Testing
 
-`pnpm test` runs 39 tests covering:
+`pnpm test` runs 56 tests covering:
 - mute and solo rules
 - tick and second conversions, and tempo scaling
 - the keyboard map
@@ -93,6 +99,8 @@ Packs load lazily and are shared by every track that uses them. Each mixer strip
 - settings and IndexedDB round trips
 - the project store and the demo song's integrity
 - mixer UI behaviour
+- the play-along member picker, and English / Chinese string parity
+- fretboard tuning, chord voicings, each member's live layout, strumming, and the scroll-to-hide rule
 
 Behaviour checked by hand in Chromium:
 - playback and stop at the end of the song

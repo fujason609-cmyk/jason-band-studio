@@ -1,10 +1,12 @@
 import { isMemberId } from "@/features/band/members";
 import type { MemberId } from "@/features/band/types";
+import { detectLanguage, type Language } from "@/i18n/strings";
 
 export type ThemeSetting = "system" | "light" | "dark";
 
 export interface StudioSettings {
   theme: ThemeSetting;
+  language: Language;
   selectedMember: MemberId;
   loop: boolean;
   followPlayhead: boolean;
@@ -14,6 +16,7 @@ export interface StudioSettings {
 
 export const DEFAULT_SETTINGS: StudioSettings = {
   theme: "system",
+  language: detectLanguage(),
   selectedMember: "yui",
   loop: false,
   followPlayhead: true,
@@ -27,6 +30,7 @@ export function sanitizeSettings(raw: unknown): StudioSettings {
   const r = raw as Record<string, unknown>;
   return {
     theme: r.theme === "light" || r.theme === "dark" || r.theme === "system" ? r.theme : DEFAULT_SETTINGS.theme,
+    language: r.language === "en" || r.language === "zh" ? r.language : DEFAULT_SETTINGS.language,
     selectedMember: isMemberId(r.selectedMember) ? r.selectedMember : DEFAULT_SETTINGS.selectedMember,
     loop: typeof r.loop === "boolean" ? r.loop : DEFAULT_SETTINGS.loop,
     followPlayhead: typeof r.followPlayhead === "boolean" ? r.followPlayhead : DEFAULT_SETTINGS.followPlayhead,

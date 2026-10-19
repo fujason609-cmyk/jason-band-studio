@@ -53,6 +53,18 @@ Each `AudioTrack` has two voices: a sequenced voice behind a `Tone.Channel` (vol
 
 `useMidiImport.openFile` → `readMidiFile` (file checks) → `parseMidi` (`@tonejs/midi` → `NoteEvent`s) → `suggestMapping` (GM program family → member: drums→ritsu, bass→mio, guitar/keys/lead → yui/azusa/tsumugi) → stored as `pendingImport` for the user to edit. `confirm` → `buildTracksFromMapping` (merges tracks assigned to the same member; unassigned members keep existing tracks) → saves the MIDI blob → `engine.stop()` → `projectStore.loadSong`. The timeline grid uses only the first time signature.
 
+### UI language (en / zh)
+
+All user-visible text lives in `src/i18n/strings.ts`: an `en` object whose type (`Strings`) the `zh` object must satisfy, so a missing translation is a type error (`strings.test.ts` also checks key parity). Components call `useT()`; code outside React (store callbacks, async handlers, notices) calls `getT()`. The language is `settings.language`, persisted with the other settings and defaulted by `detectLanguage()`. Member display names and roles come from `t.memberName` / `t.memberRole`, not from `MEMBERS`. Errors thrown by the MIDI file and parse layers carry a `code` plus `fileName` and are translated where they are shown (`useMidiImport`), so keep their English `message` only for logs and tests. Tests render in English (jsdom reports `en-US`).
+
+### Responsive layout
+
+One breakpoint, `$narrow: 760px` in `studio.scss`, mirrored by `NARROW_QUERY` in `useMediaQuery.ts` for JS (one-octave keyboard, lane labels drawn on the timeline canvas). `TOUCH_QUERY` (no hover, coarse pointer) swaps keyboard hints for tap hints and enlarges controls in CSS. On narrow screens the transport bar is `position: sticky` and `useHideOnScroll` slides it away while scrolling down (the pure rule is `scrollVisibility`).
+
+### Live instrument panel
+
+`liveLayoutFor(instrument)` in `src/lib/fretboard.ts` picks the on-screen instrument: `fretboard` (lead guitar, bass, with tunings in the same file), `chords` (rhythm guitar strum pads, `CHORDS`), `piano` (keys) or `drums` (kit laid out by `DrumPad.area` grid areas). All of them feed `useKeyboardInput`, which tracks every sounding note by *source* (`key:a`, `ptr:<id>`). A strum is one source with a sub-source per string (`src|0`, `src|1`, ...), started `STRUM_MS` apart; `release(src)` stops the whole group and cancels strings that haven't started yet. On the fretboard the octave control only moves the computer-keyboard notes, so it is hidden on touch screens.
+
 ### Tests
 
-Tests sit next to their source files (`*.test.ts(x)`). `src/test/setup.ts` loads jest-dom and `fake-indexeddb/auto`. Tone/Web Audio is not available under jsdom, so component tests mock `@/audio/AudioEngine` (see `TrackControls.test.tsx`). Keep logic that needs testing in pure modules (`src/lib`, mapper, validation, stores).
+Tests sit next to their source files (`*.test.ts(x)`). `src/test/setup.ts` loads jest-dom and `fake-indexeddb/auto`, and stubs `matchMedia` as a wide mouse screen (every media query is false). Tone/Web Audio is not available under jsdom, so component tests mock `@/audio/AudioEngine` (see `TrackControls.test.tsx`). Keep logic that needs testing in pure modules (`src/lib`, mapper, validation, stores).

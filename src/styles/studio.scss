@@ -1,5 +1,6 @@
 // Studio layout. Desktop first: mixer strips sit beside timeline lanes on the
-// same row grid; below 760px everything stacks into a single column.
+// same row grid; below 760px everything stacks into a single column and the
+// transport bar pins to the top of the screen.
 
 $narrow: 760px;
 
@@ -477,6 +478,8 @@ select {
   }
   &__role {
     white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
     font-size: 12px;
     color: var(--ink-soft);
   }
@@ -747,6 +750,242 @@ select {
   }
 }
 
+// ---------- drum kit: cymbals on top, toms and snare below, kick pedal at the bottom ----------
+
+.drum-kit {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-areas:
+    "crash chat ohat ride"
+    "htom mtom ltom snare"
+    "kick kick kick kick";
+  gap: 14px;
+  max-width: 620px;
+  margin: 0 auto;
+
+  .pad {
+    position: relative;
+    align-items: center;
+    justify-content: center;
+    gap: 2px;
+    text-align: center;
+  }
+  .pad--cymbal,
+  .pad--drum {
+    aspect-ratio: 1;
+    border-radius: 50%;
+    padding: 6px;
+  }
+  .pad--cymbal {
+    background: radial-gradient(circle, #f7e3a1 0 10%, #e6c35f 11% 58%, #cfa13c 59% 100%);
+    border-color: #b8892a;
+    color: #3d2c05;
+    .pad__hint {
+      color: #6d5418;
+    }
+  }
+  .pad--drum {
+    background: radial-gradient(circle, var(--surface) 0 70%, var(--surface-2) 71% 100%);
+    border: 5px solid var(--rule-strong);
+  }
+  .pad--kick {
+    flex-direction: row;
+    aspect-ratio: auto;
+    height: 64px;
+    gap: 12px;
+    border-radius: 999px;
+    border-width: 5px;
+  }
+  .pad.is-down {
+    background: var(--member);
+    border-color: var(--member);
+    color: #fff;
+    .pad__hint {
+      color: inherit;
+    }
+  }
+}
+
+// ---------- rhythm guitar: chord strum pads ----------
+
+.chords {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(96px, 1fr));
+  gap: 10px;
+  user-select: none;
+  touch-action: none;
+}
+
+.chord {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 6px;
+  min-height: 96px;
+  padding: 10px 12px;
+  border-radius: var(--radius-md);
+  border: 1.5px solid var(--rule-strong);
+  background: var(--surface);
+  text-align: left;
+  transition: transform 60ms ease;
+
+  &--minor {
+    background: var(--paper);
+  }
+  &__name {
+    font-size: 26px;
+    font-weight: 800;
+    line-height: 1;
+  }
+  &__strings {
+    display: flex;
+    align-items: flex-end;
+    gap: 4px;
+    height: 16px;
+    i {
+      width: 3px;
+      height: 100%;
+      border-radius: 2px;
+      background: var(--member);
+      opacity: 0.55;
+    }
+  }
+  &__hint {
+    font-size: 12px;
+    font-weight: 700;
+    color: var(--ink-soft);
+  }
+  &.is-down {
+    background: var(--member);
+    border-color: var(--member);
+    color: #fff;
+    transform: scale(0.97);
+    i {
+      background: #fff;
+      opacity: 0.9;
+    }
+    .chord__hint {
+      color: inherit;
+    }
+  }
+}
+
+// ---------- lead guitar / bass: fretboard ----------
+
+.fretboard-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.fret-nav {
+  align-self: flex-start;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px;
+  border-radius: 999px;
+  border: 1.5px solid var(--rule-strong);
+  &__range {
+    min-width: 6.5em;
+    text-align: center;
+    font-size: 14px;
+    font-weight: 700;
+  }
+}
+
+.fretboard {
+  --tuning-w: 30px;
+  --wood: #4a3328;
+  --wire: #b9b1a3;
+  padding: 8px 0 4px;
+  border-radius: var(--radius-md);
+  background: var(--wood);
+  user-select: none;
+  touch-action: none;
+
+  &__string {
+    position: relative;
+    display: grid;
+    grid-template-columns: var(--tuning-w) repeat(var(--frets), minmax(0, 1fr));
+    height: 40px;
+
+    // the string itself, thicker for lower strings
+    &::before {
+      content: "";
+      position: absolute;
+      left: var(--tuning-w);
+      right: 0;
+      top: 50%;
+      height: calc(var(--gauge) * 1px);
+      transform: translateY(-50%);
+      background: linear-gradient(#efe9dd, #a39a8a);
+      pointer-events: none;
+      z-index: 2;
+    }
+  }
+  &__tuning {
+    display: grid;
+    place-items: center;
+    font-size: 12px;
+    font-weight: 800;
+    color: #f1e6d6;
+  }
+  &__inlays {
+    display: grid;
+    grid-template-columns: var(--tuning-w) repeat(var(--frets), minmax(0, 1fr));
+    padding-top: 4px;
+    font-size: 11px;
+    font-weight: 700;
+    text-align: center;
+    color: #b9a793;
+    .is-inlay {
+      color: #fff;
+      &::before {
+        content: "● ";
+        font-size: 8px;
+        vertical-align: 2px;
+      }
+    }
+  }
+}
+
+.fret {
+  position: relative;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border: 0;
+  border-right: 2px solid var(--wire);
+  border-radius: 0;
+  background: transparent;
+
+  &--open {
+    border-right: 6px solid #efe8da; // the nut
+    background: rgba(255, 255, 255, 0.05);
+  }
+  &:hover {
+    background: rgba(255, 255, 255, 0.08);
+  }
+  &:focus-visible {
+    box-shadow: inset 0 0 0 2px #fff;
+  }
+  &__dot {
+    position: relative;
+    z-index: 3;
+    display: grid;
+    place-items: center;
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    background: var(--member);
+    box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.75);
+    color: #fff;
+    font-size: 11px;
+    font-weight: 800;
+  }
+}
+
 // ---------- MIDI mapping dialog ----------
 
 .mapping-dialog {
@@ -849,9 +1088,140 @@ select {
   pointer-events: none;
 }
 
+// ---------- language toggle ----------
+
+.lang-btn {
+  font-size: 13px;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+}
+
+// ---------- play-along member picker ----------
+
+.member-picker {
+  display: flex;
+  gap: 8px;
+  margin: 0 -4px 16px;
+  padding: 2px 4px;
+  overflow-x: auto;
+  scroll-snap-type: x proximity;
+  scrollbar-width: none;
+  &::-webkit-scrollbar {
+    display: none;
+  }
+}
+
+.member-chip {
+  --member: var(--ink);
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  flex: none;
+  height: 40px;
+  padding: 0 14px 0 5px;
+  border-radius: 999px;
+  border: 1.5px solid var(--rule-strong);
+  background: var(--surface);
+  font-weight: 700;
+  scroll-snap-align: start;
+  transition: background-color 120ms ease, border-color 120ms ease;
+
+  &:hover {
+    border-color: var(--member);
+  }
+  &.is-checked {
+    border-color: var(--member);
+    background: color-mix(in srgb, var(--member) 16%, var(--surface));
+  }
+  &__name {
+    white-space: nowrap;
+  }
+}
+
 // ---------- narrow screens ----------
 
 @media (max-width: $narrow) {
+  .app {
+    gap: 12px;
+  }
+
+  // header: title on top, song name and actions share one row underneath
+  .studio-header {
+    align-items: stretch;
+    gap: 12px;
+  }
+  .studio-header__song {
+    width: 100%;
+    justify-content: space-between;
+    gap: 8px 12px;
+  }
+  .song-name {
+    flex: 1 1 0;
+    max-width: none;
+  }
+  .lockup__en {
+    font-size: 13px;
+  }
+
+  // transport stays reachable while scrolling: two compact rows, pinned to the top
+  .transport {
+    position: sticky;
+    top: 0;
+    z-index: 5;
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    gap: 10px 12px;
+    padding: 10px 12px;
+    transition: transform 220ms ease, box-shadow 220ms ease;
+    box-shadow: 0 1px 0 var(--rule-strong), 0 6px 16px -10px rgba(20, 22, 44, 0.35);
+
+    &__main {
+      width: 48px;
+      height: 48px;
+    }
+    .audio-gate,
+    &__loading {
+      grid-column: 1 / -1;
+    }
+    &.is-hidden {
+      transform: translateY(calc(-100% - 16px));
+      box-shadow: none;
+    }
+  }
+  .readout {
+    min-width: 0;
+    text-align: right;
+    white-space: nowrap;
+    &__clock {
+      font-size: 18px;
+    }
+    &__total {
+      font-size: 13px;
+    }
+    &__bar {
+      font-size: 12px;
+    }
+  }
+  .bpm {
+    gap: 6px;
+    &__label {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      overflow: hidden;
+      clip-path: inset(50%);
+      white-space: nowrap;
+    }
+  }
+  .master {
+    margin-left: 0;
+    width: auto;
+    min-width: 0;
+  }
+
+  .studio {
+    gap: 12px;
+  }
   .studio__tracks {
     grid-template-columns: minmax(0, 1fr);
   }
@@ -861,19 +1231,93 @@ select {
   }
   .strip {
     height: auto;
-    padding: 12px 12px 12px 10px;
+    padding: 10px 12px 10px 10px;
+  }
+  .strip__instrument {
+    width: 116px;
   }
   .strip__empty {
     position: static;
     grid-column: 1 / -1;
     padding-left: 4px;
   }
-  .master {
-    margin-left: 0;
-    width: 100%;
+
+  .instrument {
+    padding: 14px;
+    &__head {
+      gap: 8px 12px;
+      margin-bottom: 12px;
+      // the picker above already shows who is selected
+      > .member-badge {
+        display: none;
+      }
+    }
+    &__title {
+      flex-basis: 100%;
+      h2 {
+        font-size: 17px;
+      }
+      p {
+        font-size: 13px;
+      }
+    }
   }
-  .readout {
+  // all five members fit on one row: badge above name
+  .member-picker {
+    display: grid;
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+    gap: 6px;
+    margin: 0 0 14px;
+    padding: 0;
+    overflow: visible;
+  }
+  .member-chip {
+    flex-direction: column;
+    justify-content: center;
+    gap: 4px;
+    height: auto;
     min-width: 0;
+    padding: 8px 2px 6px;
+    border-radius: var(--radius-md);
+    font-size: 13px;
+    &__name {
+      max-width: 100%;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+  }
+  .keys {
+    height: 168px;
+  }
+  .drum-kit {
+    gap: 8px;
+    .pad__label {
+      font-size: 12px;
+      line-height: 1.2;
+    }
+  }
+  .chords {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 8px;
+  }
+  .chord {
+    min-height: 84px;
+  }
+  .fretboard__string {
+    height: 44px;
+  }
+
+  .mapping-dialog {
+    width: calc(100vw - 16px);
+    &__head {
+      padding: 18px 16px 10px;
+    }
+    &__foot {
+      padding: 12px 16px 16px;
+    }
+  }
+  .mapping-list {
+    padding: 0 16px;
   }
   .mapping-row {
     flex-direction: column;
@@ -881,5 +1325,42 @@ select {
     select {
       width: 100%;
     }
+  }
+}
+
+// small phones: the import button keeps only its icon
+@media (max-width: 420px) {
+  .btn--import {
+    width: 40px;
+    padding: 0;
+    justify-content: center;
+    .btn__text {
+      display: none;
+    }
+  }
+}
+
+// touch screens: bigger targets, no computer-keyboard hints, and form text
+// at 16px so iOS doesn't zoom in when a field gets focus
+@media (hover: none) and (pointer: coarse) {
+  select,
+  input {
+    font-size: 16px;
+  }
+  select {
+    height: 40px;
+  }
+  .ms-btn {
+    width: 40px;
+    height: 40px;
+  }
+  .icon-btn--quiet {
+    width: 40px;
+    height: 40px;
+  }
+  .key__hint,
+  .pad__hint,
+  .chord__hint {
+    display: none;
   }
 }

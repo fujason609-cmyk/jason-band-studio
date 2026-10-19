@@ -1,11 +1,18 @@
 import { useCallback } from "react";
 import { audioEngine } from "@/audio/AudioEngine";
-import { readMidiFile } from "@/services/file/midiFileService";
+import { getT } from "@/i18n/useT";
+import { MidiFileError, readMidiFile } from "@/services/file/midiFileService";
 import { saveMidiBlob } from "@/services/storage/projectStorage";
 import { useProjectStore } from "@/stores/useProjectStore";
 import { useStudioStore } from "@/stores/useStudioStore";
 import { buildTracksFromMapping, suggestMapping } from "./midiMapper";
-import { parseMidi } from "./midiParser";
+import { MidiParseError, parseMidi } from "./midiParser";
+
+function describeError(err: unknown): string {
+  const t = getT();
+  if (err instanceof MidiFileError || err instanceof MidiParseError) return t.midiError[err.code](err.fileName);
+  return t.couldNotOpen;
+}
 
 export function useMidiImport() {
   const openFile = useCallback(async (file: File) => {
@@ -17,7 +24,7 @@ export function useMidiImport() {
       studio.notify(null);
       studio.setPendingImport({ parsed, assignments, data });
     } catch (err) {
-      studio.notify({ kind: "error", text: err instanceof Error ? err.message : "That file couldn't be opened." });
+      studio.notify({ kind: "error", text: describeError(err) });
     }
   }, []);
 
@@ -48,12 +55,9 @@ export function useMidiImport() {
     });
     const left = pending.assignments.filter((a) => a.memberId === null).length;
     studio.setPendingImport(null);
-    studio.notify({
-      kind: "info",
-      text: left > 0
-        ? `Loaded ${pending.parsed.meta.fileName}. ${left} track${left === 1 ? "" : "s"} left out.`
-        : `Loaded ${pending.parsed.meta.fileName}.`,
-    });
+    const t = getT();
+    const file = pending.parsed.meta.fileName;
+    studio.notify({ kind: "info", text: left > 0 ? t.loadedLeftOut(file, left) : t.loaded(file) });
   }, []);
 
   const cancel = useCallback(() => useStudioStore.getState().setPendingImport(null), []);

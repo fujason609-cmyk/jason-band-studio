@@ -5,6 +5,7 @@ import { IconButton } from "@/components/common/IconButton";
 import { MEMBERS } from "@/features/band/members";
 import { NARROW_QUERY, useMediaQuery } from "@/hooks/useMediaQuery";
 import { usePlaybackPosition, useTransport } from "@/hooks/useTransport";
+import { useT } from "@/i18n/useT";
 import { audibleMap } from "@/lib/mix";
 import { barBeat } from "@/lib/time";
 import { useProjectStore } from "@/stores/useProjectStore";
@@ -35,6 +36,7 @@ export function Timeline() {
   const transport = useStudioStore((s) => s.transport);
   const { seek } = useTransport();
   const narrow = useMediaQuery(NARROW_QUERY);
+  const t = useT();
 
   const scrollRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -75,7 +77,7 @@ export function Timeline() {
       lanes: MEMBERS.map((m) => {
         const track = project.tracks.find((t) => t.memberId === m.id)!;
         return {
-          label: m.name,
+          label: t.memberName[m.id],
           color: palette.members[m.id]!,
           notes: track.notes,
           audible: audible[track.id] ?? true,
@@ -84,7 +86,7 @@ export function Timeline() {
         };
       }),
     });
-  }, [project, zoom, viewport, height, narrow, selectedMember]);
+  }, [project, zoom, viewport, height, narrow, selectedMember, t]);
 
   const requestDraw = useCallback(() => {
     cancelAnimationFrame(frame.current);
@@ -123,7 +125,7 @@ export function Timeline() {
       lastAnnounced.current = whole;
       const { bar, beat } = barBeat(pos, project.baseBpm, project.beatsPerBar);
       scroller.setAttribute("aria-valuenow", String(whole));
-      scroller.setAttribute("aria-valuetext", `Bar ${bar}, beat ${beat}`);
+      scroller.setAttribute("aria-valuetext", t.barBeat(bar, beat));
     }
   });
 
@@ -149,14 +151,14 @@ export function Timeline() {
   };
 
   return (
-    <section className="timeline" aria-label="Timeline">
+    <section className="timeline" aria-label={t.timeline}>
       <div
         ref={scrollRef}
         className="timeline__scroll"
         onScroll={requestDraw}
         role="slider"
         tabIndex={0}
-        aria-label="Song position. Arrow keys move one bar, Home goes to the start."
+        aria-label={t.timelineSlider}
         aria-valuemin={0}
         aria-valuemax={Math.floor(project.durationSeconds)}
         onKeyDown={(e) => {
@@ -191,14 +193,14 @@ export function Timeline() {
         </div>
       </div>
       <div className="timeline__tools">
-        <IconButton label="Zoom out" variant="quiet" onClick={() => setZoom(zoom / 1.4)} disabled={zoom <= MIN_ZOOM}>
+        <IconButton label={t.zoomOut} variant="quiet" onClick={() => setZoom(zoom / 1.4)} disabled={zoom <= MIN_ZOOM}>
           <ZoomOut size={16} />
         </IconButton>
-        <IconButton label="Zoom in" variant="quiet" onClick={() => setZoom(zoom * 1.4)} disabled={zoom >= MAX_ZOOM}>
+        <IconButton label={t.zoomIn} variant="quiet" onClick={() => setZoom(zoom * 1.4)} disabled={zoom >= MAX_ZOOM}>
           <ZoomIn size={16} />
         </IconButton>
         <IconButton
-          label="Follow the playhead"
+          label={t.followPlayhead}
           variant="quiet"
           pressed={followPlayhead}
           onClick={() => updateSettings({ followPlayhead: !followPlayhead })}

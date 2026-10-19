@@ -3,6 +3,7 @@ import { audioEngine } from "@/audio/AudioEngine";
 import type { MemberId } from "@/features/band/types";
 import { ensureAudio } from "@/hooks/useAudioEngine";
 import { DRUM_PADS } from "@/lib/drums";
+import { CHORDS, STRUM_MS, liveLayoutFor, type Chord } from "@/lib/fretboard";
 import {
   MAX_OCTAVE,
   MIN_OCTAVE,
@@ -18,12 +19,16 @@ import type { InstrumentId } from "@/types/audio";
  * Live playing for the selected member. Notes can come from the computer keyboard
  * or from pointer presses on the on-screen instrument; each source is tracked so a
  * release always stops the exact pitch it started, even after an octave change.
+ * A strummed chord is one source with a sub-source per string ("src|0", "src|1", ...).
  */
 export function useKeyboardInput(member: MemberId, instrument: InstrumentId) {
   const [octave, setOctave] = useState(() => defaultOctaveFor(instrument));
   const [active, setActive] = useState<ReadonlySet<number>>(() => new Set());
+  const [activeChords, setActiveChords] = useState<ReadonlySet<string>>(() => new Set());
   const held = useRef(new Map<string, number>());
-  const isDrums = instrument === "drums";
+  const strums = useRef(new Map<string, { chord: string; timers: ReturnType<typeof setTimeout>[] }>());
+  const layout = liveLayoutFor(instrument);
+  const isDrums = layout === "drums";
 
   const press = useCallback(
     async (source: string, pitch: number) => {
@@ -48,7 +53,7 @@ export function useKeyboardInput(member: MemberId, instrument: InstrumentId) {
     [member, isDrums],
   );
 
-  const release = useCallback(
+  const releaseOne = useCallback(
     (source: string) => {
       const pitch = held.current.get(source);
       if (pitch === undefined) return;
@@ -64,10 +69,44 @@ export function useKeyboardInput(member: MemberId, instrument: InstrumentId) {
     [member],
   );
 
+  /** Stop a source, including every string of a chord it strummed. */
+  const release = useCallback(
+    (source: string) => {
+      releaseOne(source);
+      const strum = strums.current.get(source);
+      if (!strum) return;
+      strum.timers.forEach(clearTimeout);
+      strums.current.delete(source);
+      [...held.current.keys()].filter((k) => k.startsWith(`${source}|`)).forEach(releaseOne);
+      setActiveChords((prev) => {
+        const next = new Set(prev);
+        if (![...strums.current.values()].some((s) => s.chord === strum.chord)) next.delete(strum.chord);
+        return next;
+      });
+    },
+    [releaseOne],
+  );
+
+  /** Down-strum: lowest string first, a few milliseconds apart. */
+  const strum = useCallback(
+    (source: string, chord: Chord) => {
+      if (strums.current.has(source)) return;
+      const timers = chord.pitches.map((pitch, i) =>
+        setTimeout(() => void press(`${source}|${i}`, pitch), i * STRUM_MS),
+      );
+      strums.current.set(source, { chord: chord.name, timers });
+      setActiveChords((prev) => new Set(prev).add(chord.name));
+    },
+    [press],
+  );
+
   const releaseAll = useCallback(() => {
+    strums.current.forEach((s) => s.timers.forEach(clearTimeout));
+    strums.current.clear();
     held.current.clear();
     audioEngine.allNotesOff(member);
     setActive(new Set());
+    setActiveChords(new Set());
   }, [member]);
 
   // Changing who plays or what they play: stop hanging notes, reset the octave.
@@ -80,6 +119,13 @@ export function useKeyboardInput(member: MemberId, instrument: InstrumentId) {
     const onDown = (e: KeyboardEvent) => {
       if (e.metaKey || e.ctrlKey || e.altKey || isTypingTarget(e.target)) return;
       const key = e.key.toLowerCase();
+      if (layout === "chords") {
+        const chord = CHORDS.find((c) => c.key === key);
+        if (!chord) return;
+        e.preventDefault();
+        if (!e.repeat) strum(`key:${key}`, chord);
+        return;
+      }
       let pitch: number | null = null;
       if (isDrums) {
         pitch = DRUM_PADS.find((p) => p.key === key)?.pitch ?? null;
@@ -109,7 +155,7 @@ export function useKeyboardInput(member: MemberId, instrument: InstrumentId) {
       window.removeEventListener("blur", onBlur);
       document.removeEventListener("visibilitychange", onVisibility);
     };
-  }, [isDrums, octave, press, release, releaseAll]);
+  }, [layout, isDrums, octave, press, release, releaseAll, strum]);
 
-  return { octave, setOctave, active, press, release };
+  return { octave, setOctave, active, activeChords, press, release, strum };
 }

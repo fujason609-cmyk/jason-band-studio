@@ -2,8 +2,9 @@ import { AlertTriangle, LoaderCircle } from "lucide-react";
 import { audioEngine } from "@/audio/AudioEngine";
 import { Fader } from "@/components/common/Fader";
 import { MemberBadge } from "@/features/band/components/MemberBadge";
-import { INSTRUMENT_IDS, INSTRUMENT_LABELS, getMember, isInstrumentId } from "@/features/band/members";
+import { INSTRUMENT_IDS, getMember, isInstrumentId } from "@/features/band/members";
 import type { MemberId } from "@/features/band/types";
+import { useT } from "@/i18n/useT";
 import { useStudioStore } from "@/stores/useStudioStore";
 import { useInstrumentState, useMixerActions, useMixerTrack } from "./mixerStore";
 
@@ -15,6 +16,8 @@ export function TrackControls({ memberId }: { memberId: MemberId }) {
   const selected = useStudioStore((s) => s.settings.selectedMember === memberId);
   const selectMember = useStudioStore((s) => s.selectMember);
   const color = `var(${member.colorVar})`;
+  const t = useT();
+  const name = t.memberName[memberId];
 
   return (
     <div
@@ -26,21 +29,19 @@ export function TrackControls({ memberId }: { memberId: MemberId }) {
         className="strip__who"
         onClick={() => selectMember(memberId)}
         aria-pressed={selected}
-        title={`Play ${member.name}'s instrument live`}
+        title={t.playLiveAs(name)}
       >
         <MemberBadge member={member} />
         <span className="strip__names">
-          <span className="strip__name">{member.name}</span>
-          <span className="strip__role" lang="ja">
-            {member.nameJa}
-          </span>
+          <span className="strip__name">{name}</span>
+          <span className="strip__role">{t.memberRole[memberId]}</span>
         </span>
       </button>
 
       <div className="strip__controls">
         <select
           className="strip__instrument"
-          aria-label={`${member.name}'s instrument`}
+          aria-label={t.instrumentOf(name)}
           value={track.instrument}
           onChange={(e) => {
             const v = e.currentTarget.value;
@@ -49,7 +50,7 @@ export function TrackControls({ memberId }: { memberId: MemberId }) {
         >
           {INSTRUMENT_IDS.map((id) => (
             <option key={id} value={id}>
-              {INSTRUMENT_LABELS[id]}
+              {t.instrument[id]}
             </option>
           ))}
         </select>
@@ -57,8 +58,8 @@ export function TrackControls({ memberId }: { memberId: MemberId }) {
           type="button"
           className="ms-btn ms-btn--mute"
           aria-pressed={track.muted}
-          aria-label={`Mute ${member.name}`}
-          title={`Mute ${member.name}`}
+          aria-label={t.mute(name)}
+          title={t.mute(name)}
           onClick={() => toggleMute(memberId)}
         >
           M
@@ -67,8 +68,8 @@ export function TrackControls({ memberId }: { memberId: MemberId }) {
           type="button"
           className="ms-btn ms-btn--solo"
           aria-pressed={track.solo}
-          aria-label={`Solo ${member.name}`}
-          title={`Solo ${member.name}`}
+          aria-label={t.solo(name)}
+          title={t.solo(name)}
           onClick={() => toggleSolo(memberId)}
         >
           S
@@ -77,7 +78,7 @@ export function TrackControls({ memberId }: { memberId: MemberId }) {
 
       <div className="strip__level">
         <Fader
-          label={`${member.name} volume`}
+          label={t.volumeOf(name)}
           value={track.volume}
           onChange={(v) => setTrackVolume(memberId, v)}
           valueText={`${Math.round(track.volume * 100)}%`}
@@ -85,12 +86,13 @@ export function TrackControls({ memberId }: { memberId: MemberId }) {
         />
         <LoadState state={load} onRetry={() => audioEngine.retryInstrument(track.instrument)} />
       </div>
-      {track.noteCount === 0 && <p className="strip__empty">No part in this song</p>}
+      {track.noteCount === 0 && <p className="strip__empty">{t.noPart}</p>}
     </div>
   );
 }
 
 function LoadState({ state, onRetry }: { state: ReturnType<typeof useInstrumentState>; onRetry: () => void }) {
+  const t = useT();
   if (!state || state.status === "ready" || state.status === "idle") return null;
   if (state.status === "loading") {
     return (
@@ -103,7 +105,7 @@ function LoadState({ state, onRetry }: { state: ReturnType<typeof useInstrumentS
   return (
     <button type="button" className="load-state load-state--error" onClick={onRetry} title={state.error}>
       <AlertTriangle size={14} aria-hidden="true" />
-      Retry
+      {t.retry}
     </button>
   );
 }
