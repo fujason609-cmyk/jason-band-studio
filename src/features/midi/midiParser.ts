@@ -1,0 +1,73 @@
+import { Midi } from "@tonejs/midi";
+import type { NoteEvent, ParsedMidi, ParsedMidiTrack } from "@/types/midi";
+
+export class MidiParseError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "MidiParseError";
+  }
+}
+
+/** Parse a Standard MIDI File into note events in song seconds, keeping timing metadata. */
+export function parseMidi(data: ArrayBuffer | Uint8Array, fileName: string): ParsedMidi {
+  let midi: Midi;
+  try {
+    midi = new Midi(data);
+  } catch {
+    throw new MidiParseError(
+      `${fileName} isn't a readable MIDI file. Export it again as a Standard MIDI File (.mid) and try once more.`,
+    );
+  }
+
+  const tracks: ParsedMidiTrack[] = midi.tracks
+    .map((track, index): ParsedMidiTrack => {
+      const notes: NoteEvent[] = track.notes
+        .filter((n) => n.duration > 0 || track.instrument.percussion)
+        .map((n) => ({
+          pitch: n.midi,
+          start: n.time,
+          duration: Math.max(n.duration, 0.05),
+          velocity: n.velocity,
+        }))
+        .sort((a, b) => a.start - b.start || a.pitch - b.pitch);
+      const percussion = track.instrument.percussion || track.channel === 9;
+      return {
+        index,
+        name: track.name.trim() || `Track ${index + 1}`,
+        channel: track.channel,
+        program: track.instrument.number,
+        instrumentName: percussion ? "drum kit" : track.instrument.name,
+        isPercussion: percussion,
+        notes,
+      };
+    })
+    .filter((t) => t.notes.length > 0);
+
+  if (tracks.length === 0) {
+    throw new MidiParseError(`${fileName} has no notes to play. Pick a MIDI file that contains note data.`);
+  }
+
+  const tempos = midi.header.tempos.map((t) => ({
+    ticks: t.ticks,
+    bpm: t.bpm,
+    time: t.time ?? midi.header.ticksToSeconds(t.ticks),
+  }));
+  const timeSignatures = midi.header.timeSignatures.map((ts) => ({
+    ticks: ts.ticks,
+    numerator: ts.timeSignature[0] ?? 4,
+    denominator: ts.timeSignature[1] ?? 4,
+  }));
+
+  const lastNoteEnd = Math.max(...tracks.flatMap((t) => t.notes.map((n) => n.start + n.duration)));
+
+  return {
+    meta: {
+      fileName,
+      ppq: midi.header.ppq,
+      tempos,
+      timeSignatures,
+      durationSeconds: Math.max(lastNoteEnd, 0.1),
+    },
+    tracks,
+  };
+}

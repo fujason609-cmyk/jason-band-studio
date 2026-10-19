@@ -1,0 +1,56 @@
+// Palette: lavender staff paper, navy ink, and one colour per band member.
+:root {
+  color-scheme: light;
+  --paper: #f3f1f8;
+  --surface: #ffffff;
+  --surface-2: #e9e6f3;
+  --ink: #24264f;
+  --ink-soft: #5e6189;
+  --rule: #e3e0ef;
+  --rule-strong: #c9c5dd;
+  --lane-selected: #f8f5ff;
+  --danger: #c2334d;
+  --on-ink: #ffffff;
+
+  --member-yui: #e0507a;
+  --member-mio: #3d6bd6;
+  --member-ritsu: #d08309;
+  --member-tsumugi: #9161cc;
+  --member-azusa: #1b927e;
+
+  --font: "M PLUS Rounded 1c", "Hiragino Maru Gothic ProN", "Yu Gothic UI", "Noto Sans JP", system-ui, sans-serif;
+  --radius-lg: 20px;
+  --radius-md: 12px;
+  --radius-sm: 8px;
+  --focus: 0 0 0 3px var(--paper), 0 0 0 5px var(--ink);
+  --shadow: 0 1px 0 var(--rule-strong);
+}
+
+@mixin dark-tokens {
+  color-scheme: dark;
+  --paper: #14162c;
+  --surface: #1c1f3b;
+  --surface-2: #262a4c;
+  --ink: #eeedf9;
+  --ink-soft: #a6a8c9;
+  --rule: #2a2e52;
+  --rule-strong: #3e436e;
+  --lane-selected: #23274a;
+  --danger: #ff7a8f;
+  --on-ink: #14162c;
+
+  --member-yui: #ff7da0;
+  --member-mio: #7ea3ff;
+  --member-ritsu: #ffb646;
+  --member-tsumugi: #c39bf5;
+  --member-azusa: #4fd2b7;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    @include dark-tokens;
+  }
+}
+:root[data-theme="dark"] {
+  @include dark-tokens;
+}

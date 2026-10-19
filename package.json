@@ -1,0 +1,50 @@
+{
+  "name": "k-on-band-studio",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "description": "After School Tea Time Band Studio — a tiny browser DAW for a five-piece light-music club band.",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc -b && vite build",
+    "preview": "vite preview",
+    "typecheck": "tsc -b",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "lint": "eslint .",
+    "format": "prettier --write .",
+    "demo:midi": "vite-node scripts/generate-demo-midi.ts"
+  },
+  "dependencies": {
+    "@tonejs/midi": "2.0.28",
+    "lucide-react": "0.511.0",
+    "react": "19.1.0",
+    "react-dom": "19.1.0",
+    "tone": "15.1.22",
+    "zustand": "5.0.5"
+  },
+  "devDependencies": {
+    "@eslint/js": "9.28.0",
+    "@testing-library/jest-dom": "6.6.3",
+    "@testing-library/react": "16.3.0",
+    "@testing-library/user-event": "14.6.1",
+    "@types/node": "22.15.29",
+    "@types/react": "19.1.6",
+    "@types/react-dom": "19.1.5",
+    "@vitejs/plugin-react": "4.5.0",
+    "eslint": "9.28.0",
+    "eslint-plugin-react-hooks": "5.2.0",
+    "eslint-plugin-react-refresh": "0.4.20",
+    "fake-indexeddb": "6.0.1",
+    "globals": "16.2.0",
+    "jsdom": "26.1.0",
+    "prettier": "3.5.3",
+    "sass": "1.89.1",
+    "typescript": "5.8.3",
+    "typescript-eslint": "8.33.1",
+    "vite": "6.3.5",
+    "vite-node": "3.2.0",
+    "vitest": "3.2.0"
+  },
+  "packageManager": "pnpm@9.15.9"
+}

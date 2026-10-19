@@ -1,0 +1,109 @@
+# 放課後ティータイム Band Studio
+
+A small browser DAW for a five-piece light-music club band. Listen to each member's part, mix them, import a MIDI file and hand its tracks to the band, and play along live on your computer keyboard. It's a static site with no backend or accounts, and it runs on GitHub Pages for free.
+
+> A fan-made project, not affiliated with the rights holders of K-ON!. The repo ships no character artwork, official recordings or scores. Every sound is synthesized in the browser, and the demo song, *After School Jam*, was written for this project.
+
+## What it does
+
+- **Five tracks**, one per member: Yui (lead guitar), Mio (bass), Ritsu (drums), Mugi (keys) and Azusa (rhythm guitar). Each member's instrument can be changed.
+- **Mixer** with per-track volume, mute and solo, plus a master volume. Mute always wins; while any track is soloed only soloed tracks play. Toggling either cuts notes that are already ringing.
+- **One clock for the band.** Every note is scheduled on a single Tone.js Transport, so the parts can't drift apart. Tempo changes keep the playhead where it is, and pause, resume, seek and loop act on all tracks at once.
+- **MIDI import** from the file picker or by dropping a `.mid` file on the page. Tracks are matched to members by General MIDI family (drums, bass, guitar, keys, lead) and you can reassign or leave out any of them before loading. The tempo map, PPQ and time signatures are kept.
+- **Timeline** drawn on a canvas, with staff-paper lanes, bar numbers, zoom, an optional follow mode and click or drag to seek. With keyboard focus on it, the arrow keys move one bar and Home goes to the start.
+- **Live playing** for the selected member:
+  - Melodic instruments: the `A`–`;` keys play the white notes, `W E T Y U O P` the sharps, and `Z` / `X` change octave.
+  - Drums: the `A`–`L` keys play the pads.
+  - The on-screen keyboard and pads work with mouse and touch.
+  - Space plays or pauses.
+- **Saved in your browser.** Settings go in `localStorage`; the session and the original MIDI file go in IndexedDB. Refreshing the page restores everything, and the audio engine is rebuilt from the saved data.
+
+## Getting started
+
+```bash
+corepack enable          # or: npm i -g pnpm@9
+pnpm install
+pnpm dev                 # http://localhost:5173
+```
+
+| Script | What it does |
+|---|---|
+| `pnpm dev` | Dev server |
+| `pnpm build` | Typecheck and production build into `dist/` |
+| `pnpm preview` | Serve the production build |
+| `pnpm test` | Vitest unit and component tests |
+| `pnpm lint` | ESLint |
+| `pnpm demo:midi` | Rewrite `public/demo/after-school-jam.mid` from the demo song |
+
+`public/demo/after-school-jam.mid` is a ready-made file for trying the import flow.
+
+## Deploying to GitHub Pages
+
+1. Push the repo to GitHub with `main` as the default branch.
+2. In **Settings → Pages**, set **Source** to **GitHub Actions**.
+3. Push to `main`. The workflow in `.github/workflows/deploy.yml` lints, tests, builds and publishes the site.
+
+The workflow sets `BASE_PATH=/<repo-name>/` so that asset paths work under `https://<user>.github.io/<repo-name>/`. If the repo is your `<user>.github.io` root site, change `BASE_PATH` to `/` in the workflow. Locally the base is `/`.
+
+## How it's put together
+
+```
+src/
+  audio/          AudioEngine (owns all sound), AudioTrack (one lane), SampleManager,
+                  TransportController (the clock), voices (synth instruments), audioConfig
+  features/
+    band/         members, the original demo song, MemberBadge
+    mixer/        TrackMixer, TrackControls, mixer selectors
+    midi/         midiParser (@tonejs/midi → note events), midiMapper (tracks → members), import UI
+    timeline/     canvas drawing, Timeline, Playhead
+    instruments/  live keyboard / drum pads and computer-keyboard input
+  stores/         Zustand: useProjectStore (song + mix), useStudioStore (UI, transport, settings)
+  services/       storage (localStorage settings, IndexedDB projects and MIDI blobs), MIDI file checks
+  hooks/          engine bridge, transport, playback position, media queries
+  lib/            pure logic: time model, mute/solo rules, keyboard map, GM drums
+```
+
+**React handles state and UI; the engine handles sound and time.** Components never touch Tone.js directly. `useAudioEngineBridge` subscribes to the project store and calls `audioEngine.sync(project)`, which compares each value with what it already has and only changes what's different. The playhead and position readout run on `requestAnimationFrame` and write straight to the DOM, so playback never causes React re-renders.
+
+**Time model.** Notes are stored in *song seconds*, meaning seconds at the song's own tempo map, which `@tonejs/midi` works out. The engine converts them to Transport ticks against the song's base BPM. Playing at another tempo is then just a change to `Transport.bpm`: tick positions don't move, so the sound and the playhead stay together. A tempo map inside the MIDI file is kept, because the whole song is scaled by the same ratio.
+
+## Adding a sample pack
+
+The synthesized voices avoid licensing and repo-size problems. To use recorded samples instead:
+
+1. Put a pack that you're **allowed to redistribute** in `public/instruments/<instrument>/`. The instrument IDs are `lead-guitar`, `rhythm-guitar`, `bass`, `drums` and `keys`.
+2. Register it in `src/audio/audioConfig.ts`:
+   ```ts
+   export const SAMPLE_PACKS = {
+     keys: { files: { C3: "C3.mp3", C4: "C4.mp3", C5: "C5.mp3" }, release: 1, license: "CC0, from …" },
+   };
+   ```
+   For drums, key each hit by its General MIDI note name: `C2` for the kick (36), `D2` for the snare (38), and so on.
+
+Packs load lazily and are shared by every track that uses them. Each mixer strip shows the load progress, and a failed load shows a Retry button. Notes for an instrument stay silent until its pack is ready.
+
+## Testing
+
+`pnpm test` runs 39 tests covering:
+- mute and solo rules
+- tick and second conversions, and tempo scaling
+- the keyboard map
+- MIDI parsing and errors, track auto-mapping and merging
+- project validation and repair
+- settings and IndexedDB round trips
+- the project store and the demo song's integrity
+- mixer UI behaviour
+
+Behaviour checked by hand in Chromium:
+- playback and stop at the end of the song
+- tempo change while playing (no jump, half speed at half tempo)
+- pause and resume (no drift)
+- the end of the song stopping playback even when the tab is in the background
+
+## Known limits
+
+- The synth voices are expressive enough to practise with, but they don't model guitar bends, slides or strumming.
+- Imported songs use one time signature on the timeline grid (the first one in the file). Note timing is still exact.
+- Sessions live only in this browser. Clearing site data, switching devices or moving the site to another domain loses them. Project import and export is on the roadmap (V1.1).
+- There's no WAV export, MusicXML or notation editing yet (V1.2–V2.0).
+- Audio needs one click or key press before it can start, which is a browser rule.

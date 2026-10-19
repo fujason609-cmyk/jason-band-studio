@@ -1,0 +1,79 @@
+import { useCallback, useEffect, useRef } from "react";
+import { audioEngine } from "@/audio/AudioEngine";
+import { isTypingTarget } from "@/lib/keyboardMap";
+import { useStudioStore } from "@/stores/useStudioStore";
+import { ensureAudio } from "./useAudioEngine";
+
+export function useTransport() {
+  const status = useStudioStore((s) => s.transport);
+  const setTransport = useStudioStore((s) => s.setTransport);
+
+  const play = useCallback(async () => {
+    if (!(await ensureAudio())) return;
+    audioEngine.play();
+    setTransport("playing");
+  }, [setTransport]);
+
+  const pause = useCallback(() => {
+    audioEngine.pause();
+    setTransport("paused");
+  }, [setTransport]);
+
+  const stop = useCallback(() => {
+    audioEngine.stop();
+    setTransport("stopped");
+  }, [setTransport]);
+
+  const toggle = useCallback(() => {
+    if (useStudioStore.getState().transport === "playing") pause();
+    else void play();
+  }, [play, pause]);
+
+  const seek = useCallback((songSeconds: number) => {
+    audioEngine.seek(songSeconds);
+    if (audioEngine.status === "stopped" && useStudioStore.getState().transport !== "stopped") {
+      setTransport("paused");
+    }
+  }, [setTransport]);
+
+  return { status, play, pause, stop, toggle, seek };
+}
+
+/** Space toggles playback unless the user is typing or pressing a focused control. */
+export function useSpacebarToggle(toggle: () => void) {
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.code !== "Space" || e.repeat) return;
+      const target = e.target as HTMLElement | null;
+      if (isTypingTarget(target) || target?.closest("button, [role='slider'], summary, dialog")) return;
+      e.preventDefault();
+      toggle();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [toggle]);
+}
+
+/**
+ * Calls `onFrame` with the transport position (song seconds) on every animation
+ * frame. Lives outside React state so the playhead never triggers re-renders.
+ */
+export function usePlaybackPosition(onFrame: (songSeconds: number) => void) {
+  const ref = useRef(onFrame);
+  ref.current = onFrame;
+  useEffect(() => {
+    let raf = 0;
+    let last = -1;
+    const tick = () => {
+      const pos = audioEngine.getPosition();
+      if (pos !== last) {
+        last = pos;
+        ref.current(pos);
+      }
+      raf = requestAnimationFrame(tick);
+    };
+    ref.current(audioEngine.getPosition());
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+  }, []);
+}
