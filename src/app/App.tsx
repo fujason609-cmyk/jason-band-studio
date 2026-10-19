@@ -9,6 +9,7 @@ import { TrackMixer } from "@/features/mixer/TrackMixer";
 import { VideoOverlayZone } from "@/features/overlay/VideoOverlayZone";
 import { LANE_HEIGHT, RULER_HEIGHT } from "@/features/timeline/layout";
 import { Timeline } from "@/features/timeline/Timeline";
+import { TimelineToolbar } from "@/features/timeline/TimelineToolbar";
 import { useAudioEngineBridge } from "@/hooks/useAudioEngine";
 import { useT } from "@/i18n/useT";
 import { PersistenceProvider } from "./providers/PersistenceProvider";
@@ -45,6 +46,7 @@ function Studio() {
       <TransportBar />
       <main className="studio">
         <div className="studio__tracks">
+          <TimelineToolbar />
           <TrackMixer />
           <Timeline />
         </div>

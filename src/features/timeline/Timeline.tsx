@@ -1,7 +1,5 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
-import { Clapperboard, Crosshair, ZoomIn, ZoomOut } from "lucide-react";
 import { audioEngine } from "@/audio/AudioEngine";
-import { IconButton } from "@/components/common/IconButton";
 import { MEMBERS } from "@/features/band/members";
 import { NARROW_QUERY, useMediaQuery } from "@/hooks/useMediaQuery";
 import { usePlaybackPosition, useTransport } from "@/hooks/useTransport";
@@ -11,7 +9,7 @@ import { barBeat } from "@/lib/time";
 import { useProjectStore } from "@/stores/useProjectStore";
 import { useStudioStore } from "@/stores/useStudioStore";
 import { drawTimeline, type Palette } from "./drawTimeline";
-import { LANE_HEIGHT, MAX_ZOOM, MIN_ZOOM, RULER_HEIGHT, TIMELINE_GUTTER } from "./layout";
+import { LANE_HEIGHT, RULER_HEIGHT, TIMELINE_GUTTER } from "./layout";
 import { Playhead } from "./Playhead";
 
 function readPalette(): Palette & { members: Record<string, string> } {
@@ -31,8 +29,7 @@ function readPalette(): Palette & { members: Record<string, string> } {
 
 export function Timeline() {
   const project = useProjectStore((s) => s.project);
-  const { zoom, followPlayhead, selectedMember, theme, overlay } = useStudioStore((s) => s.settings);
-  const updateSettings = useStudioStore((s) => s.updateSettings);
+  const { zoom, followPlayhead, selectedMember, theme } = useStudioStore((s) => s.settings);
   const transport = useStudioStore((s) => s.transport);
   const { seek } = useTransport();
   const narrow = useMediaQuery(NARROW_QUERY);
@@ -137,18 +134,16 @@ export function Timeline() {
 
   const barSeconds = (60 / project.baseBpm) * project.beatsPerBar;
 
-  const setZoom = (next: number) => {
+  // Zoom is set from the toolbar under the timeline; keep the centre of the view in place.
+  const lastZoom = useRef(zoom);
+  useLayoutEffect(() => {
     const scroller = scrollRef.current;
-    const clamped = Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, next));
-    if (scroller) {
-      // keep the centre of the view in place
-      const centre = (scroller.scrollLeft + scroller.clientWidth / 2 - TIMELINE_GUTTER) / zoom;
-      requestAnimationFrame(() => {
-        scroller.scrollLeft = TIMELINE_GUTTER + centre * clamped - scroller.clientWidth / 2;
-      });
-    }
-    updateSettings({ zoom: clamped });
-  };
+    const prev = lastZoom.current;
+    lastZoom.current = zoom;
+    if (!scroller || prev === zoom) return;
+    const centre = (scroller.scrollLeft + scroller.clientWidth / 2 - TIMELINE_GUTTER) / prev;
+    scroller.scrollLeft = TIMELINE_GUTTER + centre * zoom - scroller.clientWidth / 2;
+  }, [zoom]);
 
   return (
     <section className="timeline" aria-label={t.timeline}>
@@ -191,30 +186,6 @@ export function Timeline() {
           <canvas ref={canvasRef} className="timeline__canvas" style={{ width: viewport, height }} />
           <Playhead ref={playheadRef} />
         </div>
-      </div>
-      <div className="timeline__tools">
-        <IconButton label={t.zoomOut} variant="quiet" onClick={() => setZoom(zoom / 1.4)} disabled={zoom <= MIN_ZOOM}>
-          <ZoomOut size={16} />
-        </IconButton>
-        <IconButton label={t.zoomIn} variant="quiet" onClick={() => setZoom(zoom * 1.4)} disabled={zoom >= MAX_ZOOM}>
-          <ZoomIn size={16} />
-        </IconButton>
-        <IconButton
-          label={t.followPlayhead}
-          variant="quiet"
-          pressed={followPlayhead}
-          onClick={() => updateSettings({ followPlayhead: !followPlayhead })}
-        >
-          <Crosshair size={16} />
-        </IconButton>
-        <IconButton
-          label={t.showOverlay}
-          variant="quiet"
-          pressed={overlay.enabled}
-          onClick={() => updateSettings({ overlay: { ...overlay, enabled: !overlay.enabled } })}
-        >
-          <Clapperboard size={16} />
-        </IconButton>
       </div>
     </section>
   );

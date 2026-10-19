@@ -67,7 +67,7 @@ One breakpoint, `$narrow: 760px` in `studio.scss`, mirrored by `NARROW_QUERY` in
 
 ### Video overlay zone
 
-`src/features/overlay/` draws a chroma-key box under the timeline, toggled from the timeline toolbar and stored in `settings.overlay`. Its colours in `OVERLAY_COLORS` are exact key values: never theme them, and never add a border, radius, shadow or text inside the box, or keying breaks. The controls use `visibility: hidden` while playing (not `display: none`) so the box doesn't move mid-recording.
+`src/features/overlay/` draws a chroma-key box under the timeline, stored in `settings.overlay`. `TimelineToolbar` is the first row of the `.studio__tracks` card (full width on desktop; on narrow screens CSS `order` moves it between the mixer strips and the timeline) and holds zoom, follow, the overlay switch and `OverlayOptions`; nothing floats over the timeline itself. While the overlay is on, `.overlay-zone` has a screen-height bottom margin so a recording framed on timeline + box never shows the live instrument panel. Zoom is just `settings.zoom`, and `Timeline` keeps the view centred in a layout effect when it changes. Its colours in `OVERLAY_COLORS` are exact key values: never theme them, and never add a border, radius, shadow or text inside the box, or keying breaks. `OverlayOptions` uses `visibility: hidden` while playing (not `display: none`) so the box doesn't move mid-recording.
 
 ### Tests
 

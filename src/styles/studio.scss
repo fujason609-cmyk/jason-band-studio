@@ -572,16 +572,6 @@ select {
     left: 0;
     display: block;
   }
-  &__tools {
-    position: absolute;
-    top: 4px;
-    right: 8px;
-    display: flex;
-    gap: 2px;
-    padding: 0 2px;
-    border-radius: 999px;
-    background: var(--paper);
-  }
 }
 
 .playhead {
@@ -986,42 +976,56 @@ select {
   }
 }
 
+// ---------- toolbar on top of the timeline card ----------
+
+// first row of .studio__tracks, across the mixer and the timeline; on narrow
+// screens it moves down to sit between the mixer strips and the timeline
+.timeline-toolbar {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px 12px;
+  min-height: 44px;
+  padding: 4px 10px;
+  border-bottom: 1.5px solid var(--rule-strong);
+  background: var(--paper);
+
+  &__group {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+  }
+}
+
+.overlay-options {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 8px;
+  margin-left: auto;
+  &.is-hidden {
+    visibility: hidden;
+  }
+  &__label {
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--ink-soft);
+    cursor: help;
+  }
+}
+
 // ---------- video overlay zone (chroma-key box) ----------
 
+// A screen's height of empty space below the box, so a recording framed on the
+// timeline and the box never catches the live instrument panel underneath.
 .overlay-zone {
   display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 10px;
+  justify-content: center;
+  margin-bottom: 100vh;
+  margin-bottom: 100svh;
 
-  &__controls {
-    align-self: stretch;
-    display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    justify-content: space-between;
-    gap: 8px 16px;
-    &.is-hidden {
-      visibility: hidden;
-    }
-  }
-  &__title {
-    flex: 1 1 260px;
-    h2 {
-      font-size: 15px;
-      font-weight: 800;
-    }
-    p {
-      font-size: 13px;
-      color: var(--ink-soft);
-    }
-  }
-  &__options {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    gap: 8px;
-  }
   // flat key colour: no radius, border or shadow, so the keyer gets clean edges
   &__key {
     display: block;
@@ -1283,6 +1287,27 @@ select {
 
   .studio {
     gap: 12px;
+  }
+  // mixer strips, then the toolbar, then the timeline right under it.
+  // Zoom tools and the overlay switch share the first toolbar row, overlay options go below.
+  .mixer {
+    order: 1;
+  }
+  .timeline-toolbar {
+    order: 2;
+  }
+  .timeline {
+    order: 3;
+  }
+  .overlay-options {
+    order: 3;
+    flex: 1 1 100%;
+    flex-wrap: nowrap;
+    justify-content: flex-end;
+    margin-left: 0;
+    &__label {
+      display: none;
+    }
   }
   .studio__tracks {
     grid-template-columns: minmax(0, 1fr);
