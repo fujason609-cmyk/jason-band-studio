@@ -1,5 +1,5 @@
 import { useRef } from "react";
-import { Minus, Pause, Play, Plus, Repeat, Square, Volume2 } from "lucide-react";
+import { Minus, Pause, Play, Plus, Repeat, SkipBack, Square, Volume2 } from "lucide-react";
 import { IconButton } from "@/components/common/IconButton";
 import { Fader } from "@/components/common/Fader";
 import { ensureAudio } from "@/hooks/useAudioEngine";
@@ -83,7 +83,7 @@ function BpmControl() {
 }
 
 export function TransportBar() {
-  const { status, play, pause, stop, toggle } = useTransport();
+  const { status, play, pause, stop, restart, toggle } = useTransport();
   useSpacebarToggle(toggle);
   const audioStarted = useStudioStore((s) => s.audioStarted);
   const loop = useStudioStore((s) => s.settings.loop);
@@ -118,6 +118,9 @@ export function TransportBar() {
             <Play size={22} />
           </IconButton>
         )}
+        <IconButton label={t.restart} onClick={() => void restart()} disabled={loading}>
+          <SkipBack size={18} />
+        </IconButton>
         <IconButton label={t.stop} onClick={stop} disabled={status === "stopped" && !audioStarted}>
           <Square size={18} />
         </IconButton>

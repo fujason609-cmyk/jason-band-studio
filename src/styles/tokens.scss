@@ -1,16 +1,19 @@
-// Palette: lavender staff paper, navy ink, and one colour per band member.
+// Palette: "after-school club room notebook". Warm cream paper with a dot grid,
+// plum-navy ink, soft sticker shadows, and one colour per band member.
 :root {
   color-scheme: light;
-  --paper: #f3f1f8;
-  --surface: #ffffff;
-  --surface-2: #e9e6f3;
-  --ink: #24264f;
-  --ink-soft: #5e6189;
-  --rule: #e3e0ef;
-  --rule-strong: #c9c5dd;
-  --lane-selected: #f8f5ff;
+  --paper: #fbf6ec;
+  --paper-dot: #e8dcc4;
+  --surface: #fffdf8;
+  --surface-2: #f3ecdf;
+  --ink: #2b2547;
+  --ink-soft: #6c6488;
+  --rule: #ece3d2;
+  --rule-strong: #d9cdb6;
+  --lane-selected: #fff4e6;
   --danger: #c2334d;
-  --on-ink: #ffffff;
+  --on-ink: #fffdf8;
+  --accent: #e0507a;
 
   --member-yui: #e0507a;
   --member-mio: #3d6bd6;
@@ -19,31 +22,48 @@
   --member-azusa: #1b927e;
 
   --font: "M PLUS Rounded 1c", "Hiragino Maru Gothic ProN", "Yu Gothic UI", "Noto Sans JP", system-ui, sans-serif;
-  --radius-lg: 20px;
-  --radius-md: 12px;
-  --radius-sm: 8px;
+  --radius-lg: 24px;
+  --radius-md: 14px;
+  --radius-sm: 9px;
   --focus: 0 0 0 3px var(--paper), 0 0 0 5px var(--ink);
-  --shadow: 0 1px 0 var(--rule-strong);
+  // cards float a little off the page; buttons sit on a solid "sticker" edge
+  --shadow: 0 1px 0 rgba(43, 37, 71, 0.06), 0 10px 28px -14px rgba(73, 52, 22, 0.28);
+  --sticker-edge: 0 3px 0 var(--rule-strong);
+  // the five-colour band, used for washi tape and the title rule
+  --band: linear-gradient(
+    to right,
+    var(--member-yui) 0 20%,
+    var(--member-mio) 20% 40%,
+    var(--member-ritsu) 40% 60%,
+    var(--member-tsumugi) 60% 80%,
+    var(--member-azusa) 80% 100%
+  );
 }
 
 @mixin dark-tokens {
+  // evening club room: deep indigo, warm lamp-lit cards
   color-scheme: dark;
-  --paper: #14162c;
-  --surface: #1c1f3b;
-  --surface-2: #262a4c;
-  --ink: #eeedf9;
-  --ink-soft: #a6a8c9;
-  --rule: #2a2e52;
-  --rule-strong: #3e436e;
-  --lane-selected: #23274a;
+  --paper: #15132a;
+  --paper-dot: #262344;
+  --surface: #201d3a;
+  --surface-2: #2b2750;
+  --ink: #f4efe6;
+  --ink-soft: #aea6c8;
+  --rule: #2c2950;
+  --rule-strong: #403b6b;
+  --lane-selected: #2c2748;
   --danger: #ff7a8f;
-  --on-ink: #14162c;
+  --on-ink: #15132a;
+  --accent: #ff7da0;
 
   --member-yui: #ff7da0;
   --member-mio: #7ea3ff;
   --member-ritsu: #ffb646;
   --member-tsumugi: #c39bf5;
   --member-azusa: #4fd2b7;
+
+  --shadow: 0 1px 0 rgba(0, 0, 0, 0.3), 0 14px 30px -16px rgba(0, 0, 0, 0.7);
+  --sticker-edge: 0 3px 0 #0c0b1c;
 }
 
 @media (prefers-color-scheme: dark) {

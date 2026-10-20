@@ -1,4 +1,4 @@
-import { Monitor, Moon, RotateCcw, Sun } from "lucide-react";
+import { Coffee, Monitor, Moon, Music, RotateCcw, Sun } from "lucide-react";
 import { audioEngine } from "@/audio/AudioEngine";
 import { IconButton } from "@/components/common/IconButton";
 import { MidiImportButton } from "@/features/midi/MidiImport";
@@ -26,11 +26,18 @@ export function StudioHeader() {
         <h1 className="lockup__ja" lang="ja">
           放課後ティータイム
         </h1>
-        <p className="lockup__en">{t.appSubtitle}</p>
+        <p className="lockup__en">
+          <span className="lockup__badge">
+            <Coffee size={13} aria-hidden="true" />
+            {t.clubBadge}
+          </span>
+          {t.appSubtitle}
+        </p>
       </div>
       <div className="studio-header__song">
         <p className="song-name" title={name}>
-          {name}
+          <Music size={16} aria-hidden="true" />
+          <span className="song-name__text">{name}</span>
         </p>
         <div className="studio-header__actions">
           <MidiImportButton />

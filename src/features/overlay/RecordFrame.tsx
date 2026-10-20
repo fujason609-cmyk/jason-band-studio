@@ -1,5 +1,5 @@
 import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties } from "react";
-import { Pause, Play, Square, X, ZoomIn, ZoomOut } from "lucide-react";
+import { Pause, Play, SkipBack, Square, X, ZoomIn, ZoomOut } from "lucide-react";
 import { IconButton } from "@/components/common/IconButton";
 import { MEMBERS } from "@/features/band/members";
 import { MAX_ZOOM, MIN_ZOOM, RULER_HEIGHT } from "@/features/timeline/layout";
@@ -7,21 +7,14 @@ import { Timeline } from "@/features/timeline/Timeline";
 import { useSpacebarToggle, useTransport } from "@/hooks/useTransport";
 import { useT } from "@/i18n/useT";
 import { useStudioStore } from "@/stores/useStudioStore";
-import {
-  OVERLAY_COLORS,
-  RECORD_FRAMES,
-  RECORD_SPLITS,
-  recordLaneHeight,
-  type OverlayColor,
-  type RecordFrame as Frame,
-  type RecordSplit,
-} from "./overlay";
+import { OVERLAY_COLORS, RECORD_FRAMES, recordLayout, type OverlayColor, type RecordFrame as Frame } from "./overlay";
 
 const ZOOM_STEP = 1.4;
 
 /**
- * Full-screen Instagram recording frame: the timeline on top and the key colour
- * below, inside one box of the chosen IG shape. Controls sit under the box, so a
+ * Full-screen Instagram recording frame: the timeline on top and a 16:9 strip of
+ * key colour below (room for landscape anime footage), inside one box of the
+ * chosen IG shape. The score gets all the height the key strip doesn't need. Controls sit under the box, so a
  * screen recording cropped to the box shows only the score and the key colour.
  */
 export function RecordFrame() {
@@ -29,18 +22,19 @@ export function RecordFrame() {
   const zoom = useStudioStore((s) => s.settings.zoom);
   const updateSettings = useStudioStore((s) => s.updateSettings);
   const setRecordMode = useStudioStore((s) => s.setRecordMode);
-  const { status, play, pause, stop, toggle } = useTransport();
+  const { status, play, pause, stop, restart, toggle } = useTransport();
   useSpacebarToggle(toggle);
   const t = useT();
 
   const frameRef = useRef<HTMLDivElement>(null);
-  const [frameHeight, setFrameHeight] = useState(0);
+  const [size, setSize] = useState({ width: 0, height: 0 });
   useLayoutEffect(() => {
     const frame = frameRef.current;
     if (!frame) return;
-    const ro = new ResizeObserver(() => setFrameHeight(frame.clientHeight));
+    const measure = () => setSize({ width: frame.clientWidth, height: frame.clientHeight });
+    const ro = new ResizeObserver(measure);
     ro.observe(frame);
-    setFrameHeight(frame.clientHeight);
+    measure();
     return () => ro.disconnect();
   }, []);
 
@@ -55,7 +49,7 @@ export function RecordFrame() {
   const set = (patch: Partial<typeof overlay>) => updateSettings({ overlay: { ...overlay, ...patch } });
   const setZoom = (next: number) => updateSettings({ zoom: Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, next)) });
   const [rw, rh] = overlay.frame.split(":").map(Number) as [number, number];
-  const laneHeight = recordLaneHeight(frameHeight * overlay.split, RULER_HEIGHT, MEMBERS.length);
+  const { keyHeight, laneHeight } = recordLayout(size.width, size.height, RULER_HEIGHT, MEMBERS.length);
   const playing = status === "playing";
 
   return (
@@ -67,9 +61,13 @@ export function RecordFrame() {
         style={{ "--rw": rw, "--rh": rh } as CSSProperties}
       >
         <div className="record-frame__score">
-          {frameHeight > 0 && <Timeline laneHeight={laneHeight} labels forceFollow />}
+          {size.height > 0 && <Timeline laneHeight={laneHeight} labels forceFollow />}
         </div>
-        <div className="record-frame__key" data-testid="record-key" style={{ background: OVERLAY_COLORS[overlay.color] }} />
+        <div
+          className="record-frame__key"
+          data-testid="record-key"
+          style={{ background: OVERLAY_COLORS[overlay.color], height: keyHeight }}
+        />
       </div>
 
       <div className="record-controls">
@@ -83,6 +81,9 @@ export function RecordFrame() {
               <Play size={22} />
             </IconButton>
           )}
+          <IconButton label={t.restart} onClick={() => void restart()}>
+            <SkipBack size={18} />
+          </IconButton>
           <IconButton label={t.stop} onClick={stop}>
             <Square size={18} />
           </IconButton>
@@ -116,17 +117,6 @@ export function RecordFrame() {
             {RECORD_FRAMES.map((f) => (
               <option key={f} value={f}>
                 {t.recordFrames[f]}
-              </option>
-            ))}
-          </select>
-          <select
-            aria-label={t.recordSplit}
-            value={overlay.split}
-            onChange={(e) => set({ split: Number(e.currentTarget.value) as RecordSplit })}
-          >
-            {RECORD_SPLITS.map((s) => (
-              <option key={s} value={s}>
-                {t.recordSplitValue(Math.round(s * 100))}
               </option>
             ))}
           </select>

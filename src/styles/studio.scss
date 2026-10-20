@@ -15,6 +15,22 @@ $narrow: 760px;
 
 // ---------- shared controls ----------
 
+// Buttons are little stickers: a solid edge underneath that they press into.
+@mixin sticker-press {
+  transition:
+    transform 120ms ease,
+    box-shadow 120ms ease,
+    background-color 120ms ease,
+    border-color 120ms ease;
+  &:hover:not(:disabled) {
+    transform: translateY(-1px);
+  }
+  &:active:not(:disabled) {
+    transform: translateY(2px);
+    box-shadow: 0 1px 0 var(--rule-strong);
+  }
+}
+
 .btn {
   display: inline-flex;
   align-items: center;
@@ -24,9 +40,10 @@ $narrow: 760px;
   border-radius: 999px;
   border: 1.5px solid var(--rule-strong);
   background: var(--surface);
+  box-shadow: var(--sticker-edge);
   font-weight: 700;
   white-space: nowrap;
-  transition: background-color 120ms ease, border-color 120ms ease;
+  @include sticker-press;
 
   &:hover:not(:disabled) {
     border-color: var(--ink-soft);
@@ -35,9 +52,9 @@ $narrow: 760px;
     background: var(--ink);
     border-color: var(--ink);
     color: var(--on-ink);
+    box-shadow: 0 3px 0 var(--accent);
     &:hover:not(:disabled) {
       border-color: var(--ink);
-      opacity: 0.9;
     }
   }
 }
@@ -65,7 +82,8 @@ $narrow: 760px;
   border-radius: 50%;
   border: 1.5px solid var(--rule-strong);
   background: var(--surface);
-  transition: background-color 120ms ease, border-color 120ms ease;
+  box-shadow: var(--sticker-edge);
+  @include sticker-press;
 
   &:hover:not(:disabled) {
     border-color: var(--ink-soft);
@@ -79,15 +97,21 @@ $narrow: 760px;
     background: var(--ink);
     border-color: var(--ink);
     color: var(--on-ink);
+    box-shadow: 0 3px 0 var(--accent);
   }
   &--quiet {
     width: 32px;
     height: 32px;
     border-color: transparent;
     background: transparent;
+    box-shadow: none;
     &:hover:not(:disabled) {
       background: var(--surface-2);
       border-color: transparent;
+      transform: none;
+    }
+    &:active:not(:disabled) {
+      box-shadow: none;
     }
   }
 }
@@ -166,6 +190,11 @@ select {
   width: 38px;
   height: 38px;
   font-size: 18px;
+  // a round name sticker: white rim and a little lift
+  box-shadow:
+    0 0 0 2px var(--surface),
+    0 3px 0 2px rgba(0, 0, 0, 0.1);
+  text-shadow: 0 1px 0 rgba(0, 0, 0, 0.15);
 
   &--sm {
     width: 28px;
@@ -188,6 +217,29 @@ select {
   }
 }
 
+// A strip of striped washi tape stuck over a card's top edge.
+@mixin washi-tape($color, $left: 32px, $angle: -4deg) {
+  position: relative;
+  &::after {
+    content: "";
+    position: absolute;
+    top: -10px;
+    left: $left;
+    z-index: 2;
+    width: 92px;
+    height: 20px;
+    border-radius: 2px;
+    background: repeating-linear-gradient(
+      -45deg,
+      color-mix(in srgb, #{$color} 75%, transparent) 0 7px,
+      color-mix(in srgb, #{$color} 45%, transparent) 7px 14px
+    );
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.08);
+    transform: rotate($angle);
+    pointer-events: none;
+  }
+}
+
 // ---------- header ----------
 
 .studio-header {
@@ -199,17 +251,38 @@ select {
 }
 
 .lockup {
+  position: relative;
+
   &__ja {
     font-size: clamp(2rem, 4.6vw, 3.4rem);
     font-weight: 800;
     letter-spacing: -0.03em;
     line-height: 1.05;
+    // offset "printed sticker" shadow in the accent colour
+    text-shadow: 3px 3px 0 color-mix(in srgb, var(--accent) 28%, transparent);
   }
   &__en {
+    display: flex;
+    align-items: center;
+    gap: 8px;
     margin-top: 6px;
     font-size: 15px;
     font-weight: 500;
     color: var(--ink-soft);
+  }
+  // little tilted club badge, like a sticker on a notebook cover
+  &__badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 2px 10px 2px 8px;
+    border-radius: 999px;
+    background: var(--accent);
+    color: #fff;
+    font-size: 12px;
+    font-weight: 800;
+    transform: rotate(-3deg);
+    box-shadow: 0 2px 0 color-mix(in srgb, var(--accent) 55%, #000);
   }
   // five-colour band rule: one segment per member
   &__ja::after {
@@ -217,17 +290,10 @@ select {
     display: block;
     width: 100%;
     max-width: 320px;
-    height: 5px;
+    height: 6px;
     margin-top: 10px;
     border-radius: 3px;
-    background: linear-gradient(
-      to right,
-      var(--member-yui) 0 20%,
-      var(--member-mio) 20% 40%,
-      var(--member-ritsu) 40% 60%,
-      var(--member-tsumugi) 60% 80%,
-      var(--member-azusa) 80% 100%
-    );
+    background: var(--band);
   }
 }
 
@@ -239,12 +305,27 @@ select {
   flex-wrap: wrap;
 }
 
+// the song title reads like a cassette label
 .song-name {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  max-width: 30ch;
+  padding: 6px 14px 6px 10px;
+  border-radius: var(--radius-sm);
+  border: 1.5px dashed var(--rule-strong);
+  background: var(--surface);
   font-weight: 700;
-  max-width: 28ch;
-  overflow: hidden;
-  text-overflow: ellipsis;
   white-space: nowrap;
+  > svg {
+    flex: none;
+    color: var(--accent);
+  }
+  &__text {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
 }
 
 .studio-header__actions {
@@ -283,6 +364,10 @@ select {
   border-radius: var(--radius-lg);
   background: var(--surface);
   box-shadow: var(--shadow);
+  @include washi-tape(var(--accent), auto, 5deg);
+  &::after {
+    right: 36px;
+  }
 
   &__buttons {
     display: flex;
@@ -389,6 +474,8 @@ select {
   gap: 16px;
 }
 
+// the score card: clipped for its rounded corners, so instead of tape it wears
+// the five-colour band along its top edge
 .studio__tracks {
   display: grid;
   grid-template-columns: 340px minmax(0, 1fr);
@@ -396,6 +483,15 @@ select {
   background: var(--surface);
   box-shadow: var(--shadow);
   overflow: hidden;
+  position: relative;
+  padding-top: 5px;
+  &::before {
+    content: "";
+    position: absolute;
+    inset: 0 0 auto;
+    height: 5px;
+    background: var(--band);
+  }
 }
 
 // ---------- mixer ----------
@@ -428,22 +524,23 @@ select {
   align-content: center;
   gap: 4px 8px;
   padding: 0 12px 0 10px;
-  border-bottom: 1px solid var(--rule-strong);
+  border-bottom: 1px solid var(--rule);
+  // same member wash and colour edge as its timeline lane
+  background: color-mix(in srgb, var(--member) 5%, var(--surface));
 
-  // selected member gets a colour edge; same tint as its timeline lane
   &::before {
     content: "";
     position: absolute;
     left: 0;
-    top: 10px;
-    bottom: 10px;
-    width: 4px;
-    border-radius: 0 4px 4px 0;
+    top: 4px;
+    bottom: 4px;
+    width: 3px;
+    border-radius: 0 3px 3px 0;
     background: var(--member);
-    opacity: 0;
+    opacity: 0.55;
   }
   &.is-selected {
-    background: var(--lane-selected);
+    background: color-mix(in srgb, var(--member) 13%, var(--surface));
     &::before {
       opacity: 1;
     }
@@ -574,6 +671,7 @@ select {
   }
 }
 
+// accent-coloured line with a soft glow, topped by a guitar pick in the ruler
 .playhead {
   position: absolute;
   top: 0;
@@ -581,19 +679,22 @@ select {
   bottom: 0;
   width: 2px;
   margin-left: -1px;
-  background: var(--ink);
+  background: var(--accent);
+  box-shadow: 0 0 8px color-mix(in srgb, var(--accent) 70%, transparent);
   pointer-events: none;
   will-change: transform;
 
-  &__head {
+  &__pick {
     position: absolute;
-    top: calc(var(--ruler-h) - 12px);
-    left: -5px;
-    width: 12px;
-    height: 12px;
-    border-radius: 50% 50% 50% 0;
-    transform: rotate(-45deg);
-    background: var(--ink);
+    top: calc(var(--ruler-h) - 24px);
+    left: -9px;
+    overflow: visible;
+    filter: drop-shadow(0 2px 0 rgba(0, 0, 0, 0.18));
+    path {
+      fill: var(--accent);
+      stroke: #fff;
+      stroke-width: 1.5;
+    }
   }
 }
 
@@ -604,6 +705,8 @@ select {
   border-radius: var(--radius-lg);
   background: var(--surface);
   box-shadow: var(--shadow);
+  // tape in the colour of whoever you're playing along as
+  @include washi-tape(var(--member));
 
   &__head {
     display: flex;
@@ -1045,14 +1148,15 @@ select {
   overflow: hidden;
   background: var(--surface);
 
+  // the score takes every pixel above the key strip
   &__score {
-    flex: none;
-    background: var(--surface);
-  }
-  // flat key colour fills whatever the score leaves: no border, radius or shadow
-  &__key {
     flex: 1 1 auto;
     min-height: 0;
+    background: var(--surface);
+  }
+  // a 16:9 strip of flat key colour (height set from recordLayout): no border, radius or shadow
+  &__key {
+    flex: none;
   }
 }
 

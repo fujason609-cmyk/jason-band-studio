@@ -24,6 +24,14 @@ export function useTransport() {
     setTransport("stopped");
   }, [setTransport]);
 
+  /** Back to bar 1 and play, from any state (stop resets the transport to tick 0). */
+  const restart = useCallback(async () => {
+    if (!(await ensureAudio())) return;
+    audioEngine.stop();
+    audioEngine.play();
+    setTransport("playing");
+  }, [setTransport]);
+
   const toggle = useCallback(() => {
     if (useStudioStore.getState().transport === "playing") pause();
     else void play();
@@ -36,7 +44,7 @@ export function useTransport() {
     }
   }, [setTransport]);
 
-  return { status, play, pause, stop, toggle, seek };
+  return { status, play, pause, stop, restart, toggle, seek };
 }
 
 /** Space toggles playback unless the user is typing or pressing a focused control. */

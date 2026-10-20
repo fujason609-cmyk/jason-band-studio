@@ -23,6 +23,7 @@ function readPalette(): Palette & { members: Record<string, string> } {
     ink: v("--ink"),
     inkSoft: v("--ink-soft"),
     selected: v("--lane-selected"),
+    accent: v("--accent"),
     members: Object.fromEntries(MEMBERS.map((m) => [m.id, v(m.colorVar)])),
   };
 }
@@ -52,6 +53,11 @@ export function Timeline({ laneHeight = LANE_HEIGHT, labels, forceFollow = false
   const frame = useRef(0);
   const scrubbing = useRef(false);
   const lastAnnounced = useRef(-1);
+  // read once per theme: getComputedStyle is too slow to run on every frame
+  const palette = useRef<ReturnType<typeof readPalette> | null>(null);
+  const position = useRef(0);
+  const reducedMotion = useMediaQuery("(prefers-reduced-motion: reduce)");
+  const playing = transport === "playing";
 
   const height = RULER_HEIGHT + MEMBERS.length * laneHeight;
   const showLabels = labels ?? narrow;
@@ -69,7 +75,7 @@ export function Timeline({ laneHeight = LANE_HEIGHT, labels, forceFollow = false
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-    const palette = readPalette();
+    const colours = (palette.current ??= readPalette());
     const audible = audibleMap(project.tracks);
     drawTimeline({
       ctx,
@@ -80,14 +86,16 @@ export function Timeline({ laneHeight = LANE_HEIGHT, labels, forceFollow = false
       baseBpm: project.baseBpm,
       beatsPerBar: project.beatsPerBar,
       durationSeconds: project.durationSeconds,
-      palette,
+      palette: colours,
       showLabels,
       laneHeight,
+      position: position.current,
+      ripples: playing && !reducedMotion,
       lanes: MEMBERS.map((m) => {
         const track = project.tracks.find((t) => t.memberId === m.id)!;
         return {
           label: t.memberName[m.id],
-          color: palette.members[m.id]!,
+          color: colours.members[m.id]!,
           notes: track.notes,
           audible: audible[track.id] ?? true,
           isDrums: track.instrument === "drums",
@@ -95,7 +103,7 @@ export function Timeline({ laneHeight = LANE_HEIGHT, labels, forceFollow = false
         };
       }),
     });
-  }, [project, zoom, viewport, height, showLabels, laneHeight, selectedMember, t]);
+  }, [project, zoom, viewport, height, showLabels, laneHeight, selectedMember, t, playing, reducedMotion]);
 
   const requestDraw = useCallback(() => {
     cancelAnimationFrame(frame.current);
@@ -112,16 +120,24 @@ export function Timeline({ laneHeight = LANE_HEIGHT, labels, forceFollow = false
   }, []);
 
   useEffect(() => {
+    palette.current = null;
     requestDraw();
   }, [requestDraw, theme]);
 
   useEffect(() => {
     const mq = matchMedia("(prefers-color-scheme: dark)");
-    mq.addEventListener("change", requestDraw);
-    return () => mq.removeEventListener("change", requestDraw);
+    const onChange = () => {
+      palette.current = null;
+      requestDraw();
+    };
+    mq.addEventListener("change", onChange);
+    return () => mq.removeEventListener("change", onChange);
   }, [requestDraw]);
 
   usePlaybackPosition((pos) => {
+    // already inside an animation frame: redraw now so the glowing notes track the playhead
+    position.current = pos;
+    draw();
     const x = TIMELINE_GUTTER + pos * zoom;
     if (playheadRef.current) playheadRef.current.style.transform = `translateX(${x}px)`;
     const scroller = scrollRef.current;

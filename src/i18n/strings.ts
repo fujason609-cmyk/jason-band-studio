@@ -14,6 +14,7 @@ const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? "" : "s"}`;
 const en = {
   htmlLang: "en",
   appSubtitle: "After School Tea Time Band Studio",
+  clubBadge: "Light Music Club",
   footer:
     "A fan-made practice tool, not affiliated with the rights holders of K-ON!. Every sound is synthesized in your browser, and the demo song was written for this project. Your session is saved in this browser only.",
   dropHint: "Drop a MIDI file to load it",
@@ -42,6 +43,7 @@ const en = {
   play: "Play",
   pause: "Pause",
   stop: "Stop and go back to the start",
+  restart: "Play again from the start",
   loop: "Loop the song",
   loadingSounds: "Loading sounds",
   masterVolume: "Master volume",
@@ -96,8 +98,6 @@ const en = {
   overlayColors: { green: "Green", blue: "Blue", magenta: "Magenta", black: "Black" } as Record<string, string>,
   recordFrame: "Frame",
   recordFrames: { "9:16": "Reels 9:16", "4:5": "Post 4:5", "1:1": "Square 1:1" } as Record<string, string>,
-  recordSplit: "Score height",
-  recordSplitValue: (pct: number) => `Score ${pct}%`,
   recordHint: "Record your screen, crop to the frame, then key out the colour to put other footage there. Everything below the frame is outside the shot.",
   exitRecord: "Leave the recording frame",
 
@@ -169,6 +169,7 @@ export type Strings = typeof en;
 const zh: Strings = {
   htmlLang: "zh-CN",
   appSubtitle: "放学后茶会 · 乐队工作室",
+  clubBadge: "轻音部",
   footer:
     "粉丝自制的练习工具，与《轻音少女》版权方无关。所有声音都在你的浏览器里实时合成，演示曲是为本项目原创的。你的进度只保存在这个浏览器里。",
   dropHint: "松开即可载入 MIDI 文件",
@@ -193,6 +194,7 @@ const zh: Strings = {
   play: "播放",
   pause: "暂停",
   stop: "停止并回到开头",
+  restart: "从头重新播放",
   loop: "循环播放",
   loadingSounds: "正在载入音色",
   masterVolume: "总音量",
@@ -242,8 +244,6 @@ const zh: Strings = {
   overlayColors: { green: "绿幕", blue: "蓝幕", magenta: "品红", black: "黑色" },
   recordFrame: "画框",
   recordFrames: { "9:16": "Reels 9:16", "4:5": "贴文 4:5", "1:1": "方形 1:1" },
-  recordSplit: "乐谱高度",
-  recordSplitValue: (pct) => `乐谱 ${pct}%`,
   recordHint: "录屏后裁成画框的大小，再对绿幕抠像贴上其他画面。画框下面的按钮都在画面外。",
   exitRecord: "退出录制画框",
 
