@@ -30,6 +30,7 @@ export class AudioEngine {
   private events: EngineEvents = {};
   private lastProject: StudioProject | null = null;
   private feel: FeelSetting = "character";
+  private capture: MediaStreamAudioDestinationNode | null = null;
 
   setEvents(events: EngineEvents) {
     this.events = events;
@@ -127,6 +128,26 @@ export class AudioEngine {
   }
   getPosition(): number {
     return this.transport?.getPosition() ?? 0;
+  }
+  /** Position of the sound being heard now (behind getPosition by the look-ahead). For recordings. */
+  getAudiblePosition(): number {
+    return this.transport?.getAudiblePosition() ?? 0;
+  }
+
+  /**
+   * A live stream of the band's master output, and nothing else (no microphone, no other
+   * tabs), for recording a video. Call stopAudioCapture() when done.
+   */
+  captureAudio(): MediaStream | null {
+    if (!this.master) return null;
+    this.capture ??= Tone.getContext().createMediaStreamDestination();
+    this.master.connect(this.capture);
+    return this.capture.stream;
+  }
+  stopAudioCapture() {
+    if (!this.capture) return;
+    this.master?.disconnect(this.capture);
+    this.capture = null;
   }
 
   noteOn(member: MemberId, pitch: number, velocity = 0.85) {

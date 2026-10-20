@@ -86,6 +86,16 @@ export class TransportController {
     return ticksToSeconds(this.transport.ticks, this.baseBpm, PPQ);
   }
 
+  /**
+   * Position (song seconds) of what is coming out of the speakers right now. Tone
+   * schedules ahead by the context's lookAhead, so `getPosition()` runs that far
+   * ahead of the sound; a recording pairs pictures with sound, so it uses this.
+   */
+  getAudiblePosition(): number {
+    const now = Tone.getContext().rawContext.currentTime;
+    return Math.max(0, ticksToSeconds(this.transport.getTicksAtTime(now), this.baseBpm, PPQ));
+  }
+
   dispose() {
     if (this.endEventId !== null) this.transport.clear(this.endEventId);
     this.transport.stop();

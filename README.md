@@ -23,7 +23,8 @@ A small browser DAW for a five-piece light-music club band. Listen to each membe
 - **Chinese and English.** The 中 / EN button in the header switches the whole interface. A first visit picks Chinese for any `zh-*` browser language.
 - **Works on phones.** Below 760px the layout stacks into one column, the transport bar stays pinned to the top (it slides away while you scroll down and comes back when you scroll up), and the play-along member picker fits all five members on one row. Touch screens get bigger controls and no computer-keyboard hints.
 - **Pick who you play along as** from the member chips above the live instrument, or by clicking a name in the mixer. Arrow keys move the choice.
-- **Instagram recording frame.** The phone button in the toolbar above the timeline opens a full-screen view built for recording on a phone: one box in an Instagram shape (Reels / Story 9:16, post 4:5 or square 1:1) with the score on top and a flat chroma-key strip below (green, blue, magenta or black). The strip is always 16:9 at the full frame width, the size of landscape anime footage, and the score gets all the height above it. Play, restart, stop, zoom and the frame settings sit under the box. Record the screen, crop to the box, then key the colour out in your video editor to put other footage, such as animation, in its place. Esc or the × button goes back.
+- **Instagram recording frame.** The phone button in the toolbar above the timeline opens a full-screen view built for recording on a phone: one box in an Instagram shape (Reels / Story 9:16, post 4:5 or square 1:1) with the score on top and a flat chroma-key strip below (green, blue, magenta or black). The strip is always 16:9 at the full frame width, the size of landscape anime footage, and the score gets all the height above it. Play, restart, stop, zoom and the frame settings sit under the box. Esc or the × button goes back.
+- **Built-in video recording.** In the recording frame, pressing Play records a video of just the frame (score and key colour, repainted at 1080 × 1920 / 1350 / 1080) with just the band's sound (taken from the app's own audio output, no microphone, no other apps). Stopping, pausing or the end of the song finishes the take (with a short tail so cymbals ring out) and asks whether to save it: on a phone, Save opens the share sheet (on iPhone, "Save Video" puts it in Photos for Instagram); elsewhere it downloads the file. Browsers that can write MP4 (Safari, recent Chrome) produce MP4; others produce WebM. Then key the colour out in your video editor to put other footage, such as animation, in its place. The red camera button switches recording off; browsers without MediaRecorder get a note suggesting the phone's own screen recording instead.
 - **Saved in your browser.** Settings go in `localStorage`; the session and the original MIDI file go in IndexedDB. Refreshing the page restores everything, and the audio engine is rebuilt from the saved data.
 
 ## Getting started
@@ -91,7 +92,7 @@ Packs load lazily and are shared by every track that uses them. Each mixer strip
 
 ## Testing
 
-`pnpm test` runs 89 tests covering:
+`pnpm test` runs 93 tests covering:
 - mute and solo rules
 - tick and second conversions, and tempo scaling
 - the keyboard map

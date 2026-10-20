@@ -1,5 +1,5 @@
 import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties } from "react";
-import { Pause, Play, SkipBack, Square, X, ZoomIn, ZoomOut } from "lucide-react";
+import { Pause, Play, SkipBack, Square, Video, X, ZoomIn, ZoomOut } from "lucide-react";
 import { IconButton } from "@/components/common/IconButton";
 import { MEMBERS } from "@/features/band/members";
 import { MAX_ZOOM, MIN_ZOOM, RULER_HEIGHT } from "@/features/timeline/layout";
@@ -7,7 +7,10 @@ import { Timeline } from "@/features/timeline/Timeline";
 import { useSpacebarToggle, useTransport } from "@/hooks/useTransport";
 import { useT } from "@/i18n/useT";
 import { useStudioStore } from "@/stores/useStudioStore";
+import { canRecordVideo } from "./frameRecorder";
 import { OVERLAY_COLORS, RECORD_FRAMES, recordLayout, type OverlayColor, type RecordFrame as Frame } from "./overlay";
+import { SaveVideoDialog } from "./SaveVideoDialog";
+import { useFrameRecording } from "./useFrameRecording";
 
 const ZOOM_STEP = 1.4;
 
@@ -52,6 +55,16 @@ export function RecordFrame() {
   const { keyHeight, laneHeight } = recordLayout(size.width, size.height, RULER_HEIGHT, MEMBERS.length);
   const playing = status === "playing";
 
+  // video recording: armed by default where the browser can do it; Play starts a take
+  const [supported] = useState(canRecordVideo);
+  const [armed, setArmed] = useState(supported);
+  const { recording, result, dismiss } = useFrameRecording(armed && supported, playing, {
+    width: size.width,
+    height: size.height,
+    keyHeight,
+    laneHeight,
+  });
+
   return (
     <div className="record-view" role="region" aria-label={t.recordMode}>
       <div
@@ -93,7 +106,18 @@ export function RecordFrame() {
           <IconButton label={t.zoomIn} variant="quiet" onClick={() => setZoom(zoom * ZOOM_STEP)} disabled={zoom >= MAX_ZOOM}>
             <ZoomIn size={16} />
           </IconButton>
-          <IconButton label={t.exitRecord} className="record-controls__exit" onClick={() => setRecordMode(false)}>
+          {supported && (
+            <IconButton
+              label={recording ? t.recordingNow : armed ? t.recordVideoOn : t.recordVideoOff}
+              className={`rec-btn record-controls__exit ${recording ? "is-recording" : ""}`}
+              pressed={armed}
+              disabled={recording}
+              onClick={() => setArmed((a) => !a)}
+            >
+              <Video size={18} />
+            </IconButton>
+          )}
+          <IconButton label={t.exitRecord} className={supported ? "" : "record-controls__exit"} onClick={() => setRecordMode(false)}>
             <X size={18} />
           </IconButton>
         </div>
@@ -109,11 +133,17 @@ export function RecordFrame() {
                 title={t.overlayColors[c]}
                 className="swatch"
                 style={{ "--swatch": OVERLAY_COLORS[c] } as CSSProperties}
+                disabled={recording}
                 onClick={() => set({ color: c })}
               />
             ))}
           </div>
-          <select aria-label={t.recordFrame} value={overlay.frame} onChange={(e) => set({ frame: e.currentTarget.value as Frame })}>
+          <select
+            aria-label={t.recordFrame}
+            value={overlay.frame}
+            disabled={recording}
+            onChange={(e) => set({ frame: e.currentTarget.value as Frame })}
+          >
             {RECORD_FRAMES.map((f) => (
               <option key={f} value={f}>
                 {t.recordFrames[f]}
@@ -121,8 +151,13 @@ export function RecordFrame() {
             ))}
           </select>
         </div>
-        <p className="record-controls__hint">{t.recordHint}</p>
+        {supported ? (
+          <p className="record-controls__hint">{t.recordHint}</p>
+        ) : (
+          <p className="record-controls__warn">{t.recordingUnsupported}</p>
+        )}
       </div>
+      {result && <SaveVideoDialog video={result} onClose={dismiss} />}
     </div>
   );
 }

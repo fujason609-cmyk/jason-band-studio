@@ -1213,6 +1213,90 @@ select {
   }
 }
 
+// ---------- video recording ----------
+
+// the canvas a take is painted on: in the page (some browsers only capture those),
+// never visible and never in the way
+.record-canvas {
+  position: fixed;
+  left: 0;
+  top: 0;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.rec-btn {
+  &[aria-pressed="true"] {
+    background: var(--danger);
+    border-color: var(--danger);
+    color: #fff;
+  }
+  &.is-recording {
+    animation: rec-pulse 1.2s ease-in-out infinite;
+    &:disabled {
+      opacity: 1;
+    }
+  }
+}
+@keyframes rec-pulse {
+  50% {
+    box-shadow: 0 0 0 6px color-mix(in srgb, var(--danger) 35%, transparent);
+  }
+}
+
+.record-controls__warn {
+  font-size: 12px;
+  color: var(--danger);
+}
+
+.video-dialog {
+  width: min(440px, calc(100vw - 24px));
+  max-height: calc(100dvh - 24px);
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+  color: var(--ink);
+  overflow: auto;
+
+  &::backdrop {
+    background: rgba(20, 22, 44, 0.6);
+  }
+  &__head {
+    padding: 20px 20px 10px;
+    h2 {
+      font-size: 20px;
+      font-weight: 800;
+    }
+    p {
+      color: var(--ink-soft);
+      font-size: 13px;
+    }
+  }
+  &__preview {
+    display: block;
+    width: calc(100% - 40px);
+    max-height: 55dvh;
+    margin: 0 20px;
+    border-radius: var(--radius-md);
+    background: #000;
+    object-fit: contain;
+  }
+  &__note {
+    margin: 10px 20px 0;
+    font-size: 13px;
+    color: var(--ink-soft);
+  }
+  &__foot {
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+    padding: 16px 20px 20px;
+  }
+}
+
 // ---------- MIDI mapping dialog ----------
 
 .mapping-dialog {

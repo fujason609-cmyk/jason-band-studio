@@ -108,6 +108,13 @@ describe("Instagram recording frame", () => {
     expect(screen.getByTestId("record-frame").style.getPropertyValue("--rh")).toBe("5");
   });
 
+  it("explains instead of offering video recording where the browser can't record", () => {
+    // jsdom has no MediaRecorder or canvas capture
+    render(<RecordFrame />);
+    expect(screen.queryByRole("button", { name: /Video recording/ })).not.toBeInTheDocument();
+    expect(screen.getByText(/can't record video/)).toBeInTheDocument();
+  });
+
   it("closes with the button or Escape", async () => {
     const user = userEvent.setup();
     useStudioStore.setState({ recordMode: true });

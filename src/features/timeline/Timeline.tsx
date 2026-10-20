@@ -4,29 +4,13 @@ import { MEMBERS } from "@/features/band/members";
 import { NARROW_QUERY, useMediaQuery } from "@/hooks/useMediaQuery";
 import { usePlaybackPosition, useTransport } from "@/hooks/useTransport";
 import { useT } from "@/i18n/useT";
-import { audibleMap } from "@/lib/mix";
 import { barBeat } from "@/lib/time";
 import { useProjectStore } from "@/stores/useProjectStore";
 import { useStudioStore } from "@/stores/useStudioStore";
-import { drawTimeline, type Palette } from "./drawTimeline";
+import { drawTimeline } from "./drawTimeline";
+import { buildLanes, readPalette, type TimelinePalette } from "./lanes";
 import { LANE_HEIGHT, RULER_HEIGHT, TIMELINE_GUTTER } from "./layout";
 import { Playhead } from "./Playhead";
-
-function readPalette(): Palette & { members: Record<string, string> } {
-  const css = getComputedStyle(document.documentElement);
-  const v = (name: string) => css.getPropertyValue(name).trim() || "#888";
-  return {
-    paper: v("--paper"),
-    surface: v("--surface"),
-    rule: v("--rule"),
-    ruleStrong: v("--rule-strong"),
-    ink: v("--ink"),
-    inkSoft: v("--ink-soft"),
-    selected: v("--lane-selected"),
-    accent: v("--accent"),
-    members: Object.fromEntries(MEMBERS.map((m) => [m.id, v(m.colorVar)])),
-  };
-}
 
 interface TimelineProps {
   /** lane height in px; the recording frame shrinks lanes to fit */
@@ -54,7 +38,7 @@ export function Timeline({ laneHeight = LANE_HEIGHT, labels, forceFollow = false
   const scrubbing = useRef(false);
   const lastAnnounced = useRef(-1);
   // read once per theme: getComputedStyle is too slow to run on every frame
-  const palette = useRef<ReturnType<typeof readPalette> | null>(null);
+  const palette = useRef<TimelinePalette | null>(null);
   const position = useRef(0);
   const reducedMotion = useMediaQuery("(prefers-reduced-motion: reduce)");
   const playing = transport === "playing";
@@ -76,7 +60,6 @@ export function Timeline({ laneHeight = LANE_HEIGHT, labels, forceFollow = false
     if (!ctx) return;
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     const colours = (palette.current ??= readPalette());
-    const audible = audibleMap(project.tracks);
     drawTimeline({
       ctx,
       width: viewport,
@@ -91,17 +74,7 @@ export function Timeline({ laneHeight = LANE_HEIGHT, labels, forceFollow = false
       laneHeight,
       position: position.current,
       ripples: playing && !reducedMotion,
-      lanes: MEMBERS.map((m) => {
-        const track = project.tracks.find((t) => t.memberId === m.id)!;
-        return {
-          label: t.memberName[m.id],
-          color: colours.members[m.id]!,
-          notes: track.notes,
-          audible: audible[track.id] ?? true,
-          isDrums: track.instrument === "drums",
-          selected: m.id === selectedMember,
-        };
-      }),
+      lanes: buildLanes(project, colours, t.memberName, selectedMember),
     });
   }, [project, zoom, viewport, height, showLabels, laneHeight, selectedMember, t, playing, reducedMotion]);
 
