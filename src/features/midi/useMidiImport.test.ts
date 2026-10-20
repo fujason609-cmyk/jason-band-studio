@@ -1,6 +1,6 @@
 import { act, renderHook } from "@testing-library/react";
 import { TWO_PART_MUSICXML } from "@/test/scores";
-import { songFormat, songTitleFromFileName } from "@/services/file/midiFileService";
+import { SONG_FILE_ACCEPT, songFileAccept, songFormat, songTitleFromFileName } from "@/services/file/midiFileService";
 import { DEFAULT_SETTINGS } from "@/services/storage/settingsStorage";
 import { useStudioStore } from "@/stores/useStudioStore";
 import { useMidiImport } from "./useMidiImport";
@@ -16,6 +16,19 @@ describe("song file formats", () => {
     }
     expect(songFormat("song.mp3")).toBeNull();
     expect(songTitleFromFileName("Fuwa Fuwa Time.gp5")).toBe("Fuwa Fuwa Time");
+  });
+
+  it("lets phones pick any file (iOS greys out .gp5 whatever the filter says), and filters on computers", () => {
+    const iPhone = { userAgent: "Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15", maxTouchPoints: 5 };
+    const iPad = { userAgent: "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15", maxTouchPoints: 5 };
+    const android = { userAgent: "Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 Chrome/130", maxTouchPoints: 5 };
+    const mac = { userAgent: "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15", maxTouchPoints: 0 };
+    const windows = { userAgent: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/130", maxTouchPoints: 0 };
+    expect(songFileAccept(iPhone)).toBeUndefined();
+    expect(songFileAccept(iPad)).toBeUndefined();
+    expect(songFileAccept(android)).toBeUndefined();
+    expect(songFileAccept(mac)).toBe(SONG_FILE_ACCEPT);
+    expect(songFileAccept(windows)).toContain(".gp5");
   });
 });
 

@@ -3,7 +3,7 @@ import { FileMusic } from "lucide-react";
 import { MEMBERS, isMemberId } from "@/features/band/members";
 import { VOCALISTS, vocalRoleOf } from "@/features/band/vocals";
 import { useT } from "@/i18n/useT";
-import { SONG_FILE_ACCEPT } from "@/services/file/midiFileService";
+import { songFileAccept } from "@/services/file/midiFileService";
 import { useStudioStore } from "@/stores/useStudioStore";
 import { useMidiImport } from "./useMidiImport";
 
@@ -27,7 +27,7 @@ export function MidiImportButton() {
       <input
         ref={inputRef}
         type="file"
-        accept={SONG_FILE_ACCEPT}
+        accept={songFileAccept()}
         hidden
         onChange={(e) => {
           const file = e.currentTarget.files?.[0];

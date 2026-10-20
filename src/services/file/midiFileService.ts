@@ -12,6 +12,19 @@ const SCORE_NAME = /\.(gp|gp3|gp4|gp5|gpx|musicxml|mxl|xml)$/i;
 /** For the file picker. */
 export const SONG_FILE_ACCEPT = ".mid,.midi,audio/midi,audio/x-midi,.gp,.gp3,.gp4,.gp5,.gpx,.musicxml,.mxl,.xml";
 
+/**
+ * The picker's `accept` for this device. Phones filter by the file types the system
+ * knows, and iOS doesn't know Guitar Pro or .mxl files, so they come up greyed out
+ * however `accept` lists them: there, any file can be picked, and `readSongFile`
+ * explains when one isn't a song. Computers keep the filter.
+ */
+export function songFileAccept(nav: Pick<Navigator, "userAgent" | "maxTouchPoints"> = navigator): string | undefined {
+  const phone = /iPhone|iPad|iPod|Android/i.test(nav.userAgent);
+  // iPadOS reports itself as a Mac, but a Mac has no touch screen
+  const iPad = /Macintosh/.test(nav.userAgent) && nav.maxTouchPoints > 1;
+  return phone || iPad ? undefined : SONG_FILE_ACCEPT;
+}
+
 export type MidiFileErrorCode = "unsupported" | "empty" | "too-large" | "unreadable-score";
 
 export class MidiFileError extends Error {
