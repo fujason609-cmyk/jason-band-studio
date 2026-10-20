@@ -1,4 +1,5 @@
 import { drawTimeline, type LaneInput, type Palette } from "@/features/timeline/drawTimeline";
+import { cameraLeft } from "@/features/timeline/camera";
 import { RULER_HEIGHT, TIMELINE_GUTTER } from "@/features/timeline/layout";
 
 /** Everything one video frame shows, in the frame's on-screen (CSS pixel) size. */
@@ -17,19 +18,6 @@ export interface RecordScene {
   palette: Palette;
   keyColor: string;
   ripples: boolean;
-}
-
-/** Where the playhead sits in the video: a steady camera, 30% in from the left. */
-const PLAYHEAD_AT = 0.3;
-
-/**
- * Scroll offset for the video: the score glides under a fixed playhead (smoother on
- * video than the page's jump-scroll), clamped to the start and end of the song.
- */
-export function cameraLeft(position: number, zoom: number, width: number, durationSeconds: number): number {
-  const content = TIMELINE_GUTTER * 2 + durationSeconds * zoom;
-  const left = TIMELINE_GUTTER + position * zoom - width * PLAYHEAD_AT;
-  return Math.max(0, Math.min(left, Math.max(0, content - width)));
 }
 
 // the same guitar pick the page's playhead uses (Playhead.tsx), 20 × 22

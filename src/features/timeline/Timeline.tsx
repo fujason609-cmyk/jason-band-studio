@@ -8,6 +8,7 @@ import { barBeat } from "@/lib/time";
 import { useProjectStore } from "@/stores/useProjectStore";
 import { useStudioStore } from "@/stores/useStudioStore";
 import { drawTimeline } from "./drawTimeline";
+import { cameraLeft, followStep } from "./camera";
 import { buildLanes, readPalette, type TimelinePalette } from "./lanes";
 import { LANE_HEIGHT, RULER_HEIGHT, TIMELINE_GUTTER } from "./layout";
 import { Playhead } from "./Playhead";
@@ -20,6 +21,9 @@ interface TimelineProps {
   /** keep the playhead in view while playing, whatever the setting says */
   forceFollow?: boolean;
 }
+
+/** After a wheel or touch scroll, follow mode waits this long before gliding back. */
+const USER_SCROLL_HOLD_MS = 2000;
 
 export function Timeline({ laneHeight = LANE_HEIGHT, labels, forceFollow = false }: TimelineProps = {}) {
   const project = useProjectStore((s) => s.project);
@@ -36,6 +40,8 @@ export function Timeline({ laneHeight = LANE_HEIGHT, labels, forceFollow = false
   const [viewport, setViewport] = useState(0);
   const frame = useRef(0);
   const scrubbing = useRef(false);
+  // a wheel or touch scroll pauses following for a moment, so you can look around while it plays
+  const userScrolledAt = useRef(-Infinity);
   const lastAnnounced = useRef(-1);
   // read once per theme: getComputedStyle is too slow to run on every frame
   const palette = useRef<TimelinePalette | null>(null);
@@ -108,16 +114,21 @@ export function Timeline({ laneHeight = LANE_HEIGHT, labels, forceFollow = false
   }, [requestDraw]);
 
   usePlaybackPosition((pos) => {
+    const scroller = scrollRef.current;
+    // follow: the score glides under a steady playhead (no page jumps). Scroll first,
+    // then draw, so notes and playhead land in the same frame.
+    const following =
+      followPlayhead && transport === "playing" && !scrubbing.current && performance.now() - userScrolledAt.current > USER_SCROLL_HOLD_MS;
+    if (scroller && following) {
+      const target = cameraLeft(pos, zoom, scroller.clientWidth, project.durationSeconds);
+      const next = followStep(scroller.scrollLeft, target);
+      if (Math.abs(next - scroller.scrollLeft) >= 0.5) scroller.scrollLeft = next;
+    }
     // already inside an animation frame: redraw now so the glowing notes track the playhead
     position.current = pos;
     draw();
     const x = TIMELINE_GUTTER + pos * zoom;
     if (playheadRef.current) playheadRef.current.style.transform = `translateX(${x}px)`;
-    const scroller = scrollRef.current;
-    if (scroller && followPlayhead && transport === "playing" && !scrubbing.current) {
-      const left = scroller.scrollLeft;
-      if (x < left || x > left + scroller.clientWidth * 0.85) scroller.scrollLeft = x - scroller.clientWidth * 0.15;
-    }
     const whole = Math.floor(pos);
     if (scroller && whole !== lastAnnounced.current) {
       lastAnnounced.current = whole;
@@ -152,6 +163,8 @@ export function Timeline({ laneHeight = LANE_HEIGHT, labels, forceFollow = false
         ref={scrollRef}
         className="timeline__scroll"
         onScroll={requestDraw}
+        onWheel={() => (userScrolledAt.current = performance.now())}
+        onTouchMove={() => (userScrolledAt.current = performance.now())}
         role="slider"
         tabIndex={0}
         aria-label={t.timelineSlider}

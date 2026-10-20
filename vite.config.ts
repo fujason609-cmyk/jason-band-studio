@@ -11,6 +11,9 @@ export default defineConfig({
   base,
   plugins: [react()],
   build: {
+    // alphaTab (Guitar Pro / MusicXML import) is ~1.2 MB on its own; it's a lazy chunk
+    // loaded only when such a file is opened, so its size doesn't touch page load
+    chunkSizeWarningLimit: 1300,
     rollupOptions: {
       output: {
         manualChunks: { tone: ["tone", "@tonejs/midi"], react: ["react", "react-dom", "zustand"] },

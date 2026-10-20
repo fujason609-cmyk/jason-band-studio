@@ -63,6 +63,18 @@ describe("track mapping", () => {
     expect(familyOf({ isPercussion: true, program: 0 })).toBe("drums");
   });
 
+  it("trusts a clear track name over the program (scores often have program 0)", () => {
+    expect(familyOf({ isPercussion: false, program: 0, name: "Bass" })).toBe("bass");
+    expect(familyOf({ isPercussion: false, program: 0, name: "Synth Bass" })).toBe("bass");
+    expect(familyOf({ isPercussion: false, program: 0, name: "Lead Guitar" })).toBe("guitar");
+    expect(familyOf({ isPercussion: false, program: 0, name: "Drum Kit" })).toBe("drums");
+    expect(familyOf({ isPercussion: false, program: 30, name: "ストリングス Pad" })).toBe("keys");
+    expect(familyOf({ isPercussion: false, program: 0, name: "ベース" })).toBe("bass");
+    expect(familyOf({ isPercussion: false, program: 0, name: "节奏吉他" })).toBe("guitar");
+    expect(familyOf({ isPercussion: false, program: 0, name: "Bassoon" })).toBe("keys"); // not a bass guitar: falls back to program 0
+    expect(familyOf({ isPercussion: false, program: 33, name: "Track 3" })).toBe("bass"); // no hint: program decides
+  });
+
   it("suggests a member for each part and leaves extras out", () => {
     const { assignments } = suggestMapping(parsed);
     const who = (name: string) => assignments.find((a) => a.midiTrackIndex === idx(name))?.memberId;

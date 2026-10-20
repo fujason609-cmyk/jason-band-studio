@@ -17,7 +17,7 @@ const en = {
   clubBadge: "Light Music Club",
   footer:
     "A fan-made practice tool, not affiliated with the rights holders of K-ON!. The instruments are free CC0 recordings by Karoryfer Samples and Versilian Studios (nothing from the show), and the demo song was written for this project. Your session is saved in this browser only.",
-  dropHint: "Drop a MIDI file to load it",
+  dropHint: "Drop a MIDI, Guitar Pro or MusicXML file to load it",
   dismiss: "Dismiss message",
 
   // header
@@ -116,11 +116,13 @@ const en = {
   discardVideo: "Don't save",
 
   // MIDI import
-  importMidi: "Import MIDI",
+  importMidi: "Import song",
+  importHint: "Load a MIDI, Guitar Pro (.gp, .gp3–.gp5, .gpx) or MusicXML (.musicxml, .mxl) file",
+  readingScore: (f: string) => `Reading the score ${f}…`,
   whoPlaysWhat: "Who plays what?",
   mappingIntro: (file: string, tracks: number) =>
     `${file} has ${plural(tracks, "track")}. Give each one to a member, or leave it out. Several tracks can go to the same member.`,
-  trackInfo: (instrument: string, notes: number) => `${instrument}, ${plural(notes, "note")}`,
+  trackInfo: (instrument: string, notes: number) => (instrument ? `${instrument}, ${plural(notes, "note")}` : plural(notes, "note")),
   drumKit: "drum kit",
   leaveOut: "Leave out",
   memberOption: (name: string, role: string) => `${name} (${role.toLowerCase()})`,
@@ -131,9 +133,12 @@ const en = {
   loadedLeftOut: (file: string, left: number) => `Loaded ${file}. ${plural(left, "track")} left out.`,
   couldNotOpen: "That file couldn't be opened.",
   midiError: {
-    "not-midi": (f: string) => `${f} isn't a MIDI file. Choose a file ending in .mid or .midi.`,
+    unsupported: (f: string) =>
+      `${f} isn't a song file this studio reads. Choose a MIDI (.mid), Guitar Pro (.gp, .gp5, .gpx…) or MusicXML (.musicxml, .mxl) file.`,
     empty: (f: string) => `${f} is empty.`,
-    "too-large": (f: string) => `${f} is larger than 5 MB. Choose a smaller MIDI file.`,
+    "too-large": (f: string) => `${f} is larger than 5 MB. Choose a smaller file.`,
+    "unreadable-score": (f: string) =>
+      `${f} couldn't be read as a Guitar Pro or MusicXML score. Open it in Guitar Pro or MuseScore and export it again, or export it as MIDI.`,
     unreadable: (f: string) =>
       `${f} isn't a readable MIDI file. Export it again as a Standard MIDI File (.mid) and try once more.`,
     "no-notes": (f: string) => `${f} has no notes to play. Pick a MIDI file that contains note data.`,
@@ -186,7 +191,7 @@ const zh: Strings = {
   clubBadge: "轻音部",
   footer:
     "粉丝自制的练习工具，与《轻音少女》版权方无关。乐器声音来自 Karoryfer Samples 与 Versilian Studios 的免费 CC0 录音（不含任何动画原声），演示曲是为本项目原创的。你的进度只保存在这个浏览器里。",
-  dropHint: "松开即可载入 MIDI 文件",
+  dropHint: "松开即可载入 MIDI、Guitar Pro 或 MusicXML 文件",
   dismiss: "关闭提示",
 
   loadDemo: "载入演示曲",
@@ -275,11 +280,13 @@ const zh: Strings = {
   saveVideo: "保存",
   discardVideo: "不要",
 
-  importMidi: "导入 MIDI",
+  importMidi: "导入乐谱",
+  importHint: "载入 MIDI、Guitar Pro（.gp、.gp3–.gp5、.gpx）或 MusicXML（.musicxml、.mxl）文件",
+  readingScore: (f) => `正在读取乐谱 ${f}…`,
   whoPlaysWhat: "谁来演奏哪一轨？",
   mappingIntro: (file, tracks) =>
     `${file} 共有 ${tracks} 条音轨。把每条音轨分配给一位成员，或者不使用。多条音轨可以分给同一位成员。`,
-  trackInfo: (instrument, notes) => `${instrument}，${notes} 个音符`,
+  trackInfo: (instrument, notes) => (instrument ? `${instrument}，${notes} 个音符` : `${notes} 个音符`),
   drumKit: "架子鼓",
   leaveOut: "不使用",
   memberOption: (name, role) => `${name}（${role}）`,
@@ -290,9 +297,10 @@ const zh: Strings = {
   loadedLeftOut: (file, left) => `已载入 ${file}，有 ${left} 条音轨未使用。`,
   couldNotOpen: "无法打开这个文件。",
   midiError: {
-    "not-midi": (f) => `${f} 不是 MIDI 文件。请选择以 .mid 或 .midi 结尾的文件。`,
+    unsupported: (f) => `${f} 不是这里能读取的乐谱文件。请选择 MIDI（.mid）、Guitar Pro（.gp、.gp5、.gpx…）或 MusicXML（.musicxml、.mxl）文件。`,
     empty: (f) => `${f} 是空文件。`,
-    "too-large": (f) => `${f} 超过 5 MB，请选择更小的 MIDI 文件。`,
+    "too-large": (f) => `${f} 超过 5 MB，请选择更小的文件。`,
+    "unreadable-score": (f) => `无法把 ${f} 当作 Guitar Pro 或 MusicXML 乐谱读取。请用 Guitar Pro 或 MuseScore 打开后重新导出，或者导出成 MIDI。`,
     unreadable: (f) => `无法读取 ${f}。请重新导出为标准 MIDI 文件（.mid）后再试。`,
     "no-notes": (f) => `${f} 里没有可播放的音符。请选择包含音符数据的 MIDI 文件。`,
   },

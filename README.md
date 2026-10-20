@@ -17,8 +17,8 @@ A small browser DAW for a five-piece light-music club band. Listen to each membe
 - **Each member plays with their own feel.** Ritsu pushes ahead of the beat and hits the downbeats hard, Mio is steady, Yui has big dynamics and sometimes lays back, Azusa is tight, Mugi plays gently, and guitar chords are strummed string by string (up-strokes on the off-beats). The ✨ button above the score switches everyone to strictly on the beat.
 - **Mixer** with per-track volume, mute and solo, plus a master volume. Mute always wins; while any track is soloed only soloed tracks play. Toggling either cuts notes that are already ringing.
 - **One clock for the band.** Every note is scheduled on a single Tone.js Transport, so the parts can't drift apart. Tempo changes keep the playhead where it is, and pause, resume, seek and loop act on all tracks at once.
-- **MIDI import** from the file picker or by dropping a `.mid` file on the page. Tracks are matched to members by General MIDI family (drums, bass, guitar, keys, lead) and you can reassign or leave out any of them before loading. The tempo map, PPQ and time signatures are kept.
-- **Timeline** drawn on a canvas, with staff-paper lanes, bar numbers, zoom, an optional follow mode and click or drag to seek. With keyboard focus on it, the arrow keys move one bar and Home goes to the start.
+- **Song import: MIDI, Guitar Pro or MusicXML**, from the file picker ("Import song") or by dropping the file on the page. Guitar Pro (.gp, .gp3, .gp4, .gp5, .gpx) and MusicXML (.musicxml, .mxl, .xml) scores are read with [alphaTab](https://github.com/CoderLine/alphaTab) (MPL-2.0), loaded only when such a file is opened, and turned into MIDI, so every format gets the same treatment. Tracks are matched to members by their name when it says what they are ("Bass", "Rhythm Guitar", "ドラム", "键盘"…) and otherwise by General MIDI family, and you can reassign or leave out any of them before loading. The tempo map, PPQ and time signatures are kept; a score's title becomes the song name.
+- **Timeline** drawn on a canvas, with staff-paper lanes, bar numbers, zoom, an optional follow mode (the score glides under a playhead parked 30% in from the left, no page jumps; a wheel or touch scroll pauses it for two seconds) and click or drag to seek. With keyboard focus on it, the arrow keys move one bar and Home goes to the start.
 - **A live instrument that fits the part.** Lead guitar and bass get a fretboard (6 and 4 strings, frets 0–15; phones show six frets at a time with arrows to move up the neck). Rhythm guitar gets strum pads for nine open chords. Keys get a piano and drums get a kit: cymbals, toms and snare, and a kick pedal.
 - **Live playing** for the selected member:
   - Melodic instruments: the `A`–`;` keys play the white notes, `W E T Y U O P` the sharps, and `Z` / `X` change octave.
@@ -98,11 +98,12 @@ Packs load lazily and are shared by every track that uses them. Each mixer strip
 
 ## Testing
 
-`pnpm test` runs 96 tests covering:
+`pnpm test` runs 106 tests covering:
 - mute and solo rules
 - tick and second conversions, and tempo scaling
 - the keyboard map
-- MIDI parsing and errors, track auto-mapping and merging
+- MIDI parsing and errors, track auto-mapping (by name and by program) and merging
+- Guitar Pro and MusicXML conversion, and importing a score end to end
 - project validation and repair
 - settings and IndexedDB round trips
 - the project store and the demo song's integrity

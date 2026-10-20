@@ -12,7 +12,10 @@ export interface Notice {
 export interface PendingImport {
   parsed: ParsedMidi;
   assignments: TrackAssignment[];
+  /** the song as MIDI (a Guitar Pro / MusicXML file is converted first) */
   data: ArrayBuffer;
+  /** the score's own title, when the file was a score that has one */
+  title?: string;
 }
 
 interface StudioState {

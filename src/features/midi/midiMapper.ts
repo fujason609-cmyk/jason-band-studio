@@ -6,8 +6,28 @@ import type { StudioTrack } from "@/types/project";
 
 type Family = "drums" | "bass" | "guitar" | "keys" | "lead";
 
-export function familyOf(track: Pick<ParsedMidiTrack, "isPercussion" | "program">): Family {
+/**
+ * What a track's name says it is, in English, Japanese or Chinese. Scores name their
+ * parts reliably but often carry no MIDI program (MusicXML from MuseScore imports as
+ * program 0, a piano), so a clear name wins over the program. Bass before keys, so
+ * "Synth Bass" is a bass.
+ */
+export function familyFromName(name: string): Exclude<Family, "lead"> | null {
+  const n = name.toLowerCase();
+  if (/drum|perc|kit\b|ドラム|鼓/.test(n)) return "drums";
+  if (/bass(?!oon)|ベース|贝斯|貝斯/.test(n)) return "bass";
+  if (/guit|gtr|ギター|吉他/.test(n)) return "guitar";
+  if (/piano|key|synth|organ|pad|string|ピアノ|キーボード|シンセ|钢琴|鋼琴|键盘|鍵盤|合成器/.test(n)) return "keys";
+  return null;
+}
+
+/** "Rhythm Guitar" / "リズムギター" / "节奏吉他": Azusa's part rather than Yui's. */
+const RHYTHM = /rhythm|backing|リズム|节奏|節奏/i;
+
+export function familyOf(track: Pick<ParsedMidiTrack, "isPercussion" | "program"> & { name?: string }): Family {
   if (track.isPercussion) return "drums";
+  const named = track.name ? familyFromName(track.name) : null;
+  if (named) return named;
   const p = track.program;
   if (p >= 32 && p <= 39) return "bass";
   if (p >= 24 && p <= 31) return "guitar";
@@ -39,8 +59,8 @@ export function suggestMapping(parsed: ParsedMidi): MappingSuggestion {
 
   for (const track of melodic) {
     const family = familyOf(track) as keyof typeof PREFERENCES;
-    const choice =
-      PREFERENCES[family].find((m) => !taken.has(m)) ?? MELODIC_MEMBERS.find((m) => !taken.has(m)) ?? null;
+    const prefs = family === "guitar" && RHYTHM.test(track.name) ? ["azusa", "yui"] as MemberId[] : PREFERENCES[family];
+    const choice = prefs.find((m) => !taken.has(m)) ?? MELODIC_MEMBERS.find((m) => !taken.has(m)) ?? null;
     if (choice) taken.add(choice);
     byIndex.set(track.index, choice);
   }

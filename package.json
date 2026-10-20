@@ -17,6 +17,7 @@
     "samples:build": "vite-node scripts/build-sample-packs.ts"
   },
   "dependencies": {
+    "@coderline/alphatab": "1.8.4",
     "@tonejs/midi": "2.0.28",
     "lucide-react": "0.511.0",
     "react": "19.1.0",

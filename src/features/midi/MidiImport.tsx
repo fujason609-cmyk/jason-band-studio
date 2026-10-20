@@ -2,6 +2,7 @@ import { useEffect, useId, useRef } from "react";
 import { FileMusic } from "lucide-react";
 import { MEMBERS, isMemberId } from "@/features/band/members";
 import { useT } from "@/i18n/useT";
+import { SONG_FILE_ACCEPT } from "@/services/file/midiFileService";
 import { useStudioStore } from "@/stores/useStudioStore";
 import { useMidiImport } from "./useMidiImport";
 
@@ -16,6 +17,7 @@ export function MidiImportButton() {
         type="button"
         className="btn btn--primary btn--import"
         aria-label={t.importMidi}
+        title={t.importHint}
         onClick={() => inputRef.current?.click()}
       >
         <FileMusic size={18} aria-hidden="true" />
@@ -24,7 +26,7 @@ export function MidiImportButton() {
       <input
         ref={inputRef}
         type="file"
-        accept=".mid,.midi,audio/midi,audio/x-midi"
+        accept={SONG_FILE_ACCEPT}
         hidden
         onChange={(e) => {
           const file = e.currentTarget.files?.[0];
