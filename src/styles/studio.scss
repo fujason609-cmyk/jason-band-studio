@@ -1142,6 +1142,49 @@ select {
   }
 }
 
+// 3-2-1 over the score before a take (on screen only: the video is drawn separately)
+.record-countdown {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  pointer-events: none;
+  span {
+    font-size: clamp(64px, 22vw, 160px);
+    font-weight: 800;
+    color: var(--accent);
+    text-shadow: 0 4px 0 var(--surface), 0 0 24px var(--surface);
+    animation: countdown-pop 1s ease-out both;
+  }
+}
+
+@keyframes countdown-pop {
+  from {
+    transform: scale(1.6);
+    opacity: 0;
+  }
+  25% {
+    transform: scale(1);
+    opacity: 1;
+  }
+  to {
+    opacity: 0.85;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .record-countdown span {
+    animation: none;
+  }
+}
+
+// count-in and metronome switches, beside the tempo
+.clicks {
+  display: flex;
+  gap: 2px;
+  margin-left: 6px;
+}
+
 // playing style picker in the toolbar
 .style-pick {
   display: flex;
@@ -1202,6 +1245,7 @@ select {
 
   // the score takes every pixel above the key strip
   &__score {
+    position: relative; // holds the countdown
     flex: 1 1 auto;
     min-height: 0;
     background: var(--surface);
@@ -1603,7 +1647,8 @@ select {
   }
   .bpm {
     gap: 6px;
-    &__label {
+    &__label,
+    &__unit {
       position: absolute;
       width: 1px;
       height: 1px;
@@ -1611,6 +1656,16 @@ select {
       clip-path: inset(50%);
       white-space: nowrap;
     }
+    // room for the count-in and metronome switches without squeezing the time readout
+    &__field {
+      padding-right: 2px;
+    }
+    &__input {
+      width: 2.6em;
+    }
+  }
+  .clicks {
+    margin-left: 0;
   }
   .master {
     margin-left: 0;

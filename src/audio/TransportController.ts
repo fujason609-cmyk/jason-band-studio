@@ -13,6 +13,8 @@ export class TransportController {
   private durationSeconds = 0;
   private loop = false;
   private endEventId: number | null = null;
+  /** audio-clock time a counted-in start is waiting for */
+  private startsAt: number | null = null;
 
   constructor(
     private readonly onEnd: () => void,
@@ -21,7 +23,13 @@ export class TransportController {
     this.transport.PPQ = PPQ;
   }
 
+  /** Waiting out a count-in: the start is scheduled but hasn't happened yet. */
+  private get countingIn() {
+    return this.startsAt !== null && Tone.now() < this.startsAt;
+  }
+
   get status(): TransportStatus {
+    if (this.countingIn) return "playing";
     const s = this.transport.state;
     return s === "started" ? "playing" : s === "paused" ? "paused" : "stopped";
   }
@@ -59,17 +67,28 @@ export class TransportController {
     this.transport.bpm.value = bpm;
   }
 
-  play() {
+  /** Start now, or at audio-clock time `at` (after a count-in). */
+  play(at?: number) {
     if (this.getPosition() >= this.durationSeconds - 0.01) this.seek(0);
-    this.transport.start();
+    this.startsAt = at ?? null;
+    this.transport.start(at);
   }
 
   pause() {
-    this.transport.pause();
+    if (this.countingIn) {
+      // a pause before the start can't cancel it; stop does, then put the position back
+      const ticks = this.transport.ticks;
+      this.transport.stop();
+      this.transport.ticks = ticks;
+    } else {
+      this.transport.pause();
+    }
+    this.startsAt = null;
     this.onCut();
   }
 
   stop() {
+    this.startsAt = null;
     this.transport.stop();
     this.transport.ticks = 0;
     this.onCut();

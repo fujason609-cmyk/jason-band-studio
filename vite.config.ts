@@ -2,6 +2,7 @@
 import { fileURLToPath, URL } from "node:url";
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
+import { serviceWorker } from "./scripts/serviceWorker";
 
 // GitHub Pages project sites live under /<repo-name>/. The deploy workflow sets
 // BASE_PATH from the repository name; locally everything is served from "/".
@@ -9,7 +10,7 @@ const base = process.env.BASE_PATH ?? "/";
 
 export default defineConfig({
   base,
-  plugins: [react()],
+  plugins: [react(), serviceWorker()],
   build: {
     // alphaTab (Guitar Pro / MusicXML import) is ~1.2 MB on its own; it's a lazy chunk
     // loaded only when such a file is opened, so its size doesn't touch page load

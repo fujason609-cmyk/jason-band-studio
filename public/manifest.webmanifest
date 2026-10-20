@@ -1,0 +1,16 @@
+{
+  "name": "放課後ティータイム Band Studio",
+  "short_name": "Band Studio",
+  "description": "A free browser band studio for a five-piece light-music club band: mix parts, import songs and play along.",
+  "start_url": ".",
+  "scope": ".",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#24264F",
+  "theme_color": "#24264F",
+  "icons": [
+    { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png" },
+    { "src": "icons/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}

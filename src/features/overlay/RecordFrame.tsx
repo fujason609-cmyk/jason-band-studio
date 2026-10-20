@@ -4,6 +4,7 @@ import { IconButton } from "@/components/common/IconButton";
 import { MEMBERS } from "@/features/band/members";
 import { MAX_ZOOM, MIN_ZOOM, RULER_HEIGHT } from "@/features/timeline/layout";
 import { Timeline } from "@/features/timeline/Timeline";
+import { ensureAudio } from "@/hooks/useAudioEngine";
 import { useSpacebarToggle, useTransport } from "@/hooks/useTransport";
 import { useT } from "@/i18n/useT";
 import { useStudioStore } from "@/stores/useStudioStore";
@@ -13,6 +14,8 @@ import { SaveVideoDialog } from "./SaveVideoDialog";
 import { useFrameRecording } from "./useFrameRecording";
 
 const ZOOM_STEP = 1.4;
+/** Seconds counted down on screen before a take's playback starts (the video already runs). */
+const COUNTDOWN_SECONDS = 3;
 
 /**
  * Full-screen Instagram recording frame: the timeline on top and a 16:9 strip of
@@ -25,8 +28,7 @@ export function RecordFrame() {
   const zoom = useStudioStore((s) => s.settings.zoom);
   const updateSettings = useStudioStore((s) => s.updateSettings);
   const setRecordMode = useStudioStore((s) => s.setRecordMode);
-  const { status, play, pause, stop, restart, toggle } = useTransport();
-  useSpacebarToggle(toggle);
+  const { status, play, pause, stop, restart } = useTransport();
   const t = useT();
 
   const frameRef = useRef<HTMLDivElement>(null);
@@ -58,12 +60,42 @@ export function RecordFrame() {
   // video recording: armed by default where the browser can do it; Play starts a take
   const [supported] = useState(canRecordVideo);
   const [armed, setArmed] = useState(supported);
-  const { recording, result, dismiss } = useFrameRecording(armed && supported, playing, {
+  // a take starts with a 3-2-1 on screen: the video is already recording the still frame,
+  // so it doesn't open on the first note
+  const [countdown, setCountdown] = useState<number | null>(null);
+  const { recording, result, dismiss, discard } = useFrameRecording(armed && supported, playing || countdown !== null, {
     width: size.width,
     height: size.height,
     keyHeight,
     laneHeight,
   });
+
+  useEffect(() => {
+    if (countdown === null || countdown === 0) return;
+    const id = setTimeout(() => setCountdown((c) => (c === null ? null : c - 1)), 1000);
+    return () => clearTimeout(id);
+  }, [countdown]);
+  useEffect(() => {
+    if (countdown !== 0) return;
+    // keep counting as "rolling" until the transport says playing, so the take isn't cut
+    void play().finally(() => setCountdown(null));
+  }, [countdown, play]);
+
+  /** Play, through the countdown when this starts a new take. */
+  const start = async (fromTop: boolean) => {
+    if (countdown !== null) return;
+    if (!armed || !supported || recording) return void (fromTop ? restart() : play());
+    // unlock audio now, inside the tap: the countdown's timer isn't a user gesture
+    if (!(await ensureAudio())) return;
+    if (fromTop) stop();
+    setCountdown(COUNTDOWN_SECONDS);
+  };
+  const cancelCountdown = () => {
+    setCountdown(null);
+    discard();
+  };
+  const halt = (action: () => void) => () => (countdown !== null ? cancelCountdown() : action());
+  useSpacebarToggle(() => (playing || countdown !== null ? halt(pause)() : void start(false)));
 
   return (
     <div className="record-view" role="region" aria-label={t.recordMode}>
@@ -75,6 +107,11 @@ export function RecordFrame() {
       >
         <div className="record-frame__score">
           {size.height > 0 && <Timeline laneHeight={laneHeight} labels forceFollow />}
+          {countdown !== null && countdown > 0 && (
+            <div className="record-countdown" role="status" aria-label={t.countdown(countdown)}>
+              <span key={countdown}>{countdown}</span>
+            </div>
+          )}
         </div>
         <div
           className="record-frame__key"
@@ -85,19 +122,19 @@ export function RecordFrame() {
 
       <div className="record-controls">
         <div className="record-controls__row">
-          {playing ? (
-            <IconButton label={t.pause} variant="solid" className="transport__main" onClick={pause}>
+          {playing || countdown !== null ? (
+            <IconButton label={t.pause} variant="solid" className="transport__main" onClick={halt(pause)}>
               <Pause size={22} />
             </IconButton>
           ) : (
-            <IconButton label={t.play} variant="solid" className="transport__main" onClick={() => void play()}>
+            <IconButton label={t.play} variant="solid" className="transport__main" onClick={() => void start(false)}>
               <Play size={22} />
             </IconButton>
           )}
-          <IconButton label={t.restart} onClick={() => void restart()}>
+          <IconButton label={t.restart} onClick={() => void start(true)}>
             <SkipBack size={18} />
           </IconButton>
-          <IconButton label={t.stop} onClick={stop}>
+          <IconButton label={t.stop} onClick={halt(stop)}>
             <Square size={18} />
           </IconButton>
           <IconButton label={t.zoomOut} variant="quiet" onClick={() => setZoom(zoom / ZOOM_STEP)} disabled={zoom <= MIN_ZOOM}>

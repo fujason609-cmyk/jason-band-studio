@@ -1,4 +1,4 @@
-import { Crosshair, Guitar, Smartphone, Sparkles, ZoomIn, ZoomOut } from "lucide-react";
+import { Crosshair, Drum, Guitar, Smartphone, Sparkles, ZoomIn, ZoomOut } from "lucide-react";
 import { IconButton } from "@/components/common/IconButton";
 import { useT } from "@/i18n/useT";
 import { PLAY_STYLES, isPlayStyle } from "@/lib/playStyle";
@@ -9,7 +9,8 @@ const ZOOM_STEP = 1.4;
 
 /** Row on top of the timeline: zoom and follow on the left; playing style, feel and the recording frame on the right. */
 export function TimelineToolbar() {
-  const { zoom, followPlayhead, feel, playStyle } = useStudioStore((s) => s.settings);
+  const { zoom, followPlayhead, feel, playStyle, autoDrums } = useStudioStore((s) => s.settings);
+  const drumsApply = playStyle === "rock" || playStyle === "punk";
   const updateSettings = useStudioStore((s) => s.updateSettings);
   const setRecordMode = useStudioStore((s) => s.setRecordMode);
   const t = useT();
@@ -48,6 +49,15 @@ export function TimelineToolbar() {
             ))}
           </select>
         </label>
+        <IconButton
+          label={!drumsApply ? t.autoDrumsIdle : autoDrums ? t.autoDrumsOn : t.autoDrumsOff}
+          variant="quiet"
+          pressed={autoDrums}
+          disabled={!drumsApply}
+          onClick={() => updateSettings({ autoDrums: !autoDrums })}
+        >
+          <Drum size={16} />
+        </IconButton>
         <IconButton
           label={feel === "character" ? t.feelOn : t.feelOff}
           variant="quiet"

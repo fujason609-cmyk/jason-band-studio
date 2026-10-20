@@ -3,9 +3,11 @@ import {
   arpeggiate,
   arrange,
   chug,
+  drumGroove,
   isPlayStyle,
   legato,
   phraseCrashes,
+  playedBars,
   powerChords,
   swing,
   swingTicks,
@@ -71,6 +73,33 @@ describe("playing styles", () => {
     expect(arp.every((n) => n.ticks + n.durationTicks === 768)).toBe(true);
     // a quick chord is still strummed together
     expect(arpeggiate([note(0, 96, 60), note(0, 96, 64), note(0, 96, 67)], PPQ).every((n) => n.ticks === 0)).toBe(true);
+  });
+
+  it("finds the bars the band plays in, held notes included", () => {
+    const bar = PPQ * 4;
+    expect(playedBars([note(0, 96), note(bar * 2 + 10, bar * 2)], bar)).toEqual([0, 2, 3, 4]);
+    expect(playedBars([note(bar, bar)], bar)).toEqual([1]); // ends exactly on the next downbeat
+  });
+
+  it("generates a rock beat for a score without drums, only in rock and punk", () => {
+    const bar = PPQ * 4;
+    const band = { autoDrums: true, playedBars: [0, 1, 2, 3, 4] };
+    const rock = arrange("rock", "drums", [], PPQ, 4, band);
+    const inBar = (b: number, pitch: number) => rock.filter((n) => n.pitch === pitch && n.ticks >= b * bar && n.ticks < (b + 1) * bar);
+    expect(inBar(1, 38).map((n) => n.ticks - bar)).toEqual([192, 576]); // snare on 2 and 4
+    expect(inBar(1, 36).map((n) => n.ticks - bar)).toEqual([0, 384, 480]); // kick on 1, 3 and the "and" of 3
+    expect(inBar(1, 42)).toHaveLength(8); // hi-hat eighths
+    expect(inBar(0, 49)).toHaveLength(1); // crash on the first bar
+    expect(inBar(4, 49)).toHaveLength(1); // and at the top of the next phrase
+    expect(inBar(3, 38).length).toBeGreaterThan(2); // a fill leading into it
+    // punk kicks every beat and crashes every 2 bars
+    const punk = drumGroove([0, 1, 2], PPQ, 4, true);
+    expect(punk.filter((n) => n.pitch === 36 && n.ticks < bar)).toHaveLength(4);
+    expect(punk.filter((n) => n.pitch === 49).map((n) => n.ticks)).toEqual([0, bar * 2]);
+    // switched off, another style, or a score that has drums: nothing generated
+    expect(arrange("rock", "drums", [], PPQ, 4, { ...band, autoDrums: false })).toHaveLength(0);
+    expect(arrange("ballad", "drums", [], PPQ, 4, band)).toHaveLength(0);
+    expect(arrange("rock", "drums", [note(0, 48, 36)], PPQ, 4, band).filter((n) => n.pitch === 42)).toHaveLength(0);
   });
 
   it("swings the off-beat eighth onto the last triplet", () => {

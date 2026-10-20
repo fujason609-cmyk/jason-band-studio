@@ -14,6 +14,35 @@ export class MidiParseError extends Error {
   }
 }
 
+/**
+ * MIDI text is bytes; the MIDI reader gives one character per byte. Most files today write
+ * UTF-8 (and score imports always do), so decode it as that, and keep the bytes as they
+ * are when they aren't UTF-8.
+ */
+export function decodeMidiText(text: string): string {
+  if (![...text].some((c) => c.charCodeAt(0) >= 0x80)) return text;
+  try {
+    return new TextDecoder("utf-8", { fatal: true }).decode(Uint8Array.from(text, (c) => c.charCodeAt(0)));
+  } catch {
+    return text;
+  }
+}
+
+/**
+ * The MIDI reader splits a track at its first program change. When a track sets volume
+ * and pan before choosing its instrument, its name stays on that note-less first piece
+ * (whose channel reads as 0, since the reader takes it from notes): an unnamed track
+ * right after a named one without notes gets that name back.
+ */
+function trackNames(tracks: readonly Midi["tracks"][number][]): string[] {
+  return tracks.map((track, i) => {
+    const own = decodeMidiText(track.name.trim());
+    const before = tracks[i - 1];
+    if (own || !before || before.notes.length > 0) return own;
+    return decodeMidiText(before.name.trim());
+  });
+}
+
 /** Parse a Standard MIDI File into note events in song seconds, keeping timing metadata. */
 export function parseMidi(data: ArrayBuffer | Uint8Array, fileName: string): ParsedMidi {
   let midi: Midi;
@@ -27,6 +56,7 @@ export function parseMidi(data: ArrayBuffer | Uint8Array, fileName: string): Par
     );
   }
 
+  const names = trackNames(midi.tracks);
   const tracks: ParsedMidiTrack[] = midi.tracks
     .map((track, index): ParsedMidiTrack => {
       const notes: NoteEvent[] = track.notes
@@ -41,7 +71,7 @@ export function parseMidi(data: ArrayBuffer | Uint8Array, fileName: string): Par
       const percussion = track.instrument.percussion || track.channel === 9;
       return {
         index,
-        name: track.name.trim() || `Track ${index + 1}`,
+        name: names[index] || `Track ${index + 1}`,
         channel: track.channel,
         program: track.instrument.number,
         instrumentName: percussion ? "drum kit" : track.instrument.name,

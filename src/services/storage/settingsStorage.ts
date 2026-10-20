@@ -24,6 +24,12 @@ export interface StudioSettings {
   keysPatch: KeysPatch;
   /** the genre the band plays the score in */
   playStyle: PlayStyle;
+  /** in rock and punk, play a generated beat when the score has no drum part */
+  autoDrums: boolean;
+  /** one bar of clicks before playback starts */
+  countIn: boolean;
+  /** a click on every beat while playing */
+  metronome: boolean;
 }
 
 export const DEFAULT_SETTINGS: StudioSettings = {
@@ -37,6 +43,9 @@ export const DEFAULT_SETTINGS: StudioSettings = {
   feel: "character",
   keysPatch: "piano",
   playStyle: "original",
+  autoDrums: true,
+  countIn: false,
+  metronome: false,
 };
 
 const KEY = "kon-band-studio:settings:v1";
@@ -56,6 +65,9 @@ export function sanitizeSettings(raw: unknown): StudioSettings {
     feel: r.feel === "steady" || r.feel === "character" ? r.feel : DEFAULT_SETTINGS.feel,
     keysPatch: isKeysPatch(r.keysPatch) ? r.keysPatch : DEFAULT_SETTINGS.keysPatch,
     playStyle: isPlayStyle(r.playStyle) ? r.playStyle : DEFAULT_SETTINGS.playStyle,
+    autoDrums: typeof r.autoDrums === "boolean" ? r.autoDrums : DEFAULT_SETTINGS.autoDrums,
+    countIn: typeof r.countIn === "boolean" ? r.countIn : DEFAULT_SETTINGS.countIn,
+    metronome: typeof r.metronome === "boolean" ? r.metronome : DEFAULT_SETTINGS.metronome,
   };
 }
 

@@ -44,6 +44,9 @@ describe("settings", () => {
     expect(sanitizeSettings({ keysPatch: "theremin" }).keysPatch).toBe("piano");
     expect(sanitizeSettings({ playStyle: "punk" }).playStyle).toBe("punk");
     expect(sanitizeSettings({ playStyle: "metal" }).playStyle).toBe("original");
+    expect(sanitizeSettings({}).autoDrums).toBe(true);
+    expect(sanitizeSettings({ countIn: true, metronome: true })).toMatchObject({ countIn: true, metronome: true });
+    expect(sanitizeSettings({ countIn: "yes" }).countIn).toBe(false);
     expect(sanitizeSettings({ theme: "neon", zoom: 9000, selectedMember: "sawako", language: "fr" })).toMatchObject({
       theme: "system",
       language: DEFAULT_SETTINGS.language,

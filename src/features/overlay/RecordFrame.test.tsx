@@ -14,6 +14,8 @@ vi.mock("@/audio/AudioEngine", () => ({
     start: vi.fn().mockResolvedValue(true),
     setLoop: vi.fn(),
     setFeel: vi.fn(),
+    setCountIn: vi.fn(),
+    setMetronome: vi.fn(),
     play: vi.fn(),
     pause: vi.fn(),
     stop: vi.fn(),

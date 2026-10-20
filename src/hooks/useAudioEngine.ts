@@ -10,9 +10,11 @@ export async function ensureAudio(): Promise<boolean> {
   const ok = await audioEngine.start();
   studio.setAudioStarted(ok);
   if (ok) {
-    const { loop, feel } = useStudioStore.getState().settings;
+    const { loop, feel, countIn, metronome } = useStudioStore.getState().settings;
     audioEngine.setLoop(loop);
     audioEngine.setFeel(feel);
+    audioEngine.setCountIn(countIn);
+    audioEngine.setMetronome(metronome);
   }
   return ok;
 }
@@ -33,9 +35,10 @@ export function useAudioEngineBridge() {
     });
 
     // before the first sync, so the voices and parts are built with the right sound straight away
-    const { keysPatch, playStyle } = useStudioStore.getState().settings;
+    const { keysPatch, playStyle, autoDrums } = useStudioStore.getState().settings;
     audioEngine.setKeysPatch(keysPatch);
     audioEngine.setStyle(playStyle);
+    audioEngine.setAutoDrums(autoDrums);
     audioEngine.sync(useProjectStore.getState().project);
     const unsubProject = useProjectStore.subscribe((s, prev) => {
       if (s.project !== prev.project) audioEngine.sync(s.project);
@@ -45,6 +48,9 @@ export function useAudioEngineBridge() {
       if (s.settings.feel !== prev.settings.feel) audioEngine.setFeel(s.settings.feel);
       if (s.settings.keysPatch !== prev.settings.keysPatch) audioEngine.setKeysPatch(s.settings.keysPatch);
       if (s.settings.playStyle !== prev.settings.playStyle) audioEngine.setStyle(s.settings.playStyle);
+      if (s.settings.autoDrums !== prev.settings.autoDrums) audioEngine.setAutoDrums(s.settings.autoDrums);
+      if (s.settings.countIn !== prev.settings.countIn) audioEngine.setCountIn(s.settings.countIn);
+      if (s.settings.metronome !== prev.settings.metronome) audioEngine.setMetronome(s.settings.metronome);
     });
     return () => {
       unsubProject();

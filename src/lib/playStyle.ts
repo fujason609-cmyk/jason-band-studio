@@ -12,6 +12,9 @@ import type { InstrumentId } from "@/types/audio";
  *           eighths, a crash every 2 bars, the most drive
  *   ballad  softer and legato; guitars pick held chords as arpeggios, clean amps, quiet drums
  *   swing   off-beat eighths fall late, on the last triplet; clean, dark jazz guitar
+ *
+ * In rock and punk, a score with no drum part can get a generated groove (`autoDrums`)
+ * in every bar where the rest of the band plays.
  */
 export type PlayStyle = "original" | "rock" | "punk" | "ballad" | "swing";
 
@@ -104,7 +107,7 @@ export function phraseCrashes(notes: readonly StyledNote[], ppq: number, beatsPe
   for (const n of notes) {
     if (CRASHES.has(n.pitch)) starts.delete(Math.round(n.ticks / phrase) * phrase);
   }
-  const added = [...starts].map((ticks) => ({ ticks, durationTicks: ppq, pitch: 49, velocity: 0.8 }));
+  const added = [...starts].map((ticks) => ({ ticks, durationTicks: ppq, pitch: CRASH, velocity: 0.8 }));
   return [...notes, ...added];
 }
 
@@ -162,7 +165,81 @@ export function swing(notes: readonly StyledNote[], ppq: number): StyledNote[] {
   });
 }
 
-function rock(instrument: InstrumentId, notes: readonly StyledNote[], ppq: number, beatsPerBar: number, punk: boolean) {
+/** What a part needs to know about the rest of the band. */
+export interface BandContext {
+  /** generate drums when the drum part is empty (rock and punk only) */
+  autoDrums: boolean;
+  /** bars (0-based) where any other part has a note, sorted */
+  playedBars: readonly number[];
+}
+
+const KICK = 36;
+const SNARE = 38;
+const CLOSED_HAT = 42;
+const CRASH = 49;
+
+/**
+ * Bars (0-based, sorted) that have a sounding note: a held chord counts for every bar it
+ * rings through.
+ */
+export function playedBars(notes: Iterable<{ ticks: number; durationTicks: number }>, barTicks: number): number[] {
+  const bars = new Set<number>();
+  for (const n of notes) {
+    const last = Math.floor((n.ticks + Math.max(1, n.durationTicks) - 1) / barTicks);
+    for (let bar = Math.floor(n.ticks / barTicks); bar <= last; bar++) bars.add(bar);
+  }
+  return [...bars].sort((a, b) => a - b);
+}
+
+/**
+ * A basic beat for each played bar. Hi-hat eighths, kick on the odd beats and snare on the
+ * even ones (rock adds a kick on the "and" of 3; punk kicks every beat), a crash at the
+ * top of each phrase (4 bars, punk 2) and a snare fill into the next phrase.
+ */
+export function drumGroove(bars: readonly number[], ppq: number, beatsPerBar: number, punk: boolean): StyledNote[] {
+  const barTicks = ppq * beatsPerBar;
+  const eighth = ppq / 2;
+  const sixteenth = ppq / 4;
+  const played = new Set(bars);
+  const hit = (ticks: number, pitch: number, velocity: number, durationTicks = eighth): StyledNote => ({
+    ticks,
+    durationTicks,
+    pitch,
+    velocity,
+  });
+  const out: StyledNote[] = [];
+  for (const bar of bars) {
+    const start = bar * barTicks;
+    const crashHere = bar % (punk ? 2 : 4) === 0 || !played.has(bar - 1);
+    const fillHere = bar % 4 === 3 && played.has(bar + 1) && beatsPerBar >= 3;
+    for (let beat = 0; beat < beatsPerBar; beat++) {
+      const t = start + beat * ppq;
+      const lastBeat = beat === beatsPerBar - 1;
+      if (fillHere && lastBeat) {
+        // four sixteenths on the snare, getting louder, into the next phrase
+        for (let i = 0; i < 4; i++) out.push(hit(t + i * sixteenth, SNARE, 0.55 + i * 0.12, sixteenth));
+        if (!punk) out.push(hit(t, KICK, 0.8));
+        continue;
+      }
+      if (beat === 0 && crashHere) out.push(hit(t, CRASH, 0.85, ppq * 2));
+      else out.push(hit(t, CLOSED_HAT, punk ? 0.75 : 0.68));
+      out.push(hit(t + eighth, CLOSED_HAT, punk ? 0.6 : 0.5));
+      if (beat % 2 === 0 || punk) out.push(hit(t, KICK, beat === 0 ? 0.95 : 0.85));
+      if (beat % 2 === 1) out.push(hit(t, SNARE, 0.9));
+      if (!punk && beatsPerBar === 4 && beat === 2) out.push(hit(t + eighth, KICK, 0.7));
+    }
+  }
+  return out;
+}
+
+function rock(
+  instrument: InstrumentId,
+  notes: readonly StyledNote[],
+  ppq: number,
+  beatsPerBar: number,
+  punk: boolean,
+  band: BandContext,
+) {
   // punk down-picks anything longer than an eighth; rock only notes a beat or longer
   const chugFrom = punk ? ppq * 0.75 : ppq;
   switch (instrument) {
@@ -173,6 +250,7 @@ function rock(instrument: InstrumentId, notes: readonly StyledNote[], ppq: numbe
     case "lead-guitar":
       return louder(notes, punk ? 1.15 : 1.1);
     case "drums":
+      if (notes.length === 0 && band.autoDrums) return drumGroove(band.playedBars, ppq, beatsPerBar, punk);
       return phraseCrashes(backbeat(louder(notes, punk ? 1.2 : 1.12), ppq), ppq, beatsPerBar, punk ? 2 : 4);
     case "keys":
       return louder(notes, punk ? 1.1 : 1.05);
@@ -199,13 +277,14 @@ export function arrange(
   notes: readonly StyledNote[],
   ppq: number,
   beatsPerBar: number,
+  band: BandContext = { autoDrums: false, playedBars: [] },
 ): readonly StyledNote[] {
   switch (style) {
     case "original":
       return notes;
     case "rock":
     case "punk":
-      return rock(instrument, notes, ppq, beatsPerBar, style === "punk");
+      return rock(instrument, notes, ppq, beatsPerBar, style === "punk", band);
     case "ballad":
       return ballad(instrument, notes, ppq);
     case "swing":

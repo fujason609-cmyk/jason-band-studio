@@ -39,17 +39,18 @@ interface Session {
  * off-page canvas at VIDEO_WIDTH (same drawing as the page, with the playhead following
  * the sound being heard), and the audio is the band's master output only.
  *
- * Starts when playback starts (if `armed`), stops when playback stops, and hands back
- * the finished video as `result` for the save dialog.
+ * Starts when `rolling` turns on (if `armed`): that's playback, or the countdown before
+ * it. Stops when it turns off, and hands back the finished video as `result` for the
+ * save dialog; `discard` throws the current take away instead.
  */
-export function useFrameRecording(armed: boolean, playing: boolean, layout: FrameLayout) {
+export function useFrameRecording(armed: boolean, rolling: boolean, layout: FrameLayout) {
   const [recording, setRecording] = useState(false);
   const [result, setResult] = useState<Recording | null>(null);
   const session = useRef<Session | null>(null);
   const latestLayout = useRef(layout);
   latestLayout.current = layout;
-  const wants = useRef({ armed, playing });
-  wants.current = { armed, playing };
+  const wants = useRef({ armed, rolling });
+  wants.current = { armed, rolling };
 
   const begin = useCallback(() => {
     if (session.current || latestLayout.current.width === 0) return;
@@ -109,27 +110,27 @@ export function useFrameRecording(armed: boolean, playing: boolean, layout: Fram
     setRecording(false);
     setResult(video);
     // Play pressed again during the tail: that's the next take
-    if (wants.current.armed && wants.current.playing) begin();
+    if (wants.current.armed && wants.current.rolling) begin();
   }, [begin]);
 
   useEffect(() => {
-    if (playing && armed) begin();
-    if (!playing) void finish();
-  }, [playing, armed, begin, finish]);
+    if (rolling && armed) begin();
+    if (!rolling) void finish();
+  }, [rolling, armed, begin, finish]);
+
+  const discard = useCallback(() => {
+    const s = session.current;
+    if (!s) return;
+    cancelAnimationFrame(s.frame);
+    void s.recorder.stop().then((v) => URL.revokeObjectURL(v.url));
+    audioEngine.stopAudioCapture();
+    s.canvas.remove();
+    session.current = null;
+    setRecording(false);
+  }, []);
 
   // leaving the recording frame mid-take throws the take away
-  useEffect(
-    () => () => {
-      const s = session.current;
-      if (!s) return;
-      cancelAnimationFrame(s.frame);
-      void s.recorder.stop().then((v) => URL.revokeObjectURL(v.url));
-      audioEngine.stopAudioCapture();
-      s.canvas.remove();
-      session.current = null;
-    },
-    [],
-  );
+  useEffect(() => discard, [discard]);
 
   const dismiss = useCallback(() => {
     setResult((r) => {
@@ -138,5 +139,5 @@ export function useFrameRecording(armed: boolean, playing: boolean, layout: Fram
     });
   }, []);
 
-  return { recording, result, dismiss };
+  return { recording, result, dismiss, discard };
 }

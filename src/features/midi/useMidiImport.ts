@@ -15,10 +15,7 @@ function describeError(err: unknown): string {
   return t.couldNotOpen;
 }
 
-/**
- * Guitar Pro / MusicXML → MIDI, with alphaTab loaded only now (it's large). Score track
- * names replace the generic "Track N" names a converted MIDI file would otherwise show.
- */
+/** Guitar Pro / MusicXML → MIDI (one named track per part), with alphaTab loaded only now (it's large). */
 async function convertScore(data: ArrayBuffer, fileName: string) {
   try {
     const { scoreToMidi } = await import("./scoreToMidi");
@@ -31,18 +28,14 @@ async function convertScore(data: ArrayBuffer, fileName: string) {
 }
 
 /**
- * Label converted score tracks with the score's part names. Program 0 on a converted
- * score usually means "the file didn't say" (MusicXML often doesn't), so its General
- * MIDI name ("acoustic grand piano") would mislead in the mapping dialog: drop it.
+ * Program 0 on a converted score usually means "the file didn't say" (MusicXML often
+ * doesn't), so its General MIDI name ("acoustic grand piano") would mislead in the
+ * mapping dialog: drop it. The part names themselves come with the converted MIDI.
  */
-function nameTracks(parsed: ParsedMidi, names: Record<number, string>): ParsedMidi {
+function dropGuessedInstruments(parsed: ParsedMidi): ParsedMidi {
   return {
     ...parsed,
-    tracks: parsed.tracks.map((t) => ({
-      ...t,
-      name: names[t.channel] && /^Track \d+$/.test(t.name) ? names[t.channel]! : t.name,
-      instrumentName: t.program === 0 && !t.isPercussion ? "" : t.instrumentName,
-    })),
+    tracks: parsed.tracks.map((t) => (t.program === 0 && !t.isPercussion ? { ...t, instrumentName: "" } : t)),
   };
 }
 
@@ -53,16 +46,14 @@ export function useMidiImport() {
       const song = await readSongFile(file);
       let data = song.data;
       let title: string | undefined;
-      let names: Record<number, string> = {};
       if (song.format === "score") {
         studio.notify({ kind: "info", text: getT().readingScore(file.name) });
         const converted = await convertScore(song.data, file.name);
         data = converted.data;
         title = converted.title || undefined;
-        names = converted.trackNames;
       }
       const midi = parseMidi(data, file.name);
-      const parsed = song.format === "score" ? nameTracks(midi, names) : midi;
+      const parsed = song.format === "score" ? dropGuessedInstruments(midi) : midi;
       const { assignments } = suggestMapping(parsed);
       studio.notify(null);
       studio.setPendingImport({ parsed, assignments, data, title });

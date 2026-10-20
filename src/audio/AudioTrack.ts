@@ -2,7 +2,7 @@ import * as Tone from "tone";
 import type { MemberId } from "@/features/band/types";
 import { humanize, profileFor, strumOffsets, type FeelProfile, type FeelSetting } from "@/lib/feel";
 import { gainToDb } from "@/lib/mix";
-import { arrange, type PlayStyle } from "@/lib/playStyle";
+import { arrange, type BandContext, type PlayStyle } from "@/lib/playStyle";
 import { secondsToTicks } from "@/lib/time";
 import type { InstrumentId } from "@/types/audio";
 import type { NoteEvent } from "@/types/midi";
@@ -36,6 +36,7 @@ export class AudioTrack {
   private notesRef: readonly NoteEvent[] | null = null;
   private baseBpm = 120;
   private beatsPerBar = 4;
+  private band: BandContext = { autoDrums: false, playedBars: [] };
   private audible = true;
   private instrument: InstrumentId;
   private feel: FeelProfile;
@@ -95,6 +96,16 @@ export class AudioTrack {
     this.schedule();
   }
 
+  /**
+   * What the rest of the band plays (for generated drums). Pass the same object again
+   * when nothing changed; only an empty drum part re-schedules.
+   */
+  setBand(band: BandContext) {
+    if (band === this.band) return;
+    this.band = band;
+    if (this.instrument === "drums" && this.notesRef?.length === 0) this.schedule();
+  }
+
   private schedule() {
     this.part?.dispose();
     this.part = null;
@@ -106,7 +117,7 @@ export class AudioTrack {
       pitch: n.pitch,
       velocity: n.velocity,
     }));
-    const played = arrange(this.style, this.instrument, written, PPQ, this.beatsPerBar);
+    const played = arrange(this.style, this.instrument, written, PPQ, this.beatsPerBar, this.band);
     const strums = strumOffsets(played, PPQ);
     const events: ScheduledNote[] = played.map((n, i) => ({ ...n, time: `${n.ticks}i`, strumIndex: strums[i]! }));
 

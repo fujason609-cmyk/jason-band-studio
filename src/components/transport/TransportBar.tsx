@@ -1,5 +1,5 @@
 import { useRef } from "react";
-import { Minus, Pause, Play, Plus, Repeat, SkipBack, Square, Volume2 } from "lucide-react";
+import { Minus, Pause, Play, Plus, Repeat, SkipBack, Square, Timer, Volume2 } from "lucide-react";
 import { IconButton } from "@/components/common/IconButton";
 import { Fader } from "@/components/common/Fader";
 import { ensureAudio } from "@/hooks/useAudioEngine";
@@ -38,6 +38,39 @@ function PositionReadout() {
   );
 }
 
+/** lucide has no metronome; drawn in the same 24-unit, 2px-stroke style */
+function MetronomeIcon({ size }: { size: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M9.5 3h5l4.5 18H5z" />
+      <path d="M7 15h10" />
+      <path d="m12 15 5-9" />
+    </svg>
+  );
+}
+
+/** Count-in and metronome switches. Their clicks never go into recordings. */
+function ClickControls() {
+  const { countIn, metronome } = useStudioStore((s) => s.settings);
+  const updateSettings = useStudioStore((s) => s.updateSettings);
+  const t = useT();
+  return (
+    <div className="clicks">
+      <IconButton label={countIn ? t.countInOn : t.countInOff} variant="quiet" pressed={countIn} onClick={() => updateSettings({ countIn: !countIn })}>
+        <Timer size={18} />
+      </IconButton>
+      <IconButton
+        label={metronome ? t.metronomeOn : t.metronomeOff}
+        variant="quiet"
+        pressed={metronome}
+        onClick={() => updateSettings({ metronome: !metronome })}
+      >
+        <MetronomeIcon size={18} />
+      </IconButton>
+    </div>
+  );
+}
+
 function BpmControl() {
   const bpm = useProjectStore((s) => s.project.bpm);
   const baseBpm = useProjectStore((s) => s.project.baseBpm);
@@ -72,6 +105,7 @@ function BpmControl() {
           <Plus size={16} />
         </IconButton>
         <span className="bpm__unit">BPM</span>
+        <ClickControls />
       </div>
       {bpm !== roundedBase && (
         <button type="button" className="link-btn" onClick={() => setBpm(roundedBase)}>

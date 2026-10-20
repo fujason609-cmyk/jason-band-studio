@@ -1,6 +1,6 @@
 import { Midi } from "@tonejs/midi";
 import { buildTracksFromMapping, familyOf, suggestMapping } from "./midiMapper";
-import { MidiParseError, parseMidi } from "./midiParser";
+import { MidiParseError, decodeMidiText, parseMidi } from "./midiParser";
 
 function makeMidi() {
   const midi = new Midi();
@@ -38,6 +38,13 @@ describe("parseMidi", () => {
 
     const drums = parsed.tracks.find((t) => t.name === "Drums")!;
     expect(drums.isPercussion).toBe(true);
+  });
+
+  it("reads UTF-8 track names and leaves other bytes alone", () => {
+    const latin1 = (s: string) => String.fromCharCode(...new TextEncoder().encode(s));
+    expect(decodeMidiText(latin1("ギター"))).toBe("ギター");
+    expect(decodeMidiText("Bass")).toBe("Bass");
+    expect(decodeMidiText("Café")).toBe("Café"); // a lone Latin-1 byte isn't UTF-8
   });
 
   it("rejects files that are not MIDI", () => {
