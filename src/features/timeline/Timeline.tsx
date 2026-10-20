@@ -27,7 +27,7 @@ const USER_SCROLL_HOLD_MS = 2000;
 
 export function Timeline({ laneHeight = LANE_HEIGHT, labels, forceFollow = false }: TimelineProps = {}) {
   const project = useProjectStore((s) => s.project);
-  const { zoom, followPlayhead: followSetting, selectedMember, theme } = useStudioStore((s) => s.settings);
+  const { zoom, followPlayhead: followSetting, selectedMember, theme, vocals } = useStudioStore((s) => s.settings);
   const followPlayhead = forceFollow || followSetting;
   const transport = useStudioStore((s) => s.transport);
   const { seek } = useTransport();
@@ -80,9 +80,9 @@ export function Timeline({ laneHeight = LANE_HEIGHT, labels, forceFollow = false
       laneHeight,
       position: position.current,
       ripples: playing && !reducedMotion,
-      lanes: buildLanes(project, colours, t.memberName, selectedMember),
+      lanes: buildLanes(project, colours, t.memberName, selectedMember, vocals),
     });
-  }, [project, zoom, viewport, height, showLabels, laneHeight, selectedMember, t, playing, reducedMotion]);
+  }, [project, zoom, viewport, height, showLabels, laneHeight, selectedMember, vocals, t, playing, reducedMotion]);
 
   const requestDraw = useCallback(() => {
     cancelAnimationFrame(frame.current);

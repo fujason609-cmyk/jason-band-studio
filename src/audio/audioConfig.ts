@@ -1,3 +1,4 @@
+import type { VocalRole } from "@/features/band/vocals";
 import type { InstrumentId } from "@/types/audio";
 import type { KeysPatch } from "./keysPatches";
 import { SAMPLE_FILES } from "./samplePacks.generated";
@@ -52,6 +53,12 @@ export const SAMPLE_PACKS: Partial<Record<InstrumentId, SamplePack>> = {
 export function samplePackUrl(instrument: InstrumentId, file: string): string {
   return `${import.meta.env.BASE_URL}instruments/${instrument}/${file}`;
 }
+
+/** Level trims for the singing voices, measured like SYNTH_TRIM_DB (lead about -24 dBFS RMS, harmony a little under). */
+export const VOCAL_TRIM_DB: Record<VocalRole, number> = {
+  lead: -13,
+  harmony: -15.5,
+};
 
 /** Level trims for Mugi's synthesized Triton patches, measured like SYNTH_TRIM_DB. */
 export const KEYS_PATCH_TRIM_DB: Record<Exclude<KeysPatch, "piano">, number> = {

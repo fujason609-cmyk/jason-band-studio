@@ -1,6 +1,7 @@
 import { useEffect, useId, useRef } from "react";
 import { FileMusic } from "lucide-react";
 import { MEMBERS, isMemberId } from "@/features/band/members";
+import { VOCALISTS, vocalRoleOf } from "@/features/band/vocals";
 import { useT } from "@/i18n/useT";
 import { SONG_FILE_ACCEPT } from "@/services/file/midiFileService";
 import { useStudioStore } from "@/stores/useStudioStore";
@@ -38,7 +39,10 @@ export function MidiImportButton() {
   );
 }
 
-/** Lets the user decide which MIDI track each member plays. */
+/** Option value for "this member sings it": "yui:vocal". */
+const VOCAL_SUFFIX = ":vocal";
+
+/** Lets the user decide which MIDI track each member plays, or which one Yui and Mio sing. */
 export function MidiMappingDialog() {
   const pending = useStudioStore((s) => s.pendingImport);
   const setAssignment = useStudioStore((s) => s.setAssignment);
@@ -82,16 +86,23 @@ export function MidiMappingDialog() {
                   </label>
                   <select
                     id={selectId}
-                    value={assignment?.memberId ?? ""}
+                    value={assignment?.memberId ? `${assignment.memberId}${assignment.vocal ? VOCAL_SUFFIX : ""}` : ""}
                     onChange={(e) => {
                       const v = e.currentTarget.value;
-                      setAssignment(track.index, isMemberId(v) ? v : null);
+                      const vocal = v.endsWith(VOCAL_SUFFIX);
+                      const member = vocal ? v.slice(0, -VOCAL_SUFFIX.length) : v;
+                      setAssignment(track.index, isMemberId(member) ? member : null, vocal);
                     }}
                   >
                     <option value="">{t.leaveOut}</option>
                     {MEMBERS.map((m) => (
                       <option key={m.id} value={m.id}>
                         {t.memberOption(t.memberName[m.id], t.memberRole[m.id])}
+                      </option>
+                    ))}
+                    {VOCALISTS.map((id) => (
+                      <option key={`${id}-vocal`} value={`${id}${VOCAL_SUFFIX}`}>
+                        {t.memberOption(t.memberName[id], t.vocalRole[vocalRoleOf(id)!])}
                       </option>
                     ))}
                   </select>

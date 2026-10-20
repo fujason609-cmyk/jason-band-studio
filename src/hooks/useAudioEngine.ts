@@ -35,8 +35,9 @@ export function useAudioEngineBridge() {
     });
 
     // before the first sync, so the voices and parts are built with the right sound straight away
-    const { keysPatch, playStyle, autoDrums } = useStudioStore.getState().settings;
+    const { keysPatch, playStyle, autoDrums, vocals } = useStudioStore.getState().settings;
     audioEngine.setKeysPatch(keysPatch);
+    audioEngine.setVocals(vocals);
     audioEngine.setStyle(playStyle);
     audioEngine.setAutoDrums(autoDrums);
     audioEngine.sync(useProjectStore.getState().project);
@@ -51,6 +52,7 @@ export function useAudioEngineBridge() {
       if (s.settings.autoDrums !== prev.settings.autoDrums) audioEngine.setAutoDrums(s.settings.autoDrums);
       if (s.settings.countIn !== prev.settings.countIn) audioEngine.setCountIn(s.settings.countIn);
       if (s.settings.metronome !== prev.settings.metronome) audioEngine.setMetronome(s.settings.metronome);
+      if (s.settings.vocals !== prev.settings.vocals) audioEngine.setVocals(s.settings.vocals);
     });
     return () => {
       unsubProject();

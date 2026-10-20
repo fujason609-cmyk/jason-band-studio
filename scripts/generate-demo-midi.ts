@@ -5,7 +5,7 @@
  */
 import { writeFileSync, mkdirSync } from "node:fs";
 import { Midi } from "@tonejs/midi";
-import { DEMO_BEATS_PER_BAR, DEMO_BPM, DEMO_PARTS } from "../src/features/band/demoSong";
+import { DEMO_BEATS_PER_BAR, DEMO_BPM, DEMO_PARTS, DEMO_VOCALS } from "../src/features/band/demoSong";
 
 function buildDemoMidi(): Uint8Array {
   const midi = new Midi();
@@ -19,6 +19,9 @@ function buildDemoMidi(): Uint8Array {
     { part: DEMO_PARTS.mio, name: "Bass", program: 33, channel: 2 },
     { part: DEMO_PARTS.tsumugi, name: "Keys", program: 4, channel: 3 },
     { part: DEMO_PARTS.ritsu, name: "Drums", program: 0, channel: 9 },
+    // choir "aahs" / voice "oohs": named so an import hands them to Yui and Mio to sing
+    { part: DEMO_VOCALS.yui ?? [], name: "Lead vocal", program: 52, channel: 4 },
+    { part: DEMO_VOCALS.mio ?? [], name: "Harmony vocal", program: 53, channel: 5 },
   ];
   for (const { part, name, program, channel } of layout) {
     const track = midi.addTrack();

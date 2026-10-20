@@ -32,6 +32,19 @@ describe("project validation", () => {
     expect(project.tracks[0]).toMatchObject({ volume: 1, instrument: "lead-guitar" });
     expect(project.tracks[0]!.notes).toEqual([{ pitch: 60, start: 1, duration: 0.5, velocity: 1 }]);
   });
+
+  it("keeps the singers' vocal parts, and opens projects saved before vocals existed", () => {
+    const raw = createDemoProject() as unknown as Record<string, unknown>;
+    const tracks = (raw.tracks as Array<Record<string, unknown>>).map((t) => ({ ...t }));
+    tracks[0]!.vocal = [{ pitch: 64, start: 0, duration: 1, velocity: 0.7 }, { pitch: -1, start: 0, duration: 1, velocity: 1 }];
+    tracks[2]!.vocal = [{ pitch: 60, start: 0, duration: 1, velocity: 1 }]; // Ritsu doesn't sing
+    const project = validateProject({ ...raw, tracks })!;
+    expect(project.tracks[0]!.vocal).toEqual([{ pitch: 64, start: 0, duration: 1, velocity: 0.7 }]);
+    expect(project.tracks[2]!.vocal).toBeUndefined();
+
+    const old = tracks.map((t) => ({ ...t, vocal: undefined }));
+    expect(validateProject({ ...raw, tracks: old })!.tracks.every((t) => t.vocal === undefined)).toBe(true);
+  });
 });
 
 describe("settings", () => {
@@ -43,6 +56,8 @@ describe("settings", () => {
     expect(sanitizeSettings({ keysPatch: "strings" }).keysPatch).toBe("strings");
     expect(sanitizeSettings({ keysPatch: "theremin" }).keysPatch).toBe("piano");
     expect(sanitizeSettings({ playStyle: "punk" }).playStyle).toBe("punk");
+    expect(sanitizeSettings({}).vocals).toEqual({ lead: true, harmony: true });
+    expect(sanitizeSettings({ vocals: { lead: false, harmony: "no" } }).vocals).toEqual({ lead: false, harmony: true });
     expect(sanitizeSettings({ playStyle: "metal" }).playStyle).toBe("original");
     expect(sanitizeSettings({}).autoDrums).toBe(true);
     expect(sanitizeSettings({ countIn: true, metronome: true })).toMatchObject({ countIn: true, metronome: true });

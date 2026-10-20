@@ -33,7 +33,7 @@ describe("project store", () => {
   });
 
   it("rounds song length up to a whole bar", () => {
-    const tracks = createDemoProject().tracks.map((t) => ({ ...t, notes: [{ pitch: 60, start: 0, duration: 2.1, velocity: 1 }] }));
+    const tracks = createDemoProject().tracks.map((t) => ({ ...t, vocal: undefined, notes: [{ pitch: 60, start: 0, duration: 2.1, velocity: 1 }] }));
     // 120 BPM in 4/4 → 2 s bars
     expect(songLength(tracks, 120, 4)).toBeCloseTo(4);
     expect(songLength(tracks, 120, 3)).toBeCloseTo(3);

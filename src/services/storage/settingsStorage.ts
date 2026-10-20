@@ -4,6 +4,7 @@ import { DEFAULT_OVERLAY, sanitizeOverlay, type OverlaySettings } from "@/featur
 import { detectLanguage, type Language } from "@/i18n/strings";
 import type { FeelSetting } from "@/lib/feel";
 import { isPlayStyle, type PlayStyle } from "@/lib/playStyle";
+import { DEFAULT_VOCALS, type VocalSwitches } from "@/features/band/vocals";
 import { isKeysPatch, type KeysPatch } from "@/audio/keysPatches";
 
 export type ThemeSetting = "system" | "light" | "dark";
@@ -30,6 +31,8 @@ export interface StudioSettings {
   countIn: boolean;
   /** a click on every beat while playing */
   metronome: boolean;
+  /** Yui's lead vocal and Mio's harmony, each on or off */
+  vocals: VocalSwitches;
 }
 
 export const DEFAULT_SETTINGS: StudioSettings = {
@@ -46,9 +49,18 @@ export const DEFAULT_SETTINGS: StudioSettings = {
   autoDrums: true,
   countIn: false,
   metronome: false,
+  vocals: DEFAULT_VOCALS,
 };
 
 const KEY = "kon-band-studio:settings:v1";
+
+function sanitizeVocals(raw: unknown): VocalSwitches {
+  const r = raw && typeof raw === "object" ? (raw as Record<string, unknown>) : {};
+  return {
+    lead: typeof r.lead === "boolean" ? r.lead : DEFAULT_VOCALS.lead,
+    harmony: typeof r.harmony === "boolean" ? r.harmony : DEFAULT_VOCALS.harmony,
+  };
+}
 
 export function sanitizeSettings(raw: unknown): StudioSettings {
   if (!raw || typeof raw !== "object") return { ...DEFAULT_SETTINGS };
@@ -68,6 +80,7 @@ export function sanitizeSettings(raw: unknown): StudioSettings {
     autoDrums: typeof r.autoDrums === "boolean" ? r.autoDrums : DEFAULT_SETTINGS.autoDrums,
     countIn: typeof r.countIn === "boolean" ? r.countIn : DEFAULT_SETTINGS.countIn,
     metronome: typeof r.metronome === "boolean" ? r.metronome : DEFAULT_SETTINGS.metronome,
+    vocals: sanitizeVocals(r.vocals),
   };
 }
 

@@ -2,6 +2,7 @@ import { strumOffsets } from "./feel";
 import {
   arpeggiate,
   arrange,
+  arrangeVocal,
   chug,
   drumGroove,
   isPlayStyle,
@@ -100,6 +101,14 @@ describe("playing styles", () => {
     expect(arrange("rock", "drums", [], PPQ, 4, { ...band, autoDrums: false })).toHaveLength(0);
     expect(arrange("ballad", "drums", [], PPQ, 4, band)).toHaveLength(0);
     expect(arrange("rock", "drums", [note(0, 48, 36)], PPQ, 4, band).filter((n) => n.pitch === 42)).toHaveLength(0);
+  });
+
+  it("keeps a sung tune as written, only its delivery changes", () => {
+    const tune = [note(0, 192, 64), note(192, 96, 67), note(288, 96, 69)];
+    expect(arrangeVocal("original", tune, PPQ)).toBe(tune);
+    expect(arrangeVocal("rock", tune, PPQ).map((n) => [n.ticks, n.pitch])).toEqual(tune.map((n) => [n.ticks, n.pitch])); // no chugs
+    expect(arrangeVocal("swing", tune, PPQ).map((n) => n.ticks)).toEqual([0, 192, 320]);
+    expect(arrangeVocal("ballad", [note(0, 96, 64), note(192, 96, 67)], PPQ)[0]!.durationTicks).toBe(192);
   });
 
   it("swings the off-beat eighth onto the last triplet", () => {

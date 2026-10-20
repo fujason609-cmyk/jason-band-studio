@@ -93,6 +93,40 @@ describe("track mapping", () => {
     expect(who("Strings")).toBeNull(); // every melodic seat is taken
   });
 
+  it("gives sung tracks to Yui's lead vocal and Mio's harmony, not to the band's instruments", () => {
+    const midi = new Midi();
+    const add = (name: string, program: number, pitches: number[]) => {
+      const t = midi.addTrack();
+      // the writer stores one byte per character: hand it the UTF-8 bytes, as real files hold them
+      t.name = String.fromCharCode(...new TextEncoder().encode(name));
+      t.instrument.number = program;
+      pitches.forEach((p, i) => t.addNote({ midi: p, time: i * 0.5, duration: 0.4, velocity: 0.8 }));
+    };
+    add("Backing Vocals", 52, [60, 62]);
+    add("ボーカル", 53, [64, 65, 67]);
+    add("Guitar", 29, [52, 55]);
+    add("Choir 2", 52, [55]);
+    const sung = parseMidi(midi.toArray(), "vocal.mid");
+    const index = (name: string) => sung.tracks.find((t) => t.name === name)!.index;
+    const { assignments } = suggestMapping(sung);
+    const of = (name: string) => assignments.find((a) => a.midiTrackIndex === index(name))!;
+    expect(of("ボーカル")).toEqual({ midiTrackIndex: index("ボーカル"), memberId: "yui", vocal: true }); // the lead
+    expect(of("Backing Vocals")).toMatchObject({ memberId: "mio", vocal: true }); // backing → harmony
+    // only two singers: a third sung part is played by the band, like any other part
+    expect(of("Choir 2")).toMatchObject({ memberId: "tsumugi" });
+    expect(of("Choir 2").vocal).toBeUndefined();
+    expect(of("Guitar")).toMatchObject({ memberId: "yui" });
+    expect(of("Guitar").vocal).toBeUndefined();
+
+    const song = buildTracksFromMapping(sung, assignments);
+    const yui = song.tracks.find((t) => t.memberId === "yui")!;
+    expect(yui.notes.map((n) => n.pitch)).toEqual([52, 55]); // she plays the guitar part…
+    expect(yui.vocal!.map((n) => n.pitch)).toEqual([64, 65, 67]); // …and sings the vocal
+    expect(yui.instrument).toBe("lead-guitar");
+    expect(song.tracks.find((t) => t.memberId === "mio")!.vocal).toHaveLength(2);
+    expect(song.tracks.find((t) => t.memberId === "ritsu")!.vocal).toBeUndefined();
+  });
+
   it("builds five tracks, merges shared parts and keeps mixer settings", () => {
     const assignments = [
       { midiTrackIndex: idx("Piano"), memberId: "tsumugi" as const },

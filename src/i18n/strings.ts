@@ -1,4 +1,5 @@
 import type { MemberId } from "@/features/band/types";
+import type { VocalRole } from "@/features/band/vocals";
 import type { InstrumentId } from "@/types/audio";
 
 export type Language = "en" | "zh";
@@ -180,6 +181,11 @@ const en = {
     tsumugi: "Keyboard",
     azusa: "Rhythm guitar",
   } as Record<MemberId, string>,
+  vocalRole: { lead: "lead vocal", harmony: "harmony vocal" } as Record<VocalRole, string>,
+  vocalOn: (name: string, role: string) => `${name}'s ${role} is on (a sung "ah" voice, no words). Switch off`,
+  vocalOff: (name: string, role: string) => `${name}'s ${role} is off. Switch on`,
+  noVocal: (name: string, role: string) =>
+    `This song has no ${role} for ${name}. When importing, give a vocal track to "${name} (${role})"`,
   instrument: {
     "lead-guitar": "Lead guitar",
     "rhythm-guitar": "Rhythm guitar",
@@ -355,6 +361,10 @@ const zh: Strings = {
     tsumugi: "键盘",
     azusa: "节奏吉他",
   },
+  vocalRole: { lead: "主唱", harmony: "和声" },
+  vocalOn: (name, role) => `${name}的${role}：开（合成的「啊～」人声，没有歌词）。点击关闭`,
+  vocalOff: (name, role) => `${name}的${role}：关。点击打开`,
+  noVocal: (name, role) => `这首歌没有给${name}的${role}声部。导入时把人声音轨分给「${name}（${role}）」`,
   instrument: {
     "lead-guitar": "主音吉他",
     "rhythm-guitar": "节奏吉他",

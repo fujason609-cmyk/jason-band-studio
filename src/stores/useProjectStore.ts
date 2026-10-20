@@ -1,7 +1,7 @@
 import { create } from "zustand";
 import { MEMBERS } from "@/features/band/members";
 import type { MemberId } from "@/features/band/types";
-import { DEMO_BEATS_PER_BAR, DEMO_BPM, DEMO_DURATION, DEMO_PARTS, DEMO_TITLE } from "@/features/band/demoSong";
+import { DEMO_BEATS_PER_BAR, DEMO_BPM, DEMO_DURATION, DEMO_PARTS, DEMO_TITLE, DEMO_VOCALS } from "@/features/band/demoSong";
 import { clampBpm } from "@/lib/time";
 import type { InstrumentId } from "@/types/audio";
 import type { MidiMeta } from "@/types/midi";
@@ -23,6 +23,7 @@ export function createDemoProject(): StudioProject {
         name: m.role,
         instrument: m.defaultInstrument,
         notes: DEMO_PARTS[m.id],
+        ...(DEMO_VOCALS[m.id] ? { vocal: DEMO_VOCALS[m.id] } : {}),
         volume: m.id === "ritsu" ? 0.85 : 0.8,
         muted: false,
         solo: false,
@@ -34,7 +35,8 @@ export function createDemoProject(): StudioProject {
 
 /** Song length rounded up to a whole bar so loops land on the downbeat. */
 export function songLength(tracks: readonly StudioTrack[], baseBpm: number, beatsPerBar: number): number {
-  const end = Math.max(0.1, ...tracks.flatMap((t) => t.notes.map((n) => n.start + n.duration)));
+  let end = 0.1;
+  for (const t of tracks) for (const n of [...t.notes, ...(t.vocal ?? [])]) end = Math.max(end, n.start + n.duration);
   const bar = (60 / baseBpm) * beatsPerBar;
   return Math.ceil((end - 1e-6) / bar) * bar;
 }

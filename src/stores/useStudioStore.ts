@@ -36,7 +36,8 @@ interface StudioState {
   updateSettings: (patch: Partial<StudioSettings>) => void;
   selectMember: (member: MemberId) => void;
   setPendingImport: (pending: PendingImport | null) => void;
-  setAssignment: (midiTrackIndex: number, member: MemberId | null) => void;
+  /** `vocal`: the member sings this track (Yui or Mio) instead of playing it */
+  setAssignment: (midiTrackIndex: number, member: MemberId | null, vocal?: boolean) => void;
   notify: (notice: Notice | null) => void;
   setRecordMode: (on: boolean) => void;
 }
@@ -59,14 +60,14 @@ export const useStudioStore = create<StudioState>((set) => ({
   updateSettings: (patch) => set((s) => ({ settings: { ...s.settings, ...patch } })),
   selectMember: (selectedMember) => set((s) => ({ settings: { ...s.settings, selectedMember } })),
   setPendingImport: (pendingImport) => set({ pendingImport }),
-  setAssignment: (midiTrackIndex, member) =>
+  setAssignment: (midiTrackIndex, member, vocal = false) =>
     set((s) =>
       s.pendingImport
         ? {
             pendingImport: {
               ...s.pendingImport,
               assignments: s.pendingImport.assignments.map((a) =>
-                a.midiTrackIndex === midiTrackIndex ? { ...a, memberId: member } : a,
+                a.midiTrackIndex === midiTrackIndex ? { midiTrackIndex, memberId: member, ...(vocal ? { vocal } : {}) } : a,
               ),
             },
           }

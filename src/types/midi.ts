@@ -56,6 +56,8 @@ export interface ParsedMidi {
 export interface TrackAssignment {
   midiTrackIndex: number;
   memberId: MemberId | null;
+  /** sung by that member (Yui or Mio) instead of played on their instrument */
+  vocal?: boolean;
 }
 
 export interface MappingSuggestion {

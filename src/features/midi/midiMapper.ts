@@ -1,5 +1,6 @@
 import { MEMBERS, getMember } from "@/features/band/members";
 import type { MemberId } from "@/features/band/types";
+import { VOCALISTS, vocalRoleOf } from "@/features/band/vocals";
 import type { InstrumentId } from "@/types/audio";
 import type { MappingSuggestion, ParsedMidi, ParsedMidiTrack, TrackAssignment } from "@/types/midi";
 import type { StudioTrack } from "@/types/project";
@@ -19,6 +20,15 @@ export function familyFromName(name: string): Exclude<Family, "lead"> | null {
   if (/guit|gtr|ギター|吉他/.test(n)) return "guitar";
   if (/piano|key|synth|organ|pad|string|ピアノ|キーボード|シンセ|钢琴|鋼琴|键盘|鍵盤|合成器/.test(n)) return "keys";
   return null;
+}
+
+/** A part that is sung: vocals, voice, choir, in English, Japanese or Chinese. */
+const VOCAL = /vocal|voice|vox|singer|sing\b|choir|chorus|soprano|alto\b|\bwomen\b|\bmen\b|ボーカル|ヴォーカル|コーラス|歌|唄|合唱|主唱|人声|人聲|和声|和聲|女声|男声|女聲|男聲/i;
+/** Sung parts that sound like backing vocals rather than the lead. */
+const BACKING_VOCAL = /back|harmon|chorus|choir|コーラス|和声|和聲|合唱|\bmen\b/i;
+
+export function isVocalName(name: string): boolean {
+  return VOCAL.test(name);
 }
 
 /** "Rhythm Guitar" / "リズムギター" / "节奏吉他": Azusa's part rather than Yui's. */
@@ -47,14 +57,22 @@ export function suggestMapping(parsed: ParsedMidi): MappingSuggestion {
   const taken = new Set<MemberId>();
   const byIndex = new Map<number, MemberId | null>();
 
+  // sung parts first: the lead-sounding one to Yui, the next to Mio's harmony
+  const sung = parsed.tracks
+    .filter((t) => !t.isPercussion && isVocalName(t.name))
+    .sort((a, b) => Number(BACKING_VOCAL.test(a.name)) - Number(BACKING_VOCAL.test(b.name)) || b.notes.length - a.notes.length);
+  const vocalOf = new Map<number, MemberId>();
+  sung.slice(0, VOCALISTS.length).forEach((t, i) => vocalOf.set(t.index, VOCALISTS[i]!));
+
   for (const track of parsed.tracks) {
+    if (vocalOf.has(track.index)) continue;
     const family = familyOf(track);
     if (family === "drums") byIndex.set(track.index, "ritsu");
     if (family === "bass") byIndex.set(track.index, "mio");
   }
 
   const melodic = parsed.tracks
-    .filter((t) => !byIndex.has(t.index))
+    .filter((t) => !byIndex.has(t.index) && !vocalOf.has(t.index))
     .sort((a, b) => b.notes.length - a.notes.length);
 
   for (const track of melodic) {
@@ -65,10 +83,12 @@ export function suggestMapping(parsed: ParsedMidi): MappingSuggestion {
     byIndex.set(track.index, choice);
   }
 
-  const assignments: TrackAssignment[] = parsed.tracks.map((t) => ({
-    midiTrackIndex: t.index,
-    memberId: byIndex.get(t.index) ?? null,
-  }));
+  const assignments: TrackAssignment[] = parsed.tracks.map((t) => {
+    const singer = vocalOf.get(t.index);
+    return singer
+      ? { midiTrackIndex: t.index, memberId: singer, vocal: true }
+      : { midiTrackIndex: t.index, memberId: byIndex.get(t.index) ?? null };
+  });
 
   return { assignments, instruments: instrumentsFor(parsed, assignments) };
 }
@@ -81,7 +101,7 @@ export function instrumentsFor(
   const result: Partial<Record<MemberId, InstrumentId>> = {};
   for (const member of MEMBERS) {
     const tracks = assignments
-      .filter((a) => a.memberId === member.id)
+      .filter((a) => a.memberId === member.id && !a.vocal)
       .map((a) => parsed.tracks.find((t) => t.index === a.midiTrackIndex))
       .filter((t): t is ParsedMidiTrack => Boolean(t));
     if (tracks.length === 0) continue;
@@ -113,16 +133,19 @@ export function buildTracksFromMapping(
   const instruments = instrumentsFor(parsed, assignments);
   const tracks = MEMBERS.map((member): StudioTrack => {
     const old = previous.find((t) => t.memberId === member.id);
-    const notes = assignments
-      .filter((a) => a.memberId === member.id)
-      .flatMap((a) => parsed.tracks.find((t) => t.index === a.midiTrackIndex)?.notes ?? [])
-      .sort((a, b) => a.start - b.start || a.pitch - b.pitch);
+    const notesOf = (vocal: boolean) =>
+      assignments
+        .filter((a) => a.memberId === member.id && Boolean(a.vocal) === vocal)
+        .flatMap((a) => parsed.tracks.find((t) => t.index === a.midiTrackIndex)?.notes ?? [])
+        .sort((a, b) => a.start - b.start || a.pitch - b.pitch);
+    const vocal = vocalRoleOf(member.id) ? notesOf(true) : [];
     return {
       id: `track-${member.id}`,
       memberId: member.id,
       name: getMember(member.id).role,
       instrument: instruments[member.id] ?? member.defaultInstrument,
-      notes,
+      notes: notesOf(false),
+      ...(vocal.length ? { vocal } : {}),
       volume: old?.volume ?? 0.8,
       muted: old?.muted ?? false,
       solo: old?.solo ?? false,

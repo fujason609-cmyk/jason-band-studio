@@ -3,9 +3,11 @@ import { drumSampleNote, drumVoiceFor, tomFrequency, type DrumVoice } from "@/li
 import type { PlayStyle } from "@/lib/playStyle";
 import type { InstrumentId } from "@/types/audio";
 import type { KeysPatch } from "./keysPatches";
-import { SYNTH_TRIM_DB } from "./audioConfig";
+import type { VocalRole } from "@/features/band/vocals";
+import { SYNTH_TRIM_DB, VOCAL_TRIM_DB } from "./audioConfig";
 import { MUGI_PIANO, renderFmPiano } from "./fmPiano";
 import { renderPluck, type PluckPatch } from "./karplus";
+import { MIO_VOICE, YUI_VOICE, renderBreath, renderSungNote, type SingerPatch } from "./singer";
 
 /** A playable sound source. Every instrument, synthesized or sampled, looks like this. */
 export interface Voice {
@@ -414,6 +416,99 @@ export function createSynthVoice(
     case "drums":
       return new SynthDrumKit();
   }
+}
+
+/** Which notes are rendered for each singer (every 2 semitones, so repitching stays small). */
+const SUNG_RANGES: Record<VocalRole, { patch: SingerPatch; low: number; high: number }> = {
+  lead: { patch: YUI_VOICE, low: 55, high: 88 },
+  harmony: { patch: MIO_VOICE, low: 48, high: 81 },
+};
+const SUNG_STEP = 2;
+
+/** How loud the in-breath before a phrase is, against the singing. */
+const BREATH_DB = -16;
+
+interface SungSet {
+  notes: Record<string, Tone.ToneAudioBuffer>;
+  breath: Tone.ToneAudioBuffer;
+}
+
+const sungNotes = new Map<VocalRole, Promise<SungSet>>();
+
+/** Render a singer's notes and in-breath once per page (yielding between notes so the page never freezes). */
+function renderSinger(role: VocalRole): Promise<SungSet> {
+  let pending = sungNotes.get(role);
+  if (!pending) {
+    pending = (async () => {
+      const { patch, low, high } = SUNG_RANGES[role];
+      const sampleRate = Tone.getContext().sampleRate;
+      const notes: Record<string, Tone.ToneAudioBuffer> = {};
+      for (let pitch = low; pitch <= high; pitch += SUNG_STEP) {
+        const frequency = Tone.Frequency(pitch, "midi");
+        notes[frequency.toNote()] = Tone.ToneAudioBuffer.fromArray(renderSungNote(frequency.toFrequency(), sampleRate, patch, pitch));
+        await new Promise((resolve) => setTimeout(resolve, 0));
+      }
+      return { notes, breath: Tone.ToneAudioBuffer.fromArray(renderBreath(sampleRate, patch)) };
+    })();
+    sungNotes.set(role, pending);
+  }
+  return pending;
+}
+
+/**
+ * A wordless singing voice: rendered sung notes (singer.ts, a young female voice per
+ * singer: Yui bright and light, Mio warm and round) played by a Sampler, with a little
+ * room. Cheap however many notes sound, so it stays well inside the CPU budget. It
+ * doesn't imitate anyone's real voice.
+ */
+export interface SingingVoice extends Voice {
+  /** the in-breath before a phrase */
+  breathe(time: number, velocity: number): void;
+}
+
+class VocalVoice implements SingingVoice {
+  readonly output: Tone.Gain;
+  private readonly sampler: Tone.Sampler;
+  private readonly breath: Tone.Player;
+  private readonly breathLevel = new Tone.Gain(Tone.dbToGain(BREATH_DB));
+  private readonly nodes: Tone.ToneAudioNode[];
+
+  constructor(set: SungSet, trimDb: number) {
+    this.sampler = new Tone.Sampler({ urls: set.notes, release: 0.25 });
+    this.breath = new Tone.Player(set.breath);
+    const room = new Tone.Reverb({ decay: 2.2, wet: 0.22 });
+    this.output = new Tone.Gain(Tone.dbToGain(trimDb));
+    this.sampler.chain(room, this.output);
+    this.breath.chain(this.breathLevel, room);
+    this.nodes = [this.sampler, this.breath, this.breathLevel, room, this.output];
+  }
+
+  breathe(time: number, velocity: number) {
+    this.breath.volume.setValueAtTime(Tone.gainToDb(Math.max(0.05, velocity)), time);
+    this.breath.start(time);
+  }
+
+  attack(pitch: number, time: number, velocity: number) {
+    this.sampler.triggerAttack(hz(pitch), time, velocity);
+  }
+  release(pitch: number, time: number) {
+    this.sampler.triggerRelease(hz(pitch), time);
+  }
+  attackRelease(pitch: number, duration: Tone.Unit.Time, time: number, velocity: number) {
+    this.sampler.triggerAttackRelease(hz(pitch), duration, time, velocity);
+  }
+  releaseAll(time?: number) {
+    this.sampler.releaseAll(time);
+    this.breath.stop(time);
+  }
+  dispose() {
+    this.nodes.forEach((n) => n.dispose());
+  }
+}
+
+/** Yui's lead vocal or Mio's harmony, at the level set in VOCAL_TRIM_DB. Renders the singer the first time. */
+export async function createVocalVoice(role: VocalRole): Promise<SingingVoice> {
+  return new VocalVoice(await renderSinger(role), VOCAL_TRIM_DB[role]);
 }
 
 /**

@@ -50,6 +50,30 @@ function note(beat: number, pitch: number, beats: number, velocity: number): Not
   };
 }
 
+const C_MAJOR = [0, 2, 4, 5, 7, 9, 11];
+
+/** The note two scale steps below `pitch` in C major: a third under the tune. */
+function thirdBelow(pitch: number): number {
+  let p = pitch;
+  for (let steps = 0; steps < 2; ) {
+    p -= 1;
+    if (C_MAJOR.includes(((p % 12) + 12) % 12)) steps += 1;
+  }
+  return p;
+}
+
+/**
+ * The vocals: Yui sings the tune an octave below the guitar (where a voice sits), and
+ * Mio joins in the second half with a third underneath on the held notes.
+ */
+function buildVocals(): Partial<Record<MemberId, NoteEvent[]>> {
+  const lead = MELODY.map(([b, p, l]) => note(b, p - 12, l * 0.97, 0.75));
+  const harmony = MELODY.filter(([b, , l]) => b >= 32 && l >= 1).map(([b, p, l]) => note(b, thirdBelow(p - 12), l * 0.97, 0.6));
+  return { yui: lead, mio: harmony };
+}
+
+export const DEMO_VOCALS = buildVocals();
+
 function buildParts(): Record<MemberId, NoteEvent[]> {
   const yui = MELODY.map(([b, p, l]) => note(b, p, l * 0.95, 0.8));
   const mio: NoteEvent[] = [];

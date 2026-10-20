@@ -32,6 +32,26 @@ describe("TrackMixer", () => {
     expect(useProjectStore.getState().project.tracks.some((t) => t.solo)).toBe(false);
   });
 
+  it("switches Yui's lead vocal and Mio's harmony; nobody else sings", async () => {
+    const user = userEvent.setup();
+    render(<TrackMixer />);
+    const lead = screen.getByRole("button", { name: /Yui's lead vocal is on/ });
+    expect(lead).toHaveAttribute("aria-pressed", "true");
+    await user.click(lead);
+    expect(useStudioStore.getState().settings.vocals).toEqual({ lead: false, harmony: true });
+    expect(screen.getByRole("button", { name: /Yui's lead vocal is off/ })).toHaveAttribute("aria-pressed", "false");
+    expect(screen.getByRole("button", { name: /Mio's harmony vocal is on/ })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /Ritsu's .* vocal/ })).not.toBeInTheDocument();
+    useStudioStore.getState().updateSettings({ vocals: { lead: true, harmony: true } });
+  });
+
+  it("explains the vocal switch when the song has no vocal part", () => {
+    const p = createDemoProject();
+    useProjectStore.setState({ project: { ...p, tracks: p.tracks.map((t) => ({ ...t, vocal: undefined })) } });
+    render(<TrackMixer />);
+    expect(screen.getByRole("button", { name: /This song has no lead vocal for Yui/ })).toBeDisabled();
+  });
+
   it("changes a member's instrument", async () => {
     const user = userEvent.setup();
     render(<TrackMixer />);

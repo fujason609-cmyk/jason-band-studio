@@ -1,4 +1,5 @@
 import { MEMBERS, isInstrumentId, isMemberId } from "@/features/band/members";
+import { vocalRoleOf } from "@/features/band/vocals";
 import { clampBpm } from "@/lib/time";
 import type { NoteEvent } from "@/types/midi";
 import { PROJECT_VERSION, type StudioProject, type StudioTrack } from "@/types/project";
@@ -19,6 +20,14 @@ function validNote(n: unknown): n is NoteEvent {
     r.duration > 0 &&
     typeof r.velocity === "number"
   );
+}
+
+/** Valid notes only, velocities clamped, sorted by start. */
+function cleanNotes(raw: unknown[]): NoteEvent[] {
+  return raw
+    .filter(validNote)
+    .map((n) => ({ pitch: n.pitch, start: n.start, duration: n.duration, velocity: clamp01(n.velocity) }))
+    .sort((a, b) => a.start - b.start || a.pitch - b.pitch);
 }
 
 /**
@@ -43,12 +52,9 @@ export function validateProject(raw: unknown): StudioProject | null {
       memberId: member.id,
       name: typeof t.name === "string" ? t.name : member.role,
       instrument: isInstrumentId(t.instrument) ? t.instrument : member.defaultInstrument,
-      notes: Array.isArray(t.notes)
-        ? t.notes
-            .filter(validNote)
-            .map((n) => ({ pitch: n.pitch, start: n.start, duration: n.duration, velocity: clamp01(n.velocity) }))
-            .sort((a, b) => a.start - b.start || a.pitch - b.pitch)
-        : [],
+      notes: Array.isArray(t.notes) ? cleanNotes(t.notes) : [],
+      // optional: only singers have one, and projects from before vocals have none
+      ...(Array.isArray(t.vocal) && vocalRoleOf(member.id) ? { vocal: cleanNotes(t.vocal) } : {}),
       volume: clamp01(num(t.volume, 0.8)),
       muted: t.muted === true,
       solo: t.solo === true,

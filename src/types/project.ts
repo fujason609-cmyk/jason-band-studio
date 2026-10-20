@@ -8,6 +8,11 @@ export interface StudioTrack {
   name: string;
   instrument: InstrumentId;
   notes: NoteEvent[];
+  /**
+   * What this member sings (Yui's lead vocal, Mio's harmony; see features/band/vocals).
+   * Optional, so projects saved before vocals existed stay valid without a version bump.
+   */
+  vocal?: NoteEvent[];
   /** 0..1 */
   volume: number;
   muted: boolean;

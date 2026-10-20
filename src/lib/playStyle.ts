@@ -270,6 +270,24 @@ function ballad(instrument: InstrumentId, notes: readonly StyledNote[], ppq: num
   }
 }
 
+/**
+ * A sung part in `style`: the tune stays as written (no chugs or power chords), but it
+ * gets louder in rock and punk, joins up in a ballad and swings in swing.
+ */
+export function arrangeVocal(style: PlayStyle, notes: readonly StyledNote[], ppq: number): readonly StyledNote[] {
+  switch (style) {
+    case "original":
+      return notes;
+    case "rock":
+    case "punk":
+      return louder(notes, style === "punk" ? 1.1 : 1.05);
+    case "ballad":
+      return legato(louder(notes, 0.85), ppq);
+    case "swing":
+      return swing(notes, ppq);
+  }
+}
+
 /** The notes `instrument` actually plays for the written `notes` in `style`. */
 export function arrange(
   style: PlayStyle,

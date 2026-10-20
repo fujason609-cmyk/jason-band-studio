@@ -588,6 +588,10 @@ select {
   &__instrument {
     width: 128px;
   }
+  // Yui and Mio have a vocal switch too: a narrower picker keeps their names readable
+  &__controls:has(.ms-btn--vocal) &__instrument {
+    width: 100px;
+  }
   &__level {
     grid-column: 1 / -1;
     display: flex;
@@ -625,6 +629,20 @@ select {
     background: var(--member);
     border-color: var(--member);
     color: #fff;
+  }
+  // the vocal switch: outlined in the member's colour while they sing
+  &--vocal {
+    display: inline-grid;
+    place-items: center;
+    color: var(--ink-soft);
+    &[aria-pressed="true"] {
+      border-color: var(--member);
+      color: var(--member);
+      box-shadow: inset 0 0 0 1px var(--member);
+    }
+    &:disabled {
+      opacity: 0.4;
+    }
   }
 }
 

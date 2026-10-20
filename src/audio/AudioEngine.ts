@@ -1,5 +1,6 @@
 import * as Tone from "tone";
 import type { MemberId } from "@/features/band/types";
+import { DEFAULT_VOCALS, vocalRoleOf, type VocalSwitches } from "@/features/band/vocals";
 import type { FeelSetting } from "@/lib/feel";
 import { playedBars, type BandContext, type PlayStyle } from "@/lib/playStyle";
 import type { KeysPatch } from "./keysPatches";
@@ -13,6 +14,9 @@ import { AudioTrack } from "./AudioTrack";
 import { Metronome } from "./Metronome";
 import { SampleManager } from "./SampleManager";
 import { TransportController } from "./TransportController";
+
+/** Shared "nothing to sing", so tracks without vocals keep the same array reference. */
+const NO_VOCAL: readonly NoteEvent[] = [];
 
 export interface EngineEvents {
   onInstrumentState?: (instrument: InstrumentId, state: InstrumentLoadState) => void;
@@ -39,6 +43,7 @@ export class AudioEngine {
   private countIn = false;
   private metronomeOn = false;
   private metronome: Metronome | null = null;
+  private vocals: VocalSwitches = DEFAULT_VOCALS;
   private band: { sources: readonly (readonly NoteEvent[])[]; key: string; value: BandContext } | null = null;
   private capture: MediaStreamAudioDestinationNode | null = null;
 
@@ -99,6 +104,9 @@ export class AudioEngine {
       }
       audio.setNotes(track.notes, project.baseBpm, project.beatsPerBar);
       audio.setBand(band);
+      const role = vocalRoleOf(track.memberId);
+      audio.setVocal(track.vocal ?? NO_VOCAL, role);
+      if (role) audio.setSinging(this.vocals[role]);
       audio.setVolume(track.volume);
       audio.setAudible(audible[track.id] ?? true);
     }
@@ -189,6 +197,15 @@ export class AudioEngine {
     this.tracks.forEach((t) => t.setStyle(style));
     this.retryInstrument("lead-guitar");
     this.retryInstrument("rhythm-guitar");
+  }
+
+  /** Yui's lead vocal and Mio's harmony switched on or off. Works before start(). */
+  setVocals(vocals: VocalSwitches) {
+    this.vocals = vocals;
+    this.tracks.forEach((track, member) => {
+      const role = vocalRoleOf(member);
+      if (role) track.setSinging(vocals[role]);
+    });
   }
 
   /** Generated drums for drumless scores in rock and punk. */

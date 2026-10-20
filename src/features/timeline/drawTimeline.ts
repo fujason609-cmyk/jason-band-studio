@@ -9,6 +9,8 @@ export interface LaneInput {
   audible: boolean;
   isDrums: boolean;
   selected: boolean;
+  /** what the member sings (Yui, Mio), drawn as outlined notes over their part; `on` = vocal switch */
+  vocal?: { notes: readonly NoteEvent[]; on: boolean };
 }
 
 export interface Palette {
@@ -50,6 +52,56 @@ const RIPPLE_SECONDS = 0.4;
 const FONT = "'M PLUS Rounded 1c', system-ui, sans-serif";
 
 export type NoteState = "past" | "active" | "upcoming";
+
+interface VocalFrame {
+  top: number;
+  inner: number;
+  noteH: number;
+  width: number;
+  tStart: number;
+  zoom: number;
+  xOf: (seconds: number) => number;
+  position: number | undefined;
+  surface: string;
+}
+
+/**
+ * A sung line: hollow notes outlined in the member's colour (their own pitch range, so
+ * the tune reads as a shape), filled while sung, faint when the vocal is switched off.
+ * Drawn a note-height above where the pitch would put it: a singer often doubles their
+ * own instrument's tune, and this keeps both lines visible.
+ */
+function drawVocal(ctx: CanvasRenderingContext2D, notes: readonly NoteEvent[], color: string, on: boolean, f: VocalFrame) {
+  let lo = 127;
+  let hi = 0;
+  for (const n of notes) {
+    if (n.pitch < lo) lo = n.pitch;
+    if (n.pitch > hi) hi = n.pitch;
+  }
+  const span = Math.max(12, hi - lo);
+  const bottom = (lo + hi) / 2 - span / 2;
+  const h = f.noteH + 1;
+  ctx.lineWidth = 1.5;
+  for (let k = firstVisible(notes, f.tStart); k < notes.length; k++) {
+    const n = notes[k]!;
+    const x = f.xOf(n.start);
+    if (x > f.width) break;
+    const w = Math.max(4, n.duration * f.zoom - 2);
+    if (x + w < 0) continue;
+    const y = Math.max(f.top - h / 2, f.top + (1 - (n.pitch - bottom) / span) * f.inner - (f.noteH + 3));
+    const state = f.position === undefined ? "upcoming" : noteState(n, f.position, false);
+    const singing = state === "active" && on;
+    ctx.globalAlpha = on ? (state === "past" ? 0.5 : 1) : 0.25;
+    roundRect(ctx, x, y, w, h);
+    if (singing) {
+      ctx.fillStyle = color;
+      ctx.fill();
+    }
+    ctx.strokeStyle = singing ? "#fff" : color;
+    ctx.stroke();
+  }
+  ctx.globalAlpha = 1;
+}
 
 /** Where a note sits relative to the playhead. */
 export function noteState(note: NoteEvent, position: number, isDrums: boolean): NoteState {
@@ -370,6 +422,20 @@ export function drawTimeline(input: DrawInput) {
       ctx.restore();
     }
     ctx.globalAlpha = 1;
+
+    if (lane.vocal && lane.vocal.notes.length > 0) {
+      drawVocal(ctx, lane.vocal.notes, lane.color, lane.audible && lane.vocal.on, {
+        top: top + pad,
+        inner,
+        noteH,
+        width,
+        tStart,
+        zoom,
+        xOf,
+        position,
+        surface: palette.surface,
+      });
+    }
 
     if (input.showLabels) {
       // member name on a sticker in their colour

@@ -1,9 +1,10 @@
-import { AlertTriangle, LoaderCircle } from "lucide-react";
+import { AlertTriangle, LoaderCircle, Mic, MicOff } from "lucide-react";
 import { audioEngine } from "@/audio/AudioEngine";
 import { Fader } from "@/components/common/Fader";
 import { MemberBadge } from "@/features/band/components/MemberBadge";
 import { INSTRUMENT_IDS, getMember, isInstrumentId } from "@/features/band/members";
 import type { MemberId } from "@/features/band/types";
+import { vocalRoleOf, type VocalRole } from "@/features/band/vocals";
 import { useT } from "@/i18n/useT";
 import { useStudioStore } from "@/stores/useStudioStore";
 import { useInstrumentState, useMixerActions, useMixerTrack } from "./mixerStore";
@@ -18,6 +19,7 @@ export function TrackControls({ memberId }: { memberId: MemberId }) {
   const color = `var(${member.colorVar})`;
   const t = useT();
   const name = t.memberName[memberId];
+  const role = vocalRoleOf(memberId);
 
   return (
     <div
@@ -74,6 +76,7 @@ export function TrackControls({ memberId }: { memberId: MemberId }) {
         >
           S
         </button>
+        {role && <VocalSwitch memberId={memberId} role={role} hasPart={track.vocalCount > 0} />}
       </div>
 
       <div className="strip__level">
@@ -86,8 +89,31 @@ export function TrackControls({ memberId }: { memberId: MemberId }) {
         />
         <LoadState state={load} onRetry={() => audioEngine.retryInstrument(track.instrument)} />
       </div>
-      {track.noteCount === 0 && <p className="strip__empty">{t.noPart}</p>}
+      {track.noteCount === 0 && track.vocalCount === 0 && <p className="strip__empty">{t.noPart}</p>}
     </div>
+  );
+}
+
+/** Yui's lead vocal / Mio's harmony on or off (a setting, so it holds across songs). */
+function VocalSwitch({ memberId, role, hasPart }: { memberId: MemberId; role: VocalRole; hasPart: boolean }) {
+  const vocals = useStudioStore((s) => s.settings.vocals);
+  const updateSettings = useStudioStore((s) => s.updateSettings);
+  const t = useT();
+  const name = t.memberName[memberId];
+  const on = vocals[role];
+  const label = !hasPart ? t.noVocal(name, t.vocalRole[role]) : on ? t.vocalOn(name, t.vocalRole[role]) : t.vocalOff(name, t.vocalRole[role]);
+  return (
+    <button
+      type="button"
+      className="ms-btn ms-btn--vocal"
+      aria-pressed={hasPart && on}
+      aria-label={label}
+      title={label}
+      disabled={!hasPart}
+      onClick={() => updateSettings({ vocals: { ...vocals, [role]: !on } })}
+    >
+      {on && hasPart ? <Mic size={15} aria-hidden="true" /> : <MicOff size={15} aria-hidden="true" />}
+    </button>
   );
 }
 

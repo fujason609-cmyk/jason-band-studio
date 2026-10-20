@@ -1,5 +1,6 @@
 import { MEMBERS } from "@/features/band/members";
 import type { MemberId } from "@/features/band/types";
+import { vocalRoleOf, type VocalSwitches } from "@/features/band/vocals";
 import { audibleMap } from "@/lib/mix";
 import type { StudioProject } from "@/types/project";
 import type { LaneInput, Palette } from "./drawTimeline";
@@ -29,6 +30,7 @@ export function buildLanes(
   palette: TimelinePalette,
   names: Record<MemberId, string>,
   selectedMember: MemberId,
+  vocals: VocalSwitches,
 ): LaneInput[] {
   const audible = audibleMap(project.tracks);
   return MEMBERS.map((m) => {
@@ -40,6 +42,7 @@ export function buildLanes(
       audible: audible[track.id] ?? true,
       isDrums: track.instrument === "drums",
       selected: m.id === selectedMember,
+      ...(track.vocal?.length ? { vocal: { notes: track.vocal, on: vocals[vocalRoleOf(m.id) ?? "lead"] } } : {}),
     };
   });
 }

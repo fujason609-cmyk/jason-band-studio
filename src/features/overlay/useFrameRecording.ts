@@ -84,7 +84,7 @@ export function useFrameRecording(armed: boolean, rolling: boolean, layout: Fram
         durationSeconds: project.durationSeconds,
         baseBpm: project.baseBpm,
         beatsPerBar: project.beatsPerBar,
-        lanes: buildLanes(project, palette, getT().memberName, settings.selectedMember),
+        lanes: buildLanes(project, palette, getT().memberName, settings.selectedMember, settings.vocals),
         palette,
         keyColor: OVERLAY_COLORS[settings.overlay.color],
         ripples,

@@ -15,6 +15,7 @@ export function useMixerTrack(member: MemberId) {
         solo: track.solo,
         instrument: track.instrument,
         noteCount: track.notes.length,
+        vocalCount: track.vocal?.length ?? 0,
         audible: isAudible(track, s.project.tracks),
       };
     }),
