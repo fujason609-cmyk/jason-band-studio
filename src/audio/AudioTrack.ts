@@ -2,6 +2,7 @@ import * as Tone from "tone";
 import type { MemberId } from "@/features/band/types";
 import { humanize, profileFor, strumOffsets, type FeelProfile, type FeelSetting } from "@/lib/feel";
 import { gainToDb } from "@/lib/mix";
+import { arrange, type PlayStyle } from "@/lib/playStyle";
 import { secondsToTicks } from "@/lib/time";
 import type { InstrumentId } from "@/types/audio";
 import type { NoteEvent } from "@/types/midi";
@@ -22,8 +23,9 @@ interface ScheduledNote {
 /**
  * One member's lane: a sequenced voice behind a channel strip (volume + mute),
  * plus a separate live voice for keyboard playing so live notes are never cut
- * off by transport stops and ignore mute / solo. Sequenced notes are played with
- * the member's feel (timing, dynamics, strums); live notes are played as you play them.
+ * off by transport stops and ignore mute / solo. Sequenced notes are arranged in the
+ * playing style, then played with the member's feel (timing, dynamics, strums); live
+ * notes are played as you play them.
  */
 export class AudioTrack {
   readonly channel: Tone.Channel;
@@ -33,6 +35,7 @@ export class AudioTrack {
   private part: Tone.Part<ScheduledNote> | null = null;
   private notesRef: readonly NoteEvent[] | null = null;
   private baseBpm = 120;
+  private beatsPerBar = 4;
   private audible = true;
   private instrument: InstrumentId;
   private feel: FeelProfile;
@@ -43,6 +46,7 @@ export class AudioTrack {
     master: Tone.ToneAudioNode,
     private readonly samples: SampleManager,
     feel: FeelSetting,
+    private style: PlayStyle,
   ) {
     this.instrument = instrument;
     this.feel = profileFor(member, feel);
@@ -56,7 +60,9 @@ export class AudioTrack {
 
   /** Rebuild voices once the instrument's source is loaded. */
   async setInstrument(instrument: InstrumentId) {
+    const changed = instrument !== this.instrument;
     this.instrument = instrument;
+    if (changed) this.schedule(); // the style arranges each instrument differently
     this.voice?.dispose();
     this.liveVoice?.dispose();
     this.voice = null;
@@ -74,22 +80,35 @@ export class AudioTrack {
   }
 
   /** Schedule notes on the shared transport. No-op when given the same array again. */
-  setNotes(notes: readonly NoteEvent[], baseBpm: number) {
-    if (notes === this.notesRef && baseBpm === this.baseBpm) return;
+  setNotes(notes: readonly NoteEvent[], baseBpm: number, beatsPerBar: number) {
+    if (notes === this.notesRef && baseBpm === this.baseBpm && beatsPerBar === this.beatsPerBar) return;
     this.notesRef = notes;
     this.baseBpm = baseBpm;
-    this.part?.dispose();
+    this.beatsPerBar = beatsPerBar;
+    this.schedule();
+  }
 
-    const timed = notes.map((n) => ({ ticks: secondsToTicks(n.start, baseBpm, PPQ), pitch: n.pitch }));
-    const strums = strumOffsets(timed, PPQ);
-    const events: ScheduledNote[] = notes.map((n, i) => ({
-      time: `${timed[i]!.ticks}i`,
-      ticks: timed[i]!.ticks,
-      pitch: n.pitch,
+  /** Play the same notes in another style. Applies from the next note, mid-song too. */
+  setStyle(style: PlayStyle) {
+    if (style === this.style) return;
+    this.style = style;
+    this.schedule();
+  }
+
+  private schedule() {
+    this.part?.dispose();
+    this.part = null;
+    if (!this.notesRef) return;
+    const baseBpm = this.baseBpm;
+    const written = this.notesRef.map((n) => ({
+      ticks: secondsToTicks(n.start, baseBpm, PPQ),
       durationTicks: Math.max(1, secondsToTicks(n.duration, baseBpm, PPQ)),
+      pitch: n.pitch,
       velocity: n.velocity,
-      strumIndex: strums[i]!,
     }));
+    const played = arrange(this.style, this.instrument, written, PPQ, this.beatsPerBar);
+    const strums = strumOffsets(played, PPQ);
+    const events: ScheduledNote[] = played.map((n, i) => ({ ...n, time: `${n.ticks}i`, strumIndex: strums[i]! }));
 
     this.part = new Tone.Part<ScheduledNote>((time, ev) => {
       if (!this.audible || !this.voice) return; // instrument not ready yet → stay silent

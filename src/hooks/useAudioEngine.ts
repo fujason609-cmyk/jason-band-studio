@@ -32,8 +32,10 @@ export function useAudioEngineBridge() {
       onStartError: (detail) => useStudioStore.getState().notify({ kind: "error", text: getT().audioBlocked(detail) }),
     });
 
-    // before the first sync, so the keys voices are built with the right sound straight away
-    audioEngine.setKeysPatch(useStudioStore.getState().settings.keysPatch);
+    // before the first sync, so the voices and parts are built with the right sound straight away
+    const { keysPatch, playStyle } = useStudioStore.getState().settings;
+    audioEngine.setKeysPatch(keysPatch);
+    audioEngine.setStyle(playStyle);
     audioEngine.sync(useProjectStore.getState().project);
     const unsubProject = useProjectStore.subscribe((s, prev) => {
       if (s.project !== prev.project) audioEngine.sync(s.project);
@@ -42,6 +44,7 @@ export function useAudioEngineBridge() {
       if (s.settings.loop !== prev.settings.loop) audioEngine.setLoop(s.settings.loop);
       if (s.settings.feel !== prev.settings.feel) audioEngine.setFeel(s.settings.feel);
       if (s.settings.keysPatch !== prev.settings.keysPatch) audioEngine.setKeysPatch(s.settings.keysPatch);
+      if (s.settings.playStyle !== prev.settings.playStyle) audioEngine.setStyle(s.settings.playStyle);
     });
     return () => {
       unsubProject();

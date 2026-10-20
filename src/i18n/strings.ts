@@ -96,6 +96,9 @@ const en = {
   followPlayhead: "Follow the playhead",
   feelOn: "Members play with their own feel. Switch to strictly on the beat",
   feelOff: "Everyone plays strictly on the beat. Switch to each member's own feel",
+  playStyle: "Playing style",
+  playStyleHint: "How the band plays this score. The notes on screen stay as written; the parts and the guitar amps change.",
+  playStyles: { original: "As written", rock: "Rock", punk: "Punk", ballad: "Ballad", swing: "Swing" } as Record<string, string>,
 
   // Instagram recording frame
   recordMode: "Instagram recording frame",
@@ -262,6 +265,9 @@ const zh: Strings = {
   followPlayhead: "跟随播放位置",
   feelOn: "演奏个性：开（每个人有自己的节奏感和力度）。点击改为完全按拍子",
   feelOff: "演奏个性：关（完全按拍子）。点击让每个人用自己的方式演奏",
+  playStyle: "演奏风格",
+  playStyleHint: "乐队用什么风格演奏这份乐谱。屏幕上的乐谱不变，变的是各声部的弹法和吉他音箱的音色。",
+  playStyles: { original: "原谱", rock: "摇滚", punk: "朋克", ballad: "抒情", swing: "爵士摇摆" },
 
   recordMode: "IG 录制画框",
   overlayColor: "抠像颜色",

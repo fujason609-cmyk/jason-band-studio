@@ -1,14 +1,15 @@
-import { Crosshair, Smartphone, Sparkles, ZoomIn, ZoomOut } from "lucide-react";
+import { Crosshair, Guitar, Smartphone, Sparkles, ZoomIn, ZoomOut } from "lucide-react";
 import { IconButton } from "@/components/common/IconButton";
 import { useT } from "@/i18n/useT";
+import { PLAY_STYLES, isPlayStyle } from "@/lib/playStyle";
 import { useStudioStore } from "@/stores/useStudioStore";
 import { MAX_ZOOM, MIN_ZOOM } from "./layout";
 
 const ZOOM_STEP = 1.4;
 
-/** Row on top of the timeline: zoom and follow on the left; playing feel and the recording frame on the right. */
+/** Row on top of the timeline: zoom and follow on the left; playing style, feel and the recording frame on the right. */
 export function TimelineToolbar() {
-  const { zoom, followPlayhead, feel } = useStudioStore((s) => s.settings);
+  const { zoom, followPlayhead, feel, playStyle } = useStudioStore((s) => s.settings);
   const updateSettings = useStudioStore((s) => s.updateSettings);
   const setRecordMode = useStudioStore((s) => s.setRecordMode);
   const t = useT();
@@ -33,6 +34,20 @@ export function TimelineToolbar() {
         </IconButton>
       </div>
       <div className="timeline-toolbar__group">
+        <label className="style-pick" title={t.playStyleHint}>
+          <Guitar size={16} aria-hidden />
+          <select
+            aria-label={t.playStyle}
+            value={playStyle}
+            onChange={(e) => isPlayStyle(e.currentTarget.value) && updateSettings({ playStyle: e.currentTarget.value })}
+          >
+            {PLAY_STYLES.map((s) => (
+              <option key={s} value={s}>
+                {t.playStyles[s]}
+              </option>
+            ))}
+          </select>
+        </label>
         <IconButton
           label={feel === "character" ? t.feelOn : t.feelOff}
           variant="quiet"

@@ -1,5 +1,6 @@
 import * as Tone from "tone";
 import { drumSampleNote, drumVoiceFor, tomFrequency, type DrumVoice } from "@/lib/drums";
+import type { PlayStyle } from "@/lib/playStyle";
 import type { InstrumentId } from "@/types/audio";
 import type { KeysPatch } from "./keysPatches";
 import { SYNTH_TRIM_DB } from "./audioConfig";
@@ -290,8 +291,64 @@ function stringPad() {
   return pad;
 }
 
+interface AmpSettings {
+  lowCut: number;
+  drive: number;
+  eq: { low?: number; mid?: number; high?: number };
+  cabinet: number;
+  room: number;
+}
+
+/** How a playing style resets a guitar amp; `levelDb` keeps the part as loud as in "original". */
+interface AmpStyle {
+  drive: number;
+  /** added to the amp's treble */
+  high?: number;
+  cabinet?: number;
+  room?: number;
+  levelDb: number;
+}
+
+type GuitarPart = "lead-guitar" | "rhythm-guitar";
+
+// levels set like the trims: offline renders of the same phrase, matched to the "original" RMS
+const STYLE_AMPS: Record<Exclude<PlayStyle, "original">, Record<GuitarPart, AmpStyle>> = {
+  // more gain on both amps: Yui's Les Paul roars, Azusa's Mustang crunches
+  rock: { "lead-guitar": { drive: 0.8, levelDb: -0.5 }, "rhythm-guitar": { drive: 0.7, levelDb: -1.5 } },
+  punk: { "lead-guitar": { drive: 0.92, high: 1, levelDb: -1 }, "rhythm-guitar": { drive: 0.88, high: 1, levelDb: -2 } },
+  // almost clean, more room
+  ballad: { "lead-guitar": { drive: 0.1, room: 0.26, levelDb: 5 }, "rhythm-guitar": { drive: 0.06, room: 0.22, levelDb: 2.5 } },
+  // clean and dark, neck pickup into a jazz amp
+  swing: {
+    "lead-guitar": { drive: 0.04, high: -5, cabinet: 3000, room: 0.18, levelDb: 7 },
+    "rhythm-guitar": { drive: 0.03, high: -4, cabinet: 3400, room: 0.16, levelDb: 2.5 },
+  },
+};
+
+/** An amp's settings in a playing style, and the level change that goes with them. */
+function styledAmp(part: GuitarPart, base: AmpSettings, style: PlayStyle): { amp: AmpSettings; levelDb: number } {
+  if (style === "original") return { amp: base, levelDb: 0 };
+  const s = STYLE_AMPS[style][part];
+  return {
+    amp: {
+      ...base,
+      drive: s.drive,
+      eq: { ...base.eq, high: (base.eq.high ?? 0) + (s.high ?? 0) },
+      cabinet: s.cabinet ?? base.cabinet,
+      room: s.room ?? base.room,
+    },
+    levelDb: s.levelDb,
+  };
+}
+
+/** A guitar through its amp, voiced for the playing style. */
+function guitarVoice(part: GuitarPart, source: Tone.Sampler, base: AmpSettings, trimDb: number, style: PlayStyle) {
+  const { amp, levelDb } = styledAmp(part, base, style);
+  return new MelodicVoice(source, guitarAmp(amp), trimDb + levelDb);
+}
+
 /** A guitar amp in miniature: input cut, drive, tone stack, speaker cabinet, a little room. */
-function guitarAmp(opts: { lowCut: number; drive: number; eq: { low?: number; mid?: number; high?: number }; cabinet: number; room: number }) {
+function guitarAmp(opts: AmpSettings) {
   return [
     new Tone.Filter(opts.lowCut, "highpass"),
     new Tone.Distortion({ distortion: opts.drive, oversample: "4x" }),
@@ -309,7 +366,11 @@ function guitarAmp(opts: { lowCut: number; drive: number; eq: { low?: number; mi
  *   keys          Mugi's Korg workstation: an FM piano with a string pad under held chords
  *   drums         Ritsu's kit: punchy kick with beater click, bright crash
  */
-export function createSynthVoice(instrument: InstrumentId, rendered?: Record<string, Tone.ToneAudioBuffer>): Voice {
+export function createSynthVoice(
+  instrument: InstrumentId,
+  rendered?: Record<string, Tone.ToneAudioBuffer>,
+  style: PlayStyle = "original",
+): Voice {
   const trim = SYNTH_TRIM_DB[instrument];
   const sampled = () => {
     const set = RENDERED_SETS[instrument];
@@ -318,17 +379,9 @@ export function createSynthVoice(instrument: InstrumentId, rendered?: Record<str
   };
   switch (instrument) {
     case "lead-guitar":
-      return new MelodicVoice(
-        sampled(),
-        guitarAmp({ lowCut: 90, drive: 0.6, eq: { low: 2, mid: 3, high: -2 }, cabinet: 4800, room: 0.14 }),
-        trim,
-      );
+      return guitarVoice(instrument, sampled(), { lowCut: 90, drive: 0.6, eq: { low: 2, mid: 3, high: -2 }, cabinet: 4800, room: 0.14 }, trim, style);
     case "rhythm-guitar":
-      return new MelodicVoice(
-        sampled(),
-        guitarAmp({ lowCut: 120, drive: 0.32, eq: { low: -1, mid: 1, high: 1.5 }, cabinet: 6200, room: 0.09 }),
-        trim,
-      );
+      return guitarVoice(instrument, sampled(), { lowCut: 120, drive: 0.32, eq: { low: -1, mid: 1, high: 1.5 }, cabinet: 6200, room: 0.09 }, trim, style);
     case "bass":
       return new LayeredVoice(
         [
@@ -507,22 +560,15 @@ export function createPackVoice(
   sampler: Tone.Sampler,
   trimDb: number,
   soft?: { sampler: Tone.Sampler; below: number },
+  style: PlayStyle = "original",
 ): Voice {
   switch (instrument) {
     case "lead-guitar":
       // Les Paul into a cranked amp: humbucker crunch, thick low mids, rolled-off top
-      return new MelodicVoice(
-        sampler,
-        guitarAmp({ lowCut: 85, drive: 0.55, eq: { low: 2, mid: 3, high: -1.5 }, cabinet: 5000, room: 0.14 }),
-        trimDb,
-      );
+      return guitarVoice(instrument, sampler, { lowCut: 85, drive: 0.55, eq: { low: 2, mid: 3, high: -1.5 }, cabinet: 5000, room: 0.14 }, trimDb, style);
     case "rhythm-guitar":
       // Mustang single coils: brighter and glassier, lighter drive, less low end
-      return new MelodicVoice(
-        sampler,
-        guitarAmp({ lowCut: 130, drive: 0.22, eq: { low: -2, mid: 0, high: 2.5 }, cabinet: 7500, room: 0.1 }),
-        trimDb,
-      );
+      return guitarVoice(instrument, sampler, { lowCut: 130, drive: 0.22, eq: { low: -2, mid: 0, high: 2.5 }, cabinet: 7500, room: 0.1 }, trimDb, style);
     case "bass":
       return new MelodicVoice(
         sampler,

@@ -1142,6 +1142,18 @@ select {
   }
 }
 
+// playing style picker in the toolbar
+.style-pick {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-right: 4px;
+  color: var(--ink-soft);
+  select {
+    min-width: 7.5em;
+  }
+}
+
 // key colour picker in the recording frame controls
 .swatches {
   display: flex;

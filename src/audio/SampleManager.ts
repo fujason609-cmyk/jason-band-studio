@@ -3,6 +3,7 @@ import type { InstrumentId, InstrumentLoadState } from "@/types/audio";
 import { KEYS_PATCH_TRIM_DB, SAMPLE_PACKS, samplePackUrl, type SamplePack } from "./audioConfig";
 import { pluckPitches } from "./karplus";
 import type { KeysPatch } from "./keysPatches";
+import type { PlayStyle } from "@/lib/playStyle";
 import { RENDERED_SETS, createKeysPatchVoice, createPackVoice, createSynthVoice, type Voice } from "./voices";
 
 type Listener = (instrument: InstrumentId, state: InstrumentLoadState) => void;
@@ -106,6 +107,9 @@ export class SampleManager {
   /** Mugi's chosen Triton sound for every keys track; set by AudioEngine.setKeysPatch. */
   keysPatch: KeysPatch = "piano";
 
+  /** The playing style, which sets the guitar amps; set by AudioEngine.setStyle. */
+  style: PlayStyle = "original";
+
   /** Build a new voice for an instrument. Call `load()` first. */
   createVoice(instrument: InstrumentId): Voice {
     if (instrument === "keys" && this.keysPatch !== "piano") {
@@ -116,9 +120,9 @@ export class SampleManager {
     if (pack && buffers) {
       const sampler = (urls: Notes) => new Tone.Sampler({ urls, release: pack.release ?? 0.5 });
       const soft = pack.soft && buffers.soft ? { sampler: sampler(buffers.soft), below: pack.soft.below } : undefined;
-      return createPackVoice(instrument, sampler(buffers.main), pack.volume ?? 0, soft);
+      return createPackVoice(instrument, sampler(buffers.main), pack.volume ?? 0, soft, this.style);
     }
-    return createSynthVoice(instrument, this.rendered.get(instrument));
+    return createSynthVoice(instrument, this.rendered.get(instrument), this.style);
   }
 
   dispose() {

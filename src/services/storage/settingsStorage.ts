@@ -3,6 +3,7 @@ import type { MemberId } from "@/features/band/types";
 import { DEFAULT_OVERLAY, sanitizeOverlay, type OverlaySettings } from "@/features/overlay/overlay";
 import { detectLanguage, type Language } from "@/i18n/strings";
 import type { FeelSetting } from "@/lib/feel";
+import { isPlayStyle, type PlayStyle } from "@/lib/playStyle";
 import { isKeysPatch, type KeysPatch } from "@/audio/keysPatches";
 
 export type ThemeSetting = "system" | "light" | "dark";
@@ -21,6 +22,8 @@ export interface StudioSettings {
   feel: FeelSetting;
   /** Mugi's Triton sound for every keys track */
   keysPatch: KeysPatch;
+  /** the genre the band plays the score in */
+  playStyle: PlayStyle;
 }
 
 export const DEFAULT_SETTINGS: StudioSettings = {
@@ -33,6 +36,7 @@ export const DEFAULT_SETTINGS: StudioSettings = {
   overlay: DEFAULT_OVERLAY,
   feel: "character",
   keysPatch: "piano",
+  playStyle: "original",
 };
 
 const KEY = "kon-band-studio:settings:v1";
@@ -51,6 +55,7 @@ export function sanitizeSettings(raw: unknown): StudioSettings {
     overlay: sanitizeOverlay(r.overlay),
     feel: r.feel === "steady" || r.feel === "character" ? r.feel : DEFAULT_SETTINGS.feel,
     keysPatch: isKeysPatch(r.keysPatch) ? r.keysPatch : DEFAULT_SETTINGS.keysPatch,
+    playStyle: isPlayStyle(r.playStyle) ? r.playStyle : DEFAULT_SETTINGS.playStyle,
   };
 }
 

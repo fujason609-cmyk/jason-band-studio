@@ -1,6 +1,7 @@
 import * as Tone from "tone";
 import type { MemberId } from "@/features/band/types";
 import type { FeelSetting } from "@/lib/feel";
+import type { PlayStyle } from "@/lib/playStyle";
 import type { KeysPatch } from "./keysPatches";
 import { audibleMap, gainToDb } from "@/lib/mix";
 import { clampBpm } from "@/lib/time";
@@ -31,6 +32,7 @@ export class AudioEngine {
   private events: EngineEvents = {};
   private lastProject: StudioProject | null = null;
   private feel: FeelSetting = "character";
+  private style: PlayStyle = "original";
   private capture: MediaStreamAudioDestinationNode | null = null;
 
   setEvents(events: EngineEvents) {
@@ -78,13 +80,13 @@ export class AudioEngine {
     for (const track of project.tracks) {
       let audio = this.tracks.get(track.memberId);
       if (!audio) {
-        audio = new AudioTrack(track.memberId, track.instrument, this.master, this.samples, this.feel);
+        audio = new AudioTrack(track.memberId, track.instrument, this.master, this.samples, this.feel, this.style);
         this.tracks.set(track.memberId, audio);
         this.loadInstrument(audio, track.instrument);
       } else if (audio.currentInstrument !== track.instrument) {
         this.loadInstrument(audio, track.instrument);
       }
-      audio.setNotes(track.notes, project.baseBpm);
+      audio.setNotes(track.notes, project.baseBpm, project.beatsPerBar);
       audio.setVolume(track.volume);
       audio.setAudible(audible[track.id] ?? true);
     }
@@ -129,6 +131,19 @@ export class AudioEngine {
   setFeel(feel: FeelSetting) {
     this.feel = feel;
     this.tracks.forEach((t) => t.setFeel(feel));
+  }
+
+  /**
+   * The genre the band plays the score in. Works before start(): rearranges every part
+   * and rebuilds the guitars, whose amps are set per style.
+   */
+  setStyle(style: PlayStyle) {
+    if (style === this.style) return;
+    this.style = style;
+    this.samples.style = style;
+    this.tracks.forEach((t) => t.setStyle(style));
+    this.retryInstrument("lead-guitar");
+    this.retryInstrument("rhythm-guitar");
   }
 
   setLoop(loop: boolean) {

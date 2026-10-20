@@ -15,6 +15,7 @@ A small browser DAW for a five-piece light-music club band. Listen to each membe
   - Mugi (KORG Triton): a recorded grand piano (soft and hard hammer layers), plus Triton-style strings, synth lead and organ patches, picked in her live panel; the choice applies to her part in playback too.
   If the recordings can't load, each instrument falls back to a synthesized version so the band keeps playing. Nothing is sampled from the show.
 - **Each member plays with their own feel.** Ritsu pushes ahead of the beat and hits the downbeats hard, Mio is steady, Yui has big dynamics and sometimes lays back, Azusa is tight, Mugi plays gently, and guitar chords are strummed string by string (up-strokes on the off-beats). The ✨ button above the score switches everyone to strictly on the beat.
+- **Play the score in another style.** The 🎸 picker above the score has As written, Rock, Punk, Ballad and Swing. The notes on screen stay as written, but the band changes how it plays them. Rock and punk turn Azusa's chords into power chords picked in eighths, drive the bass in eighths, add crashes and crank the amps. Ballad lets notes ring, picks held chords as arpeggios and cleans up the guitars. Swing moves the off-beat eighths late and gives the guitars a dark jazz tone. You can switch while the song plays.
 - **Mixer** with per-track volume, mute and solo, plus a master volume. Mute always wins; while any track is soloed only soloed tracks play. Toggling either cuts notes that are already ringing.
 - **One clock for the band.** Every note is scheduled on a single Tone.js Transport, so the parts can't drift apart. Tempo changes keep the playhead where it is, and pause, resume, seek and loop act on all tracks at once.
 - **Song import: MIDI, Guitar Pro or MusicXML**, from the file picker ("Import song") or by dropping the file on the page. Guitar Pro (.gp, .gp3, .gp4, .gp5, .gpx) and MusicXML (.musicxml, .mxl, .xml) scores are read with [alphaTab](https://github.com/CoderLine/alphaTab) (MPL-2.0), loaded only when such a file is opened, and turned into MIDI, so every format gets the same treatment. Tracks are matched to members by their name when it says what they are ("Bass", "Rhythm Guitar", "ドラム", "键盘"…) and otherwise by General MIDI family, and you can reassign or leave out any of them before loading. The tempo map, PPQ and time signatures are kept; a score's title becomes the song name.
@@ -98,7 +99,7 @@ Packs load lazily and are shared by every track that uses them. Each mixer strip
 
 ## Testing
 
-`pnpm test` runs 106 tests covering:
+`pnpm test` runs 113 tests covering:
 - mute and solo rules
 - tick and second conversions, and tempo scaling
 - the keyboard map

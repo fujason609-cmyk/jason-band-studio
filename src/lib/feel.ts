@@ -65,7 +65,7 @@ export function humanize(profile: FeelProfile, note: FeelInput, ppq: number, ran
 
 /**
  * Notes that start on the same tick form a chord. Down-strums go low string to high;
- * chords on an off-beat eighth are up-strums, high to low, like a strumming hand.
+ * chords on an off-beat eighth (straight or swung) are up-strums, high to low, like a strumming hand.
  * Returns each note's place in its strum (0 = first string hit).
  */
 export function strumOffsets(notes: readonly { ticks: number; pitch: number }[], ppq: number): number[] {
@@ -78,7 +78,9 @@ export function strumOffsets(notes: readonly { ticks: number; pitch: number }[],
   const result = new Array<number>(notes.length).fill(0);
   for (const [ticks, indices] of byTick) {
     if (indices.length < 2) continue;
-    const up = ticks % ppq === ppq / 2;
+    // the off-beat eighth, straight or swung (playStyle's swing moves it to 2/3 of the beat)
+    const inBeat = ticks % ppq;
+    const up = inBeat === ppq / 2 || inBeat === Math.round((ppq * 2) / 3);
     const ordered = [...indices].sort((a, b) => notes[a]!.pitch - notes[b]!.pitch);
     if (up) ordered.reverse();
     ordered.forEach((noteIndex, place) => {
