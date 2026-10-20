@@ -1,5 +1,6 @@
 import * as Tone from "tone";
 import type { MemberId } from "@/features/band/types";
+import type { FeelSetting } from "@/lib/feel";
 import { audibleMap, gainToDb } from "@/lib/mix";
 import { clampBpm } from "@/lib/time";
 import type { InstrumentId, InstrumentLoadState, TransportStatus } from "@/types/audio";
@@ -28,6 +29,7 @@ export class AudioEngine {
   private started = false;
   private events: EngineEvents = {};
   private lastProject: StudioProject | null = null;
+  private feel: FeelSetting = "character";
 
   setEvents(events: EngineEvents) {
     this.events = events;
@@ -74,7 +76,7 @@ export class AudioEngine {
     for (const track of project.tracks) {
       let audio = this.tracks.get(track.memberId);
       if (!audio) {
-        audio = new AudioTrack(track.instrument, this.master, this.samples);
+        audio = new AudioTrack(track.memberId, track.instrument, this.master, this.samples, this.feel);
         this.tracks.set(track.memberId, audio);
         this.loadInstrument(audio, track.instrument);
       } else if (audio.currentInstrument !== track.instrument) {
@@ -114,6 +116,12 @@ export class AudioEngine {
   seek(songSeconds: number) {
     this.transport?.seek(songSeconds);
   }
+  /** Members' playing personality, or strictly on the grid. Applies from the next note. */
+  setFeel(feel: FeelSetting) {
+    this.feel = feel;
+    this.tracks.forEach((t) => t.setFeel(feel));
+  }
+
   setLoop(loop: boolean) {
     this.transport?.setLoop(loop);
   }

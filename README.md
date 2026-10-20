@@ -2,11 +2,13 @@
 
 A small browser DAW for a five-piece light-music club band. Listen to each member's part, mix them, import a MIDI file and hand its tracks to the band, and play along live on your computer keyboard. It's a static site with no backend or accounts, and it runs on GitHub Pages for free.
 
-> A fan-made project, not affiliated with the rights holders of K-ON!. The repo ships no character artwork, official recordings or scores. Every sound is synthesized in the browser, and the demo song, *After School Jam*, was written for this project.
+> A fan-made project, not affiliated with the rights holders of K-ON!. The repo ships no character artwork, official recordings or scores. The instruments are free CC0 recordings of real guitars, bass, piano and drums by Karoryfer Samples and Versilian Studios (see [public/instruments/CREDITS.md](public/instruments/CREDITS.md)), and the demo song, *After School Jam*, was written for this project.
 
 ## What it does
 
 - **Five tracks**, one per member: Yui (lead guitar), Mio (bass), Ritsu (drums), Mugi (keys) and Azusa (rhythm guitar). Each member's instrument can be changed.
+- **Real instruments, voiced after each member's gear.** Recorded electric guitars, bass, grand piano and a rock drum kit (about 4 MB, loaded when first needed). Yui's guitar goes through a crunchy humbucker-style amp (Les Paul), Azusa's through a brighter, tighter one (Mustang), Mio's bass is compressed like a fingerstyle Jazz Bass, Mugi's piano uses the soft-hammer recordings for quiet playing and the hard ones for loud, and Ritsu's kit is a full rock kit with a hi-hat that chokes. If the recordings can't load, each instrument falls back to a synthesized version so the band keeps playing. Nothing is sampled from the show.
+- **Each member plays with their own feel.** Ritsu pushes ahead of the beat and hits the downbeats hard, Mio is steady, Yui has big dynamics and sometimes lays back, Azusa is tight, Mugi plays gently, and guitar chords are strummed string by string (up-strokes on the off-beats). The ✨ button above the score switches everyone to strictly on the beat.
 - **Mixer** with per-track volume, mute and solo, plus a master volume. Mute always wins; while any track is soloed only soloed tracks play. Toggling either cuts notes that are already ringing.
 - **One clock for the band.** Every note is scheduled on a single Tone.js Transport, so the parts can't drift apart. Tempo changes keep the playhead where it is, and pause, resume, seek and loop act on all tracks at once.
 - **MIDI import** from the file picker or by dropping a `.mid` file on the page. Tracks are matched to members by General MIDI family (drums, bass, guitar, keys, lead) and you can reassign or leave out any of them before loading. The tempo map, PPQ and time signatures are kept.
@@ -40,6 +42,7 @@ pnpm dev                 # http://localhost:5173
 | `pnpm test` | Vitest unit and component tests |
 | `pnpm lint` | ESLint |
 | `pnpm demo:midi` | Rewrite `public/demo/after-school-jam.mid` from the demo song |
+| `pnpm samples:build` | Rebuild the recorded instrument samples (needs `FFMPEG`, see below) |
 
 `public/demo/after-school-jam.mid` is a ready-made file for trying the import flow.
 
@@ -74,24 +77,21 @@ src/
 
 **Time model.** Notes are stored in *song seconds*, meaning seconds at the song's own tempo map, which `@tonejs/midi` works out. The engine converts them to Transport ticks against the song's base BPM. Playing at another tempo is then just a change to `Transport.bpm`: tick positions don't move, so the sound and the playhead stay together. A tempo map inside the MIDI file is kept, because the whole song is scaled by the same ratio.
 
-## Adding a sample pack
+## Instrument samples
 
-The synthesized voices avoid licensing and repo-size problems. To use recorded samples instead:
+The recordings in `public/instruments/` are excerpts of CC0 libraries hosted by the [sfzinstruments](https://github.com/sfzinstruments) project, credited in [CREDITS.md](public/instruments/CREDITS.md). They are built, not hand-made:
 
-1. Put a pack that you're **allowed to redistribute** in `public/instruments/<instrument>/`. The instrument IDs are `lead-guitar`, `rhythm-guitar`, `bass`, `drums` and `keys`.
-2. Register it in `src/audio/audioConfig.ts`:
-   ```ts
-   export const SAMPLE_PACKS = {
-     keys: { files: { C3: "C3.mp3", C4: "C4.mp3", C5: "C5.mp3" }, release: 1, license: "CC0, from …" },
-   };
-   ```
-   For drums, key each hit by its General MIDI note name: `C2` for the kick (36), `D2` for the snare (38), and so on.
+```bash
+FFMPEG=/path/to/ffmpeg pnpm samples:build   # ffmpeg must be able to read FLAC and write MP3
+```
 
-Packs load lazily and are shared by every track that uses them. Each mixer strip shows the load progress, and a failed load shows a Retry button. Notes for an instrument stay silent until its pack is ready.
+`scripts/build-sample-packs.ts` downloads the exact source files (pinned to a commit, cached in `.sample-cache/`), mixes the close and overhead mics for drums, trims each note, encodes mono 96 kbps MP3s and writes `src/audio/samplePacks.generated.ts`. Change which notes or layers are used there, then rebuild. If you swap in other recordings, they must be licensed for redistribution; record the licence in `SAMPLE_PACKS` (`src/audio/audioConfig.ts`) and in CREDITS.md, and re-measure the pack volumes.
+
+Packs load lazily and are shared by every track that uses them. Each mixer strip shows the load progress. If a pack fails to load, that instrument plays its synthesized voice and the strip shows a Retry button.
 
 ## Testing
 
-`pnpm test` runs 68 tests covering:
+`pnpm test` runs 89 tests covering:
 - mute and solo rules
 - tick and second conversions, and tempo scaling
 - the keyboard map

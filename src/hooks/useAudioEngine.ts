@@ -9,7 +9,11 @@ export async function ensureAudio(): Promise<boolean> {
   const studio = useStudioStore.getState();
   const ok = await audioEngine.start();
   studio.setAudioStarted(ok);
-  if (ok) audioEngine.setLoop(useStudioStore.getState().settings.loop);
+  if (ok) {
+    const { loop, feel } = useStudioStore.getState().settings;
+    audioEngine.setLoop(loop);
+    audioEngine.setFeel(feel);
+  }
   return ok;
 }
 
@@ -34,6 +38,7 @@ export function useAudioEngineBridge() {
     });
     const unsubLoop = useStudioStore.subscribe((s, prev) => {
       if (s.settings.loop !== prev.settings.loop) audioEngine.setLoop(s.settings.loop);
+      if (s.settings.feel !== prev.settings.feel) audioEngine.setFeel(s.settings.feel);
     });
     return () => {
       unsubProject();

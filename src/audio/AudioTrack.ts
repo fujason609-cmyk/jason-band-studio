@@ -1,4 +1,6 @@
 import * as Tone from "tone";
+import type { MemberId } from "@/features/band/types";
+import { humanize, profileFor, strumOffsets, type FeelProfile, type FeelSetting } from "@/lib/feel";
 import { gainToDb } from "@/lib/mix";
 import { secondsToTicks } from "@/lib/time";
 import type { InstrumentId } from "@/types/audio";
@@ -9,15 +11,19 @@ import type { Voice } from "./voices";
 
 interface ScheduledNote {
   time: string;
+  ticks: number;
   pitch: number;
   durationTicks: number;
   velocity: number;
+  /** place in a strummed chord (0 = first string) */
+  strumIndex: number;
 }
 
 /**
  * One member's lane: a sequenced voice behind a channel strip (volume + mute),
  * plus a separate live voice for keyboard playing so live notes are never cut
- * off by transport stops and ignore mute / solo.
+ * off by transport stops and ignore mute / solo. Sequenced notes are played with
+ * the member's feel (timing, dynamics, strums); live notes are played as you play them.
  */
 export class AudioTrack {
   readonly channel: Tone.Channel;
@@ -29,13 +35,17 @@ export class AudioTrack {
   private baseBpm = 120;
   private audible = true;
   private instrument: InstrumentId;
+  private feel: FeelProfile;
 
   constructor(
+    private readonly member: MemberId,
     instrument: InstrumentId,
     master: Tone.ToneAudioNode,
     private readonly samples: SampleManager,
+    feel: FeelSetting,
   ) {
     this.instrument = instrument;
+    this.feel = profileFor(member, feel);
     this.channel = new Tone.Channel({ volume: 0 }).connect(master);
     this.liveChannel = new Tone.Volume(0).connect(master);
   }
@@ -59,6 +69,10 @@ export class AudioTrack {
     this.liveVoice.output.connect(this.liveChannel);
   }
 
+  setFeel(feel: FeelSetting) {
+    this.feel = profileFor(this.member, feel);
+  }
+
   /** Schedule notes on the shared transport. No-op when given the same array again. */
   setNotes(notes: readonly NoteEvent[], baseBpm: number) {
     if (notes === this.notesRef && baseBpm === this.baseBpm) return;
@@ -66,17 +80,24 @@ export class AudioTrack {
     this.baseBpm = baseBpm;
     this.part?.dispose();
 
-    const events: ScheduledNote[] = notes.map((n) => ({
-      time: `${secondsToTicks(n.start, baseBpm, PPQ)}i`,
+    const timed = notes.map((n) => ({ ticks: secondsToTicks(n.start, baseBpm, PPQ), pitch: n.pitch }));
+    const strums = strumOffsets(timed, PPQ);
+    const events: ScheduledNote[] = notes.map((n, i) => ({
+      time: `${timed[i]!.ticks}i`,
+      ticks: timed[i]!.ticks,
       pitch: n.pitch,
       durationTicks: Math.max(1, secondsToTicks(n.duration, baseBpm, PPQ)),
       velocity: n.velocity,
+      strumIndex: strums[i]!,
     }));
 
     this.part = new Tone.Part<ScheduledNote>((time, ev) => {
       if (!this.audible || !this.voice) return; // instrument not ready yet → stay silent
+      // drums hit together; only strings get strummed
+      const strumIndex = this.instrument === "drums" ? 0 : ev.strumIndex;
+      const { offset, velocity } = humanize(this.feel, { ...ev, strumIndex }, PPQ, Math.random);
       // Duration in ticks so it stretches with the transport tempo.
-      this.voice.attackRelease(ev.pitch, `${ev.durationTicks}i`, time, ev.velocity);
+      this.voice.attackRelease(ev.pitch, `${ev.durationTicks}i`, Math.max(Tone.now(), time + offset), velocity);
     }, events);
     this.part.start(0);
   }

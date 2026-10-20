@@ -13,7 +13,8 @@
     "test:watch": "vitest",
     "lint": "eslint .",
     "format": "prettier --write .",
-    "demo:midi": "vite-node scripts/generate-demo-midi.ts"
+    "demo:midi": "vite-node scripts/generate-demo-midi.ts",
+    "samples:build": "vite-node scripts/build-sample-packs.ts"
   },
   "dependencies": {
     "@tonejs/midi": "2.0.28",

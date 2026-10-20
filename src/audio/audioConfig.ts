@@ -1,4 +1,5 @@
 import type { InstrumentId } from "@/types/audio";
+import { SAMPLE_FILES } from "./samplePacks.generated";
 
 /** Transport resolution. Notes are scheduled in ticks at this PPQ. */
 export const PPQ = 192;
@@ -7,16 +8,11 @@ export const PPQ = 192;
 export const LOOK_AHEAD = 0.1;
 
 /**
- * Optional sample packs.
- *
- * By default every instrument is synthesized in the browser, which keeps the
- * repo small and avoids licensing questions. To use recorded samples, drop a
- * pack you are allowed to redistribute into `public/instruments/<instrument>/`
- * and describe it here. Keys are note names ("C3", "F#4"); for drums use the
- * General MIDI note of each hit ("C2" kick = 36, "D2" snare = 38, ...).
- *
- * Example:
- *   keys: { files: { C3: "C3.mp3", C4: "C4.mp3", C5: "C5.mp3" }, release: 1 },
+ * Recorded sample packs in `public/instruments/<instrument>/`, built by
+ * `pnpm samples:build` (scripts/build-sample-packs.ts) from CC0 libraries; credits in
+ * public/instruments/CREDITS.md. Keys are note names ("C3", "Eb4"); drums are keyed by
+ * the General MIDI note of each kit piece ("C2" kick = 36, "D2" snare = 38, ...).
+ * An instrument without a pack, or whose pack fails to load, uses its synth voice.
  */
 export interface SamplePack {
   files: Record<string, string>;
@@ -24,21 +20,44 @@ export interface SamplePack {
   release?: number;
   /** level trim in dB */
   volume?: number;
-  /** licence note shown in the README / credits — fill this in */
-  license?: string;
+  /** where the recordings come from and under what licence */
+  license: string;
+  /** softer recordings of the same notes, played for velocities below `below` */
+  soft?: { files: Record<string, string>; below: number };
 }
 
-export const SAMPLE_PACKS: Partial<Record<InstrumentId, SamplePack>> = {};
+const KARORYFER = "CC0-1.0, Karoryfer Samples via sfzinstruments on GitHub";
+
+// volumes set like SYNTH_TRIM_DB: offline renders of the same phrase, matched to the same RMS targets
+export const SAMPLE_PACKS: Partial<Record<InstrumentId, SamplePack>> = {
+  "lead-guitar": { files: SAMPLE_FILES["lead-guitar"]!, release: 0.3, volume: -14, license: `${KARORYFER} (Black And Green Guitars, Gretsch)` },
+  "rhythm-guitar": { files: SAMPLE_FILES["rhythm-guitar"]!, release: 0.12, volume: -12, license: `${KARORYFER} (Black And Green Guitars, Hofner)` },
+  bass: { files: SAMPLE_FILES.bass!, release: 0.12, volume: -12, license: `${KARORYFER} (Black And Blue Basses)` },
+  keys: {
+    files: SAMPLE_FILES.keys!,
+    // quiet playing uses the piano's soft-hammer recordings, not the loud ones turned down
+    soft: { files: SAMPLE_FILES["keys:soft"]!, below: 0.45 },
+    release: 0.8,
+    volume: -15,
+    license: "CC0-1.0, Versilian Studios and Karoryfer Samples (Osiris Piano)",
+  },
+  // hits ring out on their own; the short release is only the hi-hat choke
+  drums: { files: SAMPLE_FILES.drums!, release: 0.08, volume: -2.5, license: `${KARORYFER} (Big Rusty Drums)` },
+};
 
 export function samplePackUrl(instrument: InstrumentId, file: string): string {
   return `${import.meta.env.BASE_URL}instruments/${instrument}/${file}`;
 }
 
-/** Output trims for the synthesized voices so the default mix sits together. */
+/**
+ * Output trims for the synthesized voices so the default mix sits together. Set from
+ * offline renders of a short phrase per instrument, aiming at RMS (dBFS) of about:
+ * drums -27, bass -24, lead guitar -25, rhythm guitar -27, keys -28.
+ */
 export const SYNTH_TRIM_DB: Record<InstrumentId, number> = {
-  "lead-guitar": -14,
-  "rhythm-guitar": -20,
-  bass: -8,
+  "lead-guitar": -11,
+  "rhythm-guitar": -10,
+  bass: -17,
   drums: -6,
-  keys: -12,
+  keys: -20,
 };

@@ -1,4 +1,4 @@
-import { Crosshair, Smartphone, ZoomIn, ZoomOut } from "lucide-react";
+import { Crosshair, Smartphone, Sparkles, ZoomIn, ZoomOut } from "lucide-react";
 import { IconButton } from "@/components/common/IconButton";
 import { useT } from "@/i18n/useT";
 import { useStudioStore } from "@/stores/useStudioStore";
@@ -6,9 +6,9 @@ import { MAX_ZOOM, MIN_ZOOM } from "./layout";
 
 const ZOOM_STEP = 1.4;
 
-/** Row on top of the timeline: zoom and follow on the left, the recording frame on the right. */
+/** Row on top of the timeline: zoom and follow on the left; playing feel and the recording frame on the right. */
 export function TimelineToolbar() {
-  const { zoom, followPlayhead } = useStudioStore((s) => s.settings);
+  const { zoom, followPlayhead, feel } = useStudioStore((s) => s.settings);
   const updateSettings = useStudioStore((s) => s.updateSettings);
   const setRecordMode = useStudioStore((s) => s.setRecordMode);
   const t = useT();
@@ -33,6 +33,14 @@ export function TimelineToolbar() {
         </IconButton>
       </div>
       <div className="timeline-toolbar__group">
+        <IconButton
+          label={feel === "character" ? t.feelOn : t.feelOff}
+          variant="quiet"
+          pressed={feel === "character"}
+          onClick={() => updateSettings({ feel: feel === "character" ? "steady" : "character" })}
+        >
+          <Sparkles size={16} />
+        </IconButton>
         <IconButton label={t.recordMode} variant="quiet" onClick={() => setRecordMode(true)}>
           <Smartphone size={16} />
         </IconButton>

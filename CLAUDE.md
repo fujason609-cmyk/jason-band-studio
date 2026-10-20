@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project
 
-A static, backend-free browser DAW (React 19 + TypeScript + Vite + Tone.js + Zustand + SCSS) for a five-member fan-made "K-ON!" band. Deployed to GitHub Pages. All sound is synthesized in-browser; the repo must not ship character artwork, official recordings or scores. Any sample pack added must be redistributable (record its `license` in `src/audio/audioConfig.ts`).
+A static, backend-free browser DAW (React 19 + TypeScript + Vite + Tone.js + Zustand + SCSS) for a five-member fan-made "K-ON!" band. Deployed to GitHub Pages. Instruments are CC0 recordings (Karoryfer / Versilian, built by `scripts/build-sample-packs.ts`, credited in `public/instruments/CREDITS.md`) with in-browser synth fallbacks; the repo must not ship character artwork, official recordings or scores. Any sample pack added must be redistributable (record its `license` in `SAMPLE_PACKS`, `src/audio/audioConfig.ts`, and in CREDITS.md).
 
 ## Commands
 
@@ -21,6 +21,7 @@ pnpm vitest run src/lib/time.test.ts          # single file
 pnpm vitest run -t "<test name>"              # single test by name
 pnpm format              # prettier (printWidth 100, double quotes, trailing commas)
 pnpm demo:midi           # regenerate public/demo/after-school-jam.mid from src/features/band/demoSong.ts
+FFMPEG=/path/to/ffmpeg pnpm samples:build   # rebuild public/instruments/* + samplePacks.generated.ts from CC0 sources
 ```
 
 CI (`.github/workflows/deploy.yml`) runs lint → test → build on push to `main`, with `BASE_PATH=/<repo-name>/`. Asset URLs must go through `import.meta.env.BASE_URL` (see `samplePackUrl`) so they work under that sub-path.
@@ -47,7 +48,11 @@ Notes are stored in **song seconds** (seconds at the song's own tempo map, resol
 
 Each `AudioTrack` has two voices: a sequenced voice behind a `Tone.Channel` (volume + mute/solo) and a separate **live** voice for keyboard playing that ignores mute/solo and transport stops. Mute/solo rules live in `src/lib/mix.ts` (mute always wins; with any solo, only soloed tracks play). Going inaudible, pausing, stopping or seeking calls `releaseAll()` to cut ringing notes.
 
-`SampleManager` loads instruments lazily and shares buffers across tracks. Instruments without an entry in `SAMPLE_PACKS` use synth voices (`src/audio/voices.ts`) and are ready immediately. Notes stay silent until an instrument's voice exists. Instrument IDs: `lead-guitar`, `rhythm-guitar`, `bass`, `drums`, `keys`. Drum samples are keyed by GM note name (`C2` = kick 36, `D2` = snare 38).
+Synth voices in `voices.ts` are modelled on each member's known gear (comment above `createSynthVoice`): the guitars, the bass's finger pluck and Mugi's FM piano are **rendered once in plain JS** (`karplus.ts`, `fmPiano.ts`; which notes per `RENDERED_SETS`; done in `SampleManager.loadSynth`, yielding between notes and reporting progress) and played by a `Tone.Sampler`; the guitars go through `guitarAmp()`; bass and keys are `LayeredVoice`s, and the keys' string pad is a single-saw PolySynth wrapped in `HeldNotesOnly` (sequenced notes ≥ 0.3 s only, max 32 voices). **CPU budget rule:** the audio thread overloads (output drops out or goes silent) when dense parts run many live synth voices. Tone's `PluckSynth` (an AudioWorklet per string, running even when silent) and a 64-voice FM PolySynth both did this; prefer rendered samples for anything that can sound many notes at once, and keep live PolySynths small (`MelodicVoice` caps at 48 by default). To check, play a dense MIDI file in headless Chrome and compare `AudioContext.currentTime` against wall time: below ~1.0 means the audio thread can't keep up. `SYNTH_TRIM_DB` was set by rendering a phrase per instrument with `Tone.Offline` and matching RMS, so re-measure after changing a patch rather than guessing.
+
+**Feel** (`src/lib/feel.ts`, pure): sequenced notes get each member's timing push, jitter, dynamics, downbeat accent and chord strum (`humanize`, `strumOffsets`: down-strums low→high, off-beat eighths up-strum). `AudioTrack` knows its member and applies it in the Part callback; drums never strum, live notes are untouched. `settings.feel` (`"character"` | `"steady"`, toolbar ✨ toggle) reaches the engine through `audioEngine.setFeel` in the bridge; `"steady"` removes timing and dynamics but keeps the strum roll.
+
+`SampleManager` loads instruments lazily and shares buffers across tracks. All five instruments have a recorded pack in `SAMPLE_PACKS` (files from the generated `samplePacks.generated.ts`; don't hand-edit it, rerun `FFMPEG=… pnpm samples:build`, which needs an ffmpeg that reads FLAC and writes MP3). Pack voices come from `createPackVoice` (same member voicing as the synths: guitar amps, bass compression, `SampledDrumKit`; the piano is `VelocityLayers` over the pack's `soft` and main recordings, **no string pad**: a sawtooth pad droned audibly under long held notes of real piano). `load()` never rejects: if a pack fails, the synth voice is prepared instead and the state is `"error"` so the mixer shows Retry. Notes stay silent until an instrument's voice exists. Instrument IDs: `lead-guitar`, `rhythm-guitar`, `bass`, `drums`, `keys`. Drum samples are keyed by GM note name (`C2` = kick 36, `D2` = snare 38); the kit has one sample per piece and `drumSampleNote()` routes every other GM drum note to the closest piece. Pack `volume`s were set the same way as `SYNTH_TRIM_DB` (offline render, matched RMS).
 
 ### MIDI import flow
 

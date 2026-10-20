@@ -41,3 +41,29 @@ export const DRUM_PADS: DrumPad[] = [
   { key: "k", label: "Crash", pitch: 49, kind: "cymbal", area: "crash" },
   { key: "l", label: "Ride", pitch: 51, kind: "cymbal", area: "ride" },
 ];
+
+/**
+ * The General MIDI note of the recorded kit piece that should play `pitch`. The sample
+ * pack has one recording per piece (kick 36, snare 38, closed hat 42, open hat 46,
+ * crash 49, ride 51, toms 43 / 47 / 50); every other drum note goes to the closest piece
+ * instead of letting the Sampler repitch a neighbouring drum.
+ */
+export function drumSampleNote(pitch: number): number {
+  switch (drumVoiceFor(pitch)) {
+    case "kick":
+      return 36;
+    case "snare":
+    case "clap":
+      return 38;
+    case "closed-hat":
+      return 42;
+    case "open-hat":
+      return 46;
+    case "crash":
+      return 49;
+    case "ride":
+      return 51;
+    case "tom":
+      return pitch <= 43 ? 43 : pitch <= 47 ? 47 : 50;
+  }
+}

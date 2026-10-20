@@ -2,6 +2,7 @@ import { isMemberId } from "@/features/band/members";
 import type { MemberId } from "@/features/band/types";
 import { DEFAULT_OVERLAY, sanitizeOverlay, type OverlaySettings } from "@/features/overlay/overlay";
 import { detectLanguage, type Language } from "@/i18n/strings";
+import type { FeelSetting } from "@/lib/feel";
 
 export type ThemeSetting = "system" | "light" | "dark";
 
@@ -15,6 +16,8 @@ export interface StudioSettings {
   zoom: number;
   /** chroma-key box for video editing */
   overlay: OverlaySettings;
+  /** members play with their own timing and dynamics, or strictly on the grid */
+  feel: FeelSetting;
 }
 
 export const DEFAULT_SETTINGS: StudioSettings = {
@@ -25,6 +28,7 @@ export const DEFAULT_SETTINGS: StudioSettings = {
   followPlayhead: true,
   zoom: 60,
   overlay: DEFAULT_OVERLAY,
+  feel: "character",
 };
 
 const KEY = "kon-band-studio:settings:v1";
@@ -41,6 +45,7 @@ export function sanitizeSettings(raw: unknown): StudioSettings {
     zoom:
       typeof r.zoom === "number" && Number.isFinite(r.zoom) ? Math.min(240, Math.max(15, r.zoom)) : DEFAULT_SETTINGS.zoom,
     overlay: sanitizeOverlay(r.overlay),
+    feel: r.feel === "steady" || r.feel === "character" ? r.feel : DEFAULT_SETTINGS.feel,
   };
 }
 

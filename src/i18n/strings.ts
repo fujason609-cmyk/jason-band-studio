@@ -16,7 +16,7 @@ const en = {
   appSubtitle: "After School Tea Time Band Studio",
   clubBadge: "Light Music Club",
   footer:
-    "A fan-made practice tool, not affiliated with the rights holders of K-ON!. Every sound is synthesized in your browser, and the demo song was written for this project. Your session is saved in this browser only.",
+    "A fan-made practice tool, not affiliated with the rights holders of K-ON!. The instruments are free CC0 recordings by Karoryfer Samples and Versilian Studios (nothing from the show), and the demo song was written for this project. Your session is saved in this browser only.",
   dropHint: "Drop a MIDI file to load it",
   dismiss: "Dismiss message",
 
@@ -91,6 +91,8 @@ const en = {
   zoomIn: "Zoom in",
   zoomOut: "Zoom out",
   followPlayhead: "Follow the playhead",
+  feelOn: "Members play with their own feel. Switch to strictly on the beat",
+  feelOff: "Everyone plays strictly on the beat. Switch to each member's own feel",
 
   // Instagram recording frame
   recordMode: "Instagram recording frame",
@@ -132,7 +134,7 @@ const en = {
   audioBlocked: (detail: string) =>
     `The browser didn't allow audio to start (${detail}). Click Start audio to try again.`,
   samplesFailed: (instrument: string) =>
-    `Couldn't load the ${instrument} samples. Use Retry on the mixer to try again.`,
+    `Couldn't load the recorded ${instrument} sound, so it's playing the synthesized one. Use Retry on the mixer to try again.`,
 
   // band
   memberName: { yui: "Yui", mio: "Mio", ritsu: "Ritsu", tsumugi: "Mugi", azusa: "Azusa" } as Record<MemberId, string>,
@@ -171,7 +173,7 @@ const zh: Strings = {
   appSubtitle: "放学后茶会 · 乐队工作室",
   clubBadge: "轻音部",
   footer:
-    "粉丝自制的练习工具，与《轻音少女》版权方无关。所有声音都在你的浏览器里实时合成，演示曲是为本项目原创的。你的进度只保存在这个浏览器里。",
+    "粉丝自制的练习工具，与《轻音少女》版权方无关。乐器声音来自 Karoryfer Samples 与 Versilian Studios 的免费 CC0 录音（不含任何动画原声），演示曲是为本项目原创的。你的进度只保存在这个浏览器里。",
   dropHint: "松开即可载入 MIDI 文件",
   dismiss: "关闭提示",
 
@@ -238,6 +240,8 @@ const zh: Strings = {
   zoomIn: "放大",
   zoomOut: "缩小",
   followPlayhead: "跟随播放位置",
+  feelOn: "演奏个性：开（每个人有自己的节奏感和力度）。点击改为完全按拍子",
+  feelOff: "演奏个性：关（完全按拍子）。点击让每个人用自己的方式演奏",
 
   recordMode: "IG 录制画框",
   overlayColor: "抠像颜色",
@@ -273,7 +277,7 @@ const zh: Strings = {
   storageBlocked: "这个浏览器禁止了本地存储，刷新后改动会丢失。",
   saveFailed: "无法在这个浏览器里保存进度。请清理存储空间，并保持页面打开。",
   audioBlocked: (detail) => `浏览器不允许开启声音（${detail}）。请点击「开启声音」再试一次。`,
-  samplesFailed: (instrument) => `无法载入${instrument}的采样。请在调音台上点击「重试」。`,
+  samplesFailed: (instrument) => `无法载入${instrument}的真实采样，暂时改用合成音色。请在调音台上点击「重试」。`,
 
   memberName: { yui: "唯", mio: "澪", ritsu: "律", tsumugi: "紬", azusa: "梓" },
   memberRole: {
