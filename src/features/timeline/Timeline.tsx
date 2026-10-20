@@ -27,9 +27,19 @@ function readPalette(): Palette & { members: Record<string, string> } {
   };
 }
 
-export function Timeline() {
+interface TimelineProps {
+  /** lane height in px; the recording frame shrinks lanes to fit */
+  laneHeight?: number;
+  /** draw member names on the lanes (always on when there's no mixer beside them) */
+  labels?: boolean;
+  /** keep the playhead in view while playing, whatever the setting says */
+  forceFollow?: boolean;
+}
+
+export function Timeline({ laneHeight = LANE_HEIGHT, labels, forceFollow = false }: TimelineProps = {}) {
   const project = useProjectStore((s) => s.project);
-  const { zoom, followPlayhead, selectedMember, theme } = useStudioStore((s) => s.settings);
+  const { zoom, followPlayhead: followSetting, selectedMember, theme } = useStudioStore((s) => s.settings);
+  const followPlayhead = forceFollow || followSetting;
   const transport = useStudioStore((s) => s.transport);
   const { seek } = useTransport();
   const narrow = useMediaQuery(NARROW_QUERY);
@@ -43,7 +53,8 @@ export function Timeline() {
   const scrubbing = useRef(false);
   const lastAnnounced = useRef(-1);
 
-  const height = RULER_HEIGHT + MEMBERS.length * LANE_HEIGHT;
+  const height = RULER_HEIGHT + MEMBERS.length * laneHeight;
+  const showLabels = labels ?? narrow;
   const contentWidth = Math.ceil(TIMELINE_GUTTER * 2 + project.durationSeconds * zoom);
 
   const draw = useCallback(() => {
@@ -70,7 +81,8 @@ export function Timeline() {
       beatsPerBar: project.beatsPerBar,
       durationSeconds: project.durationSeconds,
       palette,
-      showLabels: narrow,
+      showLabels,
+      laneHeight,
       lanes: MEMBERS.map((m) => {
         const track = project.tracks.find((t) => t.memberId === m.id)!;
         return {
@@ -83,7 +95,7 @@ export function Timeline() {
         };
       }),
     });
-  }, [project, zoom, viewport, height, narrow, selectedMember, t]);
+  }, [project, zoom, viewport, height, showLabels, laneHeight, selectedMember, t]);
 
   const requestDraw = useCallback(() => {
     cancelAnimationFrame(frame.current);

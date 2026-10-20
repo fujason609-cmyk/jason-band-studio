@@ -23,6 +23,8 @@ interface StudioState {
   settings: StudioSettings;
   pendingImport: PendingImport | null;
   notice: Notice | null;
+  /** full-screen Instagram recording frame (not persisted) */
+  recordMode: boolean;
 
   setHydrated: () => void;
   setAudioStarted: (started: boolean) => void;
@@ -33,6 +35,7 @@ interface StudioState {
   setPendingImport: (pending: PendingImport | null) => void;
   setAssignment: (midiTrackIndex: number, member: MemberId | null) => void;
   notify: (notice: Notice | null) => void;
+  setRecordMode: (on: boolean) => void;
 }
 
 export const useStudioStore = create<StudioState>((set) => ({
@@ -43,6 +46,7 @@ export const useStudioStore = create<StudioState>((set) => ({
   settings: { ...DEFAULT_SETTINGS },
   pendingImport: null,
   notice: null,
+  recordMode: false,
 
   setHydrated: () => set({ hydrated: true }),
   setAudioStarted: (audioStarted) => set({ audioStarted }),
@@ -66,4 +70,5 @@ export const useStudioStore = create<StudioState>((set) => ({
         : {},
     ),
   notify: (notice) => set({ notice }),
+  setRecordMode: (recordMode) => set({ recordMode }),
 }));

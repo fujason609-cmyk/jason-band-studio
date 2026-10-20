@@ -1,16 +1,16 @@
-import { Clapperboard, Crosshair, ZoomIn, ZoomOut } from "lucide-react";
+import { Crosshair, Smartphone, ZoomIn, ZoomOut } from "lucide-react";
 import { IconButton } from "@/components/common/IconButton";
-import { OverlayOptions } from "@/features/overlay/VideoOverlayZone";
 import { useT } from "@/i18n/useT";
 import { useStudioStore } from "@/stores/useStudioStore";
 import { MAX_ZOOM, MIN_ZOOM } from "./layout";
 
 const ZOOM_STEP = 1.4;
 
-/** Row under the timeline: zoom and follow on the left, video overlay controls on the right. */
+/** Row on top of the timeline: zoom and follow on the left, the recording frame on the right. */
 export function TimelineToolbar() {
-  const { zoom, followPlayhead, overlay } = useStudioStore((s) => s.settings);
+  const { zoom, followPlayhead } = useStudioStore((s) => s.settings);
   const updateSettings = useStudioStore((s) => s.updateSettings);
+  const setRecordMode = useStudioStore((s) => s.setRecordMode);
   const t = useT();
   const setZoom = (next: number) => updateSettings({ zoom: Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, next)) });
 
@@ -32,15 +32,9 @@ export function TimelineToolbar() {
           <Crosshair size={16} />
         </IconButton>
       </div>
-      <OverlayOptions />
       <div className="timeline-toolbar__group">
-        <IconButton
-          label={overlay.enabled ? t.hideOverlay : t.showOverlay}
-          variant="quiet"
-          pressed={overlay.enabled}
-          onClick={() => updateSettings({ overlay: { ...overlay, enabled: !overlay.enabled } })}
-        >
-          <Clapperboard size={16} />
+        <IconButton label={t.recordMode} variant="quiet" onClick={() => setRecordMode(true)}>
+          <Smartphone size={16} />
         </IconButton>
       </div>
     </div>

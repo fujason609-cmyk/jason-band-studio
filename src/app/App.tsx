@@ -6,12 +6,13 @@ import { InstrumentPanel } from "@/features/instruments/InstrumentPanel";
 import { MidiMappingDialog } from "@/features/midi/MidiImport";
 import { useMidiImport } from "@/features/midi/useMidiImport";
 import { TrackMixer } from "@/features/mixer/TrackMixer";
-import { VideoOverlayZone } from "@/features/overlay/VideoOverlayZone";
+import { RecordFrame } from "@/features/overlay/RecordFrame";
 import { LANE_HEIGHT, RULER_HEIGHT } from "@/features/timeline/layout";
 import { Timeline } from "@/features/timeline/Timeline";
 import { TimelineToolbar } from "@/features/timeline/TimelineToolbar";
 import { useAudioEngineBridge } from "@/hooks/useAudioEngine";
 import { useT } from "@/i18n/useT";
+import { useStudioStore } from "@/stores/useStudioStore";
 import { PersistenceProvider } from "./providers/PersistenceProvider";
 import { ThemeProvider } from "./providers/ThemeProvider";
 
@@ -20,11 +21,21 @@ function Studio() {
   const t = useT();
   const { openFile } = useMidiImport();
   const [dragging, setDragging] = useState(false);
+  const recordMode = useStudioStore((s) => s.recordMode);
+  const layoutVars = { "--lane-h": `${LANE_HEIGHT}px`, "--ruler-h": `${RULER_HEIGHT}px` } as CSSProperties;
+
+  if (recordMode) {
+    return (
+      <div style={layoutVars}>
+        <RecordFrame />
+      </div>
+    );
+  }
 
   return (
     <div
       className={`app ${dragging ? "is-dragging" : ""}`}
-      style={{ "--lane-h": `${LANE_HEIGHT}px`, "--ruler-h": `${RULER_HEIGHT}px` } as CSSProperties}
+      style={layoutVars}
       onDragOver={(e) => {
         if (e.dataTransfer.types.includes("Files")) {
           e.preventDefault();
@@ -50,7 +61,6 @@ function Studio() {
           <TrackMixer />
           <Timeline />
         </div>
-        <VideoOverlayZone />
         <InstrumentPanel />
       </main>
       <footer className="app-footer">

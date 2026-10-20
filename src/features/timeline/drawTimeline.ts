@@ -33,6 +33,8 @@ export interface DrawInput {
   durationSeconds: number;
   palette: Palette;
   showLabels: boolean;
+  /** lane height in px; defaults to LANE_HEIGHT */
+  laneHeight?: number;
 }
 
 const DRUM_ROWS: DrumVoice[] = ["crash", "ride", "open-hat", "closed-hat", "tom", "snare", "clap", "kick"];
@@ -65,6 +67,10 @@ function pill(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h:
  */
 export function drawTimeline(input: DrawInput) {
   const { ctx, width, height, scrollLeft, zoom, lanes, baseBpm, beatsPerBar, durationSeconds, palette } = input;
+  const laneH = input.laneHeight ?? LANE_HEIGHT;
+  // short lanes (recording frame) get tighter padding and staff lines
+  const pad = laneH < 60 ? 5 : 10;
+  const staffGap = Math.min(8, (laneH - 12) / 4);
   const xOf = (t: number) => TIMELINE_GUTTER + t * zoom - scrollLeft;
   const tStart = Math.max(0, (scrollLeft - TIMELINE_GUTTER) / zoom);
   const tEnd = (scrollLeft + width) / zoom;
@@ -73,14 +79,14 @@ export function drawTimeline(input: DrawInput) {
 
   // Lane backgrounds and staff lines
   lanes.forEach((lane, i) => {
-    const top = RULER_HEIGHT + i * LANE_HEIGHT;
+    const top = RULER_HEIGHT + i * laneH;
     ctx.fillStyle = lane.selected ? palette.selected : palette.surface;
-    ctx.fillRect(0, top, width, LANE_HEIGHT);
+    ctx.fillRect(0, top, width, laneH);
     ctx.strokeStyle = palette.rule;
     ctx.lineWidth = 1;
-    const staffTop = top + LANE_HEIGHT / 2 - 16;
+    const staffTop = top + laneH / 2 - staffGap * 2;
     for (let s = 0; s < 5; s++) {
-      const y = Math.round(staffTop + s * 8) + 0.5;
+      const y = Math.round(staffTop + s * staffGap) + 0.5;
       ctx.beginPath();
       ctx.moveTo(0, y);
       ctx.lineTo(width, y);
@@ -88,8 +94,8 @@ export function drawTimeline(input: DrawInput) {
     }
     ctx.strokeStyle = palette.ruleStrong;
     ctx.beginPath();
-    ctx.moveTo(0, top + LANE_HEIGHT - 0.5);
-    ctx.lineTo(width, top + LANE_HEIGHT - 0.5);
+    ctx.moveTo(0, top + laneH - 0.5);
+    ctx.lineTo(width, top + laneH - 0.5);
     ctx.stroke();
   });
 
@@ -132,13 +138,13 @@ export function drawTimeline(input: DrawInput) {
 
   // Notes
   lanes.forEach((lane, i) => {
-    const top = RULER_HEIGHT + i * LANE_HEIGHT;
-    const inner = LANE_HEIGHT - 20 - NOTE_H;
+    const top = RULER_HEIGHT + i * laneH;
+    const inner = laneH - pad * 2 - NOTE_H;
     ctx.fillStyle = lane.color;
 
     let yOf: (n: NoteEvent) => number;
     if (lane.isDrums) {
-      yOf = (n) => top + 10 + (DRUM_ROWS.indexOf(drumVoiceFor(n.pitch)) / (DRUM_ROWS.length - 1)) * inner;
+      yOf = (n) => top + pad + (DRUM_ROWS.indexOf(drumVoiceFor(n.pitch)) / (DRUM_ROWS.length - 1)) * inner;
     } else {
       let lo = 127;
       let hi = 0;
@@ -149,7 +155,7 @@ export function drawTimeline(input: DrawInput) {
       const span = Math.max(12, hi - lo);
       const mid = (lo + hi) / 2;
       const bottom = mid - span / 2;
-      yOf = (n) => top + 10 + (1 - (n.pitch - bottom) / span) * inner;
+      yOf = (n) => top + pad + (1 - (n.pitch - bottom) / span) * inner;
     }
 
     for (let k = firstVisible(lane.notes, tStart); k < lane.notes.length; k++) {
