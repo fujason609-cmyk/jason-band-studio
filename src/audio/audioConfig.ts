@@ -1,4 +1,5 @@
 import type { InstrumentId } from "@/types/audio";
+import type { KeysPatch } from "./keysPatches";
 import { SAMPLE_FILES } from "./samplePacks.generated";
 
 /** Transport resolution. Notes are scheduled in ticks at this PPQ. */
@@ -30,24 +31,34 @@ const KARORYFER = "CC0-1.0, Karoryfer Samples via sfzinstruments on GitHub";
 
 // volumes set like SYNTH_TRIM_DB: offline renders of the same phrase, matched to the same RMS targets
 export const SAMPLE_PACKS: Partial<Record<InstrumentId, SamplePack>> = {
-  "lead-guitar": { files: SAMPLE_FILES["lead-guitar"]!, release: 0.3, volume: -14, license: `${KARORYFER} (Black And Green Guitars, Gretsch)` },
-  "rhythm-guitar": { files: SAMPLE_FILES["rhythm-guitar"]!, release: 0.12, volume: -12, license: `${KARORYFER} (Black And Green Guitars, Hofner)` },
-  bass: { files: SAMPLE_FILES.bass!, release: 0.12, volume: -12, license: `${KARORYFER} (Black And Blue Basses)` },
+  // Yui's Les Paul → an Epiphone solid body with humbuckers
+  "lead-guitar": { files: SAMPLE_FILES["lead-guitar"]!, release: 0.3, volume: -13, license: `${KARORYFER} (Emilyguitar, Epiphone)` },
+  // Azusa's Mustang → the brighter Hofner (no free Fender single-coil recordings exist)
+  "rhythm-guitar": { files: SAMPLE_FILES["rhythm-guitar"]!, release: 0.12, volume: -11, license: `${KARORYFER} (Black And Green Guitars, Hofner)` },
+  // Mio's Jazz Bass → a Squier Jazz Bass
+  bass: { files: SAMPLE_FILES.bass!, release: 0.12, volume: -3, license: `${KARORYFER} (Growlybass, Squier Jazz Bass)` },
   keys: {
     files: SAMPLE_FILES.keys!,
     // quiet playing uses the piano's soft-hammer recordings, not the loud ones turned down
     soft: { files: SAMPLE_FILES["keys:soft"]!, below: 0.45 },
     release: 0.8,
-    volume: -15,
+    volume: -14,
     license: "CC0-1.0, Versilian Studios and Karoryfer Samples (Osiris Piano)",
   },
   // hits ring out on their own; the short release is only the hi-hat choke
-  drums: { files: SAMPLE_FILES.drums!, release: 0.08, volume: -2.5, license: `${KARORYFER} (Big Rusty Drums)` },
+  drums: { files: SAMPLE_FILES.drums!, release: 0.08, volume: -2, license: `${KARORYFER} (Big Rusty Drums)` },
 };
 
 export function samplePackUrl(instrument: InstrumentId, file: string): string {
   return `${import.meta.env.BASE_URL}instruments/${instrument}/${file}`;
 }
+
+/** Level trims for Mugi's synthesized Triton patches, measured like SYNTH_TRIM_DB. */
+export const KEYS_PATCH_TRIM_DB: Record<Exclude<KeysPatch, "piano">, number> = {
+  strings: -21.5,
+  synth: -22,
+  organ: -24.5,
+};
 
 /**
  * Output trims for the synthesized voices so the default mix sits together. Set from

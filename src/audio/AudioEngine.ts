@@ -1,6 +1,7 @@
 import * as Tone from "tone";
 import type { MemberId } from "@/features/band/types";
 import type { FeelSetting } from "@/lib/feel";
+import type { KeysPatch } from "./keysPatches";
 import { audibleMap, gainToDb } from "@/lib/mix";
 import { clampBpm } from "@/lib/time";
 import type { InstrumentId, InstrumentLoadState, TransportStatus } from "@/types/audio";
@@ -117,6 +118,13 @@ export class AudioEngine {
   seek(songSeconds: number) {
     this.transport?.seek(songSeconds);
   }
+  /** Mugi's Triton sound. Works before start(); rebuilds the voices of every keys track. */
+  setKeysPatch(patch: KeysPatch) {
+    if (this.samples.keysPatch === patch) return;
+    this.samples.keysPatch = patch;
+    this.retryInstrument("keys");
+  }
+
   /** Members' playing personality, or strictly on the grid. Applies from the next note. */
   setFeel(feel: FeelSetting) {
     this.feel = feel;

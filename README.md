@@ -7,7 +7,13 @@ A small browser DAW for a five-piece light-music club band. Listen to each membe
 ## What it does
 
 - **Five tracks**, one per member: Yui (lead guitar), Mio (bass), Ritsu (drums), Mugi (keys) and Azusa (rhythm guitar). Each member's instrument can be changed.
-- **Real instruments, voiced after each member's gear.** Recorded electric guitars, bass, grand piano and a rock drum kit (about 4 MB, loaded when first needed). Yui's guitar goes through a crunchy humbucker-style amp (Les Paul), Azusa's through a brighter, tighter one (Mustang), Mio's bass is compressed like a fingerstyle Jazz Bass, Mugi's piano uses the soft-hammer recordings for quiet playing and the hard ones for loud, and Ritsu's kit is a full rock kit with a hi-hat that chokes. If the recordings can't load, each instrument falls back to a synthesized version so the band keeps playing. Nothing is sampled from the show.
+- **Real instruments, chosen and voiced after each member's gear** (about 4 MB, loaded when first needed):
+  - Yui (Gibson Les Paul Standard): an Epiphone humbucker guitar through a crunchy Les Paul-style amp.
+  - Azusa (Fender Mustang): a Hofner, the brightest free recording, through a glassy, lightly driven single-coil-style amp.
+  - Mio (left-handed Fender Jazz Bass): a Squier Jazz Bass. Her live fretboard is mirrored, nut on the right.
+  - Ritsu (Yamaha Hipgig): a full rock kit with the kick and toms retuned up like a compact kit's smaller shells, and a hi-hat that chokes.
+  - Mugi (KORG Triton): a recorded grand piano (soft and hard hammer layers), plus Triton-style strings, synth lead and organ patches, picked in her live panel; the choice applies to her part in playback too.
+  If the recordings can't load, each instrument falls back to a synthesized version so the band keeps playing. Nothing is sampled from the show.
 - **Each member plays with their own feel.** Ritsu pushes ahead of the beat and hits the downbeats hard, Mio is steady, Yui has big dynamics and sometimes lays back, Azusa is tight, Mugi plays gently, and guitar chords are strummed string by string (up-strokes on the off-beats). The ✨ button above the score switches everyone to strictly on the beat.
 - **Mixer** with per-track volume, mute and solo, plus a master volume. Mute always wins; while any track is soloed only soloed tracks play. Toggling either cuts notes that are already ringing.
 - **One clock for the band.** Every note is scheduled on a single Tone.js Transport, so the parts can't drift apart. Tempo changes keep the playhead where it is, and pause, resume, seek and loop act on all tracks at once.
@@ -92,7 +98,7 @@ Packs load lazily and are shared by every track that uses them. Each mixer strip
 
 ## Testing
 
-`pnpm test` runs 93 tests covering:
+`pnpm test` runs 96 tests covering:
 - mute and solo rules
 - tick and second conversions, and tempo scaling
 - the keyboard map

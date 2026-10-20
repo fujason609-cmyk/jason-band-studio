@@ -42,6 +42,31 @@ describe("InstrumentPanel", () => {
     expect(screen.getByRole("button", { name: /Kick/ })).toBeInTheDocument();
   });
 
+  it("mirrors the neck for Mio, who plays left-handed, and only for her", () => {
+    select("mio");
+    const { container, unmount } = render(<InstrumentPanel />);
+    expect(container.querySelector(".fretboard")).toHaveClass("fretboard--left");
+    unmount();
+    select("yui");
+    const yui = render(<InstrumentPanel />);
+    expect(yui.container.querySelector(".fretboard")).not.toHaveClass("fretboard--left");
+  });
+
+  it("offers Mugi's Triton sounds and stores the choice", () => {
+    select("tsumugi");
+    render(<InstrumentPanel />);
+    const sound = screen.getByRole("combobox", { name: "Sound" });
+    expect(sound).toHaveValue("piano");
+    fireEvent.change(sound, { target: { value: "organ" } });
+    expect(useStudioStore.getState().settings.keysPatch).toBe("organ");
+  });
+
+  it("shows no sound picker for instruments other than keys", () => {
+    select("yui");
+    render(<InstrumentPanel />);
+    expect(screen.queryByRole("combobox", { name: "Sound" })).not.toBeInTheDocument();
+  });
+
   it("plays the fret that is tapped", () => {
     select("yui");
     render(<InstrumentPanel />);

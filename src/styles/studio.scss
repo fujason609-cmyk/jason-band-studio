@@ -729,6 +729,21 @@ select {
   }
 }
 
+// Mugi's Triton sound picker, next to the octave control
+.patch {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  &__label {
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--ink-soft);
+  }
+  select {
+    min-width: 9em;
+  }
+}
+
 .octave {
   display: flex;
   align-items: center;
@@ -1077,6 +1092,31 @@ select {
     font-size: 11px;
     font-weight: 800;
   }
+}
+
+// left-handed neck (Mio): the grid runs right to left, so the nut, the string names
+// and fret 0 sit on the right; fret wires and the nut move to the other side of each cell
+.fretboard--left {
+  .fretboard__string,
+  .fretboard__inlays {
+    direction: rtl;
+  }
+  .fretboard__string::before {
+    left: 0;
+    right: var(--tuning-w);
+  }
+  .fret {
+    border-right: 0;
+    border-left: 2px solid var(--wire);
+    &--open {
+      border-left: 6px solid #efe8da;
+    }
+  }
+}
+
+.fret-nav--left {
+  align-self: flex-end;
+  flex-direction: row-reverse;
 }
 
 // ---------- toolbar on top of the timeline card ----------

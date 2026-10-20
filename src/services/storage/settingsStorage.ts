@@ -3,6 +3,7 @@ import type { MemberId } from "@/features/band/types";
 import { DEFAULT_OVERLAY, sanitizeOverlay, type OverlaySettings } from "@/features/overlay/overlay";
 import { detectLanguage, type Language } from "@/i18n/strings";
 import type { FeelSetting } from "@/lib/feel";
+import { isKeysPatch, type KeysPatch } from "@/audio/keysPatches";
 
 export type ThemeSetting = "system" | "light" | "dark";
 
@@ -18,6 +19,8 @@ export interface StudioSettings {
   overlay: OverlaySettings;
   /** members play with their own timing and dynamics, or strictly on the grid */
   feel: FeelSetting;
+  /** Mugi's Triton sound for every keys track */
+  keysPatch: KeysPatch;
 }
 
 export const DEFAULT_SETTINGS: StudioSettings = {
@@ -29,6 +32,7 @@ export const DEFAULT_SETTINGS: StudioSettings = {
   zoom: 60,
   overlay: DEFAULT_OVERLAY,
   feel: "character",
+  keysPatch: "piano",
 };
 
 const KEY = "kon-band-studio:settings:v1";
@@ -46,6 +50,7 @@ export function sanitizeSettings(raw: unknown): StudioSettings {
       typeof r.zoom === "number" && Number.isFinite(r.zoom) ? Math.min(240, Math.max(15, r.zoom)) : DEFAULT_SETTINGS.zoom,
     overlay: sanitizeOverlay(r.overlay),
     feel: r.feel === "steady" || r.feel === "character" ? r.feel : DEFAULT_SETTINGS.feel,
+    keysPatch: isKeysPatch(r.keysPatch) ? r.keysPatch : DEFAULT_SETTINGS.keysPatch,
   };
 }
 

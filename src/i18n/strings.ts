@@ -84,6 +84,9 @@ const en = {
   octaveDown: "Octave down",
   octaveUp: "Octave up",
   octave: (n: number) => `Octave ${n}`,
+  keysPatch: "Sound",
+  keysPatchHint: "Mugi's KORG Triton sound. Used for the keys part when the song plays and when you play live.",
+  keysPatches: { piano: "Piano", strings: "Strings", synth: "Synth lead", organ: "Organ" } as Record<string, string>,
 
   // timeline
   timeline: "Timeline",
@@ -243,6 +246,9 @@ const zh: Strings = {
   octaveDown: "降低八度",
   octaveUp: "升高八度",
   octave: (n) => `第 ${n} 八度`,
+  keysPatch: "音色",
+  keysPatchHint: "紬的 KORG Triton 音色。歌曲播放时的键盘声部和你现场弹奏都会用这个音色。",
+  keysPatches: { piano: "钢琴", strings: "弦乐", synth: "合成主音", organ: "风琴" },
 
   timeline: "时间轴",
   timelineSlider: "播放位置。方向键前后移动一小节，Home 键回到开头。",

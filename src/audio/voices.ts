@@ -1,6 +1,7 @@
 import * as Tone from "tone";
 import { drumSampleNote, drumVoiceFor, tomFrequency, type DrumVoice } from "@/lib/drums";
 import type { InstrumentId } from "@/types/audio";
+import type { KeysPatch } from "./keysPatches";
 import { SYNTH_TRIM_DB } from "./audioConfig";
 import { MUGI_PIANO, renderFmPiano } from "./fmPiano";
 import { renderPluck, type PluckPatch } from "./karplus";
@@ -37,13 +38,23 @@ class MelodicVoice implements Voice {
     this.nodes = [source, ...chain, this.output];
   }
 
+  /**
+   * A PolySynth at its voice cap would drop the note anyway, but with a console warning
+   * per note; in a dense part that's hundreds a second, which itself slows the page.
+   * Skip the note quietly instead (same sound).
+   */
+  private full() {
+    return this.source instanceof Tone.PolySynth && this.source.activeVoices >= this.source.maxPolyphony;
+  }
   attack(pitch: number, time: number, velocity: number) {
+    if (this.full()) return;
     this.source.triggerAttack(hz(pitch), time, velocity);
   }
   release(pitch: number, time: number) {
     this.source.triggerRelease(hz(pitch), time);
   }
   attackRelease(pitch: number, duration: Tone.Unit.Time, time: number, velocity: number) {
+    if (this.full()) return;
     this.source.triggerAttackRelease(hz(pitch), duration, time, velocity);
   }
   releaseAll(time?: number) {
@@ -353,6 +364,52 @@ export function createSynthVoice(instrument: InstrumentId, rendered?: Record<str
 }
 
 /**
+ * Mugi's Triton workstation patches other than the recorded piano. Each is one small
+ * PolySynth with a hard voice cap (see the CPU budget note in CLAUDE.md): a dense part
+ * drops its oldest voices rather than overloading the audio thread.
+ */
+export function createKeysPatchVoice(patch: Exclude<KeysPatch, "piano">, trimDb: number): Voice {
+  switch (patch) {
+    case "strings":
+      // string ensemble: one saw per voice (the chorus makes it wide, cheaper than detuned
+      // stacks, so more voices fit), slow bow attack, medium release
+      return new MelodicVoice(
+        new Tone.PolySynth(Tone.Synth, {
+          oscillator: { type: "sawtooth" },
+          envelope: { attack: 0.22, decay: 0.3, sustain: 0.85, release: 0.5 },
+        }),
+        [new Tone.Filter(3200, "lowpass"), new Tone.Chorus(0.8, 3.5, 0.5).start(), new Tone.Reverb({ decay: 2.6, wet: 0.3 })],
+        trimDb,
+        40,
+      );
+    case "synth":
+      // bright analog-style lead: saws with a filter that opens on each note
+      return new MelodicVoice(
+        new Tone.PolySynth(Tone.MonoSynth, {
+          oscillator: { type: "sawtooth" },
+          filter: { type: "lowpass", Q: 2, rolloff: -24 },
+          filterEnvelope: { attack: 0.005, decay: 0.35, sustain: 0.45, release: 0.3, baseFrequency: 600, octaves: 3 },
+          envelope: { attack: 0.005, decay: 0.2, sustain: 0.7, release: 0.2 },
+        }),
+        [new Tone.Chorus(2, 2, 0.2).start(), new Tone.FeedbackDelay({ delayTime: "8n", feedback: 0.2, wet: 0.12 }), new Tone.Reverb({ decay: 1.6, wet: 0.15 })],
+        trimDb,
+        24,
+      );
+    case "organ":
+      // drawbar organ (16', 8', 4', 2 2/3' and 2' pulled out) with a slow rotary wobble
+      return new MelodicVoice(
+        new Tone.PolySynth(Tone.Synth, {
+          oscillator: { type: "custom", partials: [0.7, 1, 0, 0.6, 0, 0.4, 0, 0.3] },
+          envelope: { attack: 0.004, decay: 0.05, sustain: 1, release: 0.08 },
+        }),
+        [new Tone.Vibrato(5.5, 0.08), new Tone.Chorus(0.9, 2.5, 0.3).start(), new Tone.Reverb({ decay: 1.4, wet: 0.15 })],
+        trimDb,
+        40,
+      );
+  }
+}
+
+/**
  * The recorded kit: one sample per piece, and every drum note of the part goes to the
  * right piece (drumSampleNote) instead of the Sampler repitching a neighbour. Hits ring
  * out on their own; a closed hi-hat chokes a ringing open one, like a real hat pedal.
@@ -453,15 +510,17 @@ export function createPackVoice(
 ): Voice {
   switch (instrument) {
     case "lead-guitar":
+      // Les Paul into a cranked amp: humbucker crunch, thick low mids, rolled-off top
       return new MelodicVoice(
         sampler,
-        guitarAmp({ lowCut: 90, drive: 0.5, eq: { low: 1, mid: 3, high: -1 }, cabinet: 5200, room: 0.14 }),
+        guitarAmp({ lowCut: 85, drive: 0.55, eq: { low: 2, mid: 3, high: -1.5 }, cabinet: 5000, room: 0.14 }),
         trimDb,
       );
     case "rhythm-guitar":
+      // Mustang single coils: brighter and glassier, lighter drive, less low end
       return new MelodicVoice(
         sampler,
-        guitarAmp({ lowCut: 110, drive: 0.28, eq: { low: -1, mid: 1, high: 1.5 }, cabinet: 6500, room: 0.09 }),
+        guitarAmp({ lowCut: 130, drive: 0.22, eq: { low: -2, mid: 0, high: 2.5 }, cabinet: 7500, room: 0.1 }),
         trimDb,
       );
     case "bass":

@@ -3,7 +3,7 @@ import type { InstrumentId } from "@/types/audio";
 
 export const MEMBERS: readonly BandMember[] = [
   { id: "yui", name: "Yui", nameJa: "平沢唯", role: "Lead guitar, vocals", defaultInstrument: "lead-guitar", colorVar: "--member-yui" },
-  { id: "mio", name: "Mio", nameJa: "秋山澪", role: "Bass", defaultInstrument: "bass", colorVar: "--member-mio" },
+  { id: "mio", name: "Mio", nameJa: "秋山澪", role: "Bass", defaultInstrument: "bass", colorVar: "--member-mio", leftHanded: true },
   { id: "ritsu", name: "Ritsu", nameJa: "田井中律", role: "Drums", defaultInstrument: "drums", colorVar: "--member-ritsu" },
   { id: "tsumugi", name: "Mugi", nameJa: "琴吹紬", role: "Keyboard", defaultInstrument: "keys", colorVar: "--member-tsumugi" },
   { id: "azusa", name: "Azusa", nameJa: "中野梓", role: "Rhythm guitar", defaultInstrument: "rhythm-guitar", colorVar: "--member-azusa" },

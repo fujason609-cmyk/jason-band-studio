@@ -10,10 +10,10 @@ files and commits used.
 
 | Folder | Library | Authors | Source | Licence |
 | --- | --- | --- | --- | --- |
-| `lead-guitar/` | Black And Green Guitars (green Gretsch Anniversary) | Karoryfer Samples, recorded by Brian Wood | https://github.com/sfzinstruments/karoryfer.black-and-green-guitars | CC0-1.0 |
+| `lead-guitar/` | Emilyguitar (Epiphone, two humbuckers) | Karoryfer Samples, played by D. Smolken | https://github.com/sfzinstruments/karoryfer.emilyguitar | CC0-1.0 |
 | `rhythm-guitar/` | Black And Green Guitars (black Hofner Club) | Karoryfer Samples, recorded by Brian Wood | https://github.com/sfzinstruments/karoryfer.black-and-green-guitars | CC0-1.0 |
-| `bass/` | Black And Blue Basses (Dark Black) | Karoryfer Samples | https://github.com/sfzinstruments/karoryfer.black-and-blue-basses | CC0-1.0 |
+| `bass/` | Growlybass (Squier Jazz Bass) | Karoryfer Samples | https://github.com/sfzinstruments/karoryfer.growlybass | CC0-1.0 |
 | `keys/` | Osiris Piano | Versilian Studios and Karoryfer Samples | https://github.com/sfzinstruments/Osiris_Piano | CC0-1.0 |
-| `drums/` | Big Rusty Drums | Karoryfer Samples | https://github.com/sfzinstruments/karoryfer.big-rusty-drums | CC0-1.0 |
+| `drums/` | Big Rusty Drums (kick and toms retuned up to sound like a compact kit) | Karoryfer Samples | https://github.com/sfzinstruments/karoryfer.big-rusty-drums | CC0-1.0 |
 
 None of these are recordings from K-ON! or of its music.

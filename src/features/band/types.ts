@@ -10,4 +10,6 @@ export interface BandMember {
   defaultInstrument: InstrumentId;
   /** CSS custom property holding the member's colour */
   colorVar: string;
+  /** plays a left-handed instrument (Mio's Jazz Bass): the live fretboard is mirrored */
+  leftHanded?: boolean;
 }

@@ -23,7 +23,8 @@ const RATE = 44100;
 
 const REPOS = {
   guitars: { repo: "karoryfer.black-and-green-guitars", commit: "b3b3249d37dc977a1a297bd2dc053e6d9b6b805c" },
-  basses: { repo: "karoryfer.black-and-blue-basses", commit: "6e7d674cdb41be7a54dbccb15472401ad01099b9" },
+  emily: { repo: "karoryfer.emilyguitar", commit: "b4920dc662fd9cad6dcaccdeecffdd91c8725d8c" },
+  jazzBass: { repo: "karoryfer.growlybass", commit: "4f483268fc66b5a6d5781d421c0d11b8d08d3fc6" },
   drums: { repo: "karoryfer.big-rusty-drums", commit: "f07ce00df34a46b6b08375be56fe116cf15782bc" },
   piano: { repo: "Osiris_Piano", commit: "18c6afccb60cff458edbf7c394571783e074e1e9" },
 } as const;
@@ -34,6 +35,12 @@ const FLAT_NAMES = ["C", "Db", "D", "Eb", "E", "F", "Gb", "G", "Ab", "A", "Bb", 
 const noteName = (midi: number) => `${FLAT_NAMES[midi % 12]}${Math.floor(midi / 12) - 1}`;
 const pitchClass = (midi: number) => FLAT_NAMES[midi % 12]!;
 const octave = (midi: number) => Math.floor(midi / 12) - 1;
+/** "eb3" → 51: a library's note name in scientific pitch. */
+const nameToMidi = (name: string) => {
+  const m = name.match(/^([a-g]b?)(-?\d)$/)!;
+  const pc = FLAT_NAMES.findIndex((n) => n.toLowerCase() === m[1]);
+  return pc + 12 * (Number(m[2]) + 1);
+};
 const range = (low: number, high: number, step: number) => {
   const out: number[] = [];
   for (let p = low; p <= high; p += step) out.push(p);
@@ -49,6 +56,8 @@ interface Take {
   peak: number;
   /** fade-out length in seconds; default 15% of the note */
   fade?: number;
+  /** retune by this many semitones (a smaller drum sounds higher and dies away sooner) */
+  semitones?: number;
 }
 
 interface Pack {
@@ -81,12 +90,28 @@ function guitar(instrument: InstrumentId, body: "green" | "black", seconds: numb
   return { instrument, notes };
 }
 
-/** The bass library uses scientific pitch ("c2" is MIDI 36, its keycenter). */
-function bass(): Pack {
+/**
+ * Yui: an Epiphone (Gibson's own brand) solid body with two humbuckers, recorded direct
+ * with both pickups on. The closest free recording to her Les Paul Standard. File names
+ * are scientific pitch ("e2" measures 82.7 Hz, MIDI 40); the library samples every minor
+ * third itself, so all of its notes are used.
+ */
+function epiphone(): Pack {
+  const names = ["db2", "e2", "gb2", "a2", "c3", "eb3", "gb3", "a3", "c4", "eb4", "gb4", "a4", "c5", "eb5", "gb5", "a5", "c6", "d6"];
   const notes: Pack["notes"] = {};
-  for (const midi of range(35, 74, 3)) {
-    notes[noteName(midi)] = one("basses", `Samples/darkblack/reg/darkblack_${pitchClass(midi).toLowerCase()}${octave(midi)}_mf_rr1.wav`, 2.2);
-  }
+  for (const name of names) notes[noteName(nameToMidi(name))] = one("emily", `notes/${name}_mf_rr1.wav`, 3);
+  return { instrument: "lead-guitar", notes };
+}
+
+/**
+ * Mio: a Squier (Fender's own brand) Jazz Bass. Bass libraries name files an octave
+ * above what they sound: "e2" measures 41.9 Hz, the open E string, MIDI 28. (The bass
+ * used before this one had the same convention and was shipped an octave low.)
+ */
+function jazzBass(): Pack {
+  const names = ["db2", "e2", "gb2", "a2", "c3", "eb3", "gb3", "a3", "c4", "eb4", "gb4", "a4", "c5", "eb5"];
+  const notes: Pack["notes"] = {};
+  for (const name of names) notes[noteName(nameToMidi(name) - 12)] = one("jazzBass", `sustain/${name}_f_rr1.wav`, 2.5);
   return { instrument: "bass", notes };
 }
 
@@ -114,7 +139,7 @@ function piano(layer: "soft" | "hard"): Pack {
 // --- drums -------------------------------------------------------------------------
 
 /** One drum piece: its close mic and the overheads mixed, at the General MIDI note the kit plays it on. */
-function piece(dir: string, file: string, close: string, closeWeight: number, ohWeight: number, seconds: number, peak: number): Take {
+function piece(dir: string, file: string, close: string, closeWeight: number, ohWeight: number, seconds: number, peak: number, semitones = 0): Take {
   return {
     sources: [
       { repo: "drums", path: `Samples/${dir}/${close}/${file}`, weight: closeWeight },
@@ -122,30 +147,40 @@ function piece(dir: string, file: string, close: string, closeWeight: number, oh
     ],
     seconds,
     peak,
+    semitones,
   };
 }
+
+/**
+ * Ritsu plays a Yamaha Hipgig: a compact kit with a 16" kick and small toms, tighter
+ * and higher than this full-size rock kit (24" kick). Retuning the kick up 5 semitones
+ * and the toms up 3 shrinks them the way a smaller shell does: higher and shorter.
+ * Snare and cymbals stay as recorded.
+ */
+const HIPGIG_KICK = 5;
+const HIPGIG_TOMS = 3;
 
 function drums(): Pack {
   return {
     instrument: "drums",
     notes: {
-      [noteName(36)]: piece("kick_24/kick", "k_vl10_rr1.flac", "kick", 1, 0.5, 1, 0.89), // kick
+      [noteName(36)]: piece("kick_24/kick", "k_vl10_rr1.flac", "kick", 1, 0.5, 1, 0.89, HIPGIG_KICK), // kick
       [noteName(38)]: piece("snare_14/center", "sn_center_vl8_rr1.flac", "top", 1, 0.6, 1.2, 0.85), // snare
       [noteName(42)]: piece("hihat_14/cl", "ht_cl_vl5_rr1.flac", "cl", 0.8, 0.6, 0.5, 0.45), // closed hat
       [noteName(46)]: piece("hihat_14/open", "ht_open_vl4_rr1.flac", "cl", 0.8, 0.6, 1.6, 0.45), // open hat
       [noteName(49)]: piece("crash_17/cr", "cr_vl4_rr1.flac", "cl", 0.5, 1, 3, 0.55), // crash
       [noteName(51)]: piece("ride_22/rd", "rd_vl7_rr1.flac", "cl", 0.5, 1, 2.5, 0.45), // ride
-      [noteName(50)]: piece("tom_14/center", "t14_vl5_rr1.flac", "cl", 1, 0.5, 1.5, 0.8), // high tom
-      [noteName(47)]: piece("tom_18/center", "t18_vl5_rr1.flac", "cl", 1, 0.5, 1.5, 0.8), // mid tom
-      [noteName(43)]: piece("tom_22/center", "t22_vl5_rr1.flac", "cl", 1, 0.5, 1.8, 0.85), // floor tom
+      [noteName(50)]: piece("tom_14/center", "t14_vl5_rr1.flac", "cl", 1, 0.5, 1.5, 0.8, HIPGIG_TOMS), // high tom
+      [noteName(47)]: piece("tom_18/center", "t18_vl5_rr1.flac", "cl", 1, 0.5, 1.5, 0.8, HIPGIG_TOMS), // mid tom
+      [noteName(43)]: piece("tom_22/center", "t22_vl5_rr1.flac", "cl", 1, 0.5, 1.8, 0.85, HIPGIG_TOMS), // floor tom
     },
   };
 }
 
 const PACKS: Pack[] = [
-  guitar("lead-guitar", "green", 3), // Gretsch: closest here to Yui's humbuckers
-  guitar("rhythm-guitar", "black", 2.2), // Hofner: the brighter, tighter one for Azusa
-  bass(),
+  epiphone(), // Yui's Les Paul → Epiphone humbuckers
+  guitar("rhythm-guitar", "black", 2.2), // Azusa's Mustang → the brighter, tighter Hofner (no free Fender single-coil recordings)
+  jazzBass(), // Mio's Jazz Bass → Squier Jazz Bass
   piano("hard"),
   piano("soft"),
   drums(),
@@ -183,11 +218,26 @@ function encode(samples: Float32Array, out: string) {
   if (run.status !== 0) throw new Error(`ffmpeg could not encode ${out}: ${run.stderr}`);
 }
 
-/** Mix, cut the lead-in before the attack, trim, fade, and normalise. */
-function shape(takes: { samples: Float32Array; weight: number }[], seconds: number, peak: number, fadeSeconds?: number): Float32Array {
-  const length = Math.max(...takes.map((t) => t.samples.length));
-  const mixed = new Float32Array(length);
-  for (const { samples, weight } of takes) for (let i = 0; i < samples.length; i++) mixed[i]! += samples[i]! * weight;
+/** Play back faster (or slower) to retune: pitch and length change together, like a smaller drum. */
+function retune(x: Float32Array, semitones: number): Float32Array {
+  if (!semitones) return x;
+  const ratio = 2 ** (semitones / 12);
+  const out = new Float32Array(Math.floor((x.length - 1) / ratio));
+  for (let i = 0; i < out.length; i++) {
+    const pos = i * ratio;
+    const j = Math.floor(pos);
+    out[i] = x[j]! + (x[j + 1]! - x[j]!) * (pos - j);
+  }
+  return out;
+}
+
+/** Mix, retune, cut the lead-in before the attack, trim, fade, and normalise. */
+function shape(takes: { samples: Float32Array; weight: number }[], seconds: number, peak: number, fadeSeconds?: number, semitones = 0): Float32Array {
+  const longest = Math.max(...takes.map((t) => t.samples.length));
+  const summed = new Float32Array(longest);
+  for (const { samples, weight } of takes) for (let i = 0; i < samples.length; i++) summed[i]! += samples[i]! * weight;
+  const mixed = retune(summed, semitones);
+  const length = mixed.length;
 
   let max = 0;
   for (const v of mixed) max = Math.max(max, Math.abs(v));
@@ -218,7 +268,7 @@ async function main() {
       );
       const file = pack.layer ? `${pack.layer}/${note}.mp3` : `${note}.mp3`;
       const out = join("public", "instruments", pack.instrument, file);
-      encode(shape(decoded, take.seconds, take.peak, take.fade), out);
+      encode(shape(decoded, take.seconds, take.peak, take.fade, take.semitones), out);
       bytes += readFileSync(out).byteLength;
       manifest[key]![note] = file;
     }

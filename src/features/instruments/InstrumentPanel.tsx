@@ -1,4 +1,5 @@
 import { Minus, Plus } from "lucide-react";
+import { KEYS_PATCHES, isKeysPatch } from "@/audio/keysPatches";
 import { IconButton } from "@/components/common/IconButton";
 import { MemberBadge } from "@/features/band/components/MemberBadge";
 import { getMember } from "@/features/band/members";
@@ -41,6 +42,8 @@ export function InstrumentPanel() {
   const narrow = useMediaQuery(NARROW_QUERY);
   const touch = useMediaQuery(TOUCH_QUERY);
   const t = useT();
+  const keysPatch = useStudioStore((s) => s.settings.keysPatch);
+  const updateSettings = useStudioStore((s) => s.updateSettings);
   // On the fretboard the octave only moves the computer-keyboard notes, so touch screens don't need it.
   const showOctave = layout === "piano" || (layout === "fretboard" && !touch);
   const onPress = (s: string, p: number) => void press(s, p);
@@ -73,6 +76,18 @@ export function InstrumentPanel() {
             </IconButton>
           </div>
         )}
+        {instrument === "keys" && (
+          <label className="patch" title={t.keysPatchHint}>
+            <span className="patch__label">{t.keysPatch}</span>
+            <select value={keysPatch} onChange={(e) => isKeysPatch(e.currentTarget.value) && updateSettings({ keysPatch: e.currentTarget.value })}>
+              {KEYS_PATCHES.map((p) => (
+                <option key={p} value={p}>
+                  {t.keysPatches[p]}
+                </option>
+              ))}
+            </select>
+          </label>
+        )}
       </div>
       {layout === "drums" && <DrumPads active={active} press={onPress} release={release} />}
       {layout === "chords" && <ChordPads activeChords={activeChords} strum={strum} release={release} />}
@@ -81,6 +96,7 @@ export function InstrumentPanel() {
           key={instrument}
           tuning={tuningFor(instrument)!}
           visible={narrow ? NARROW_FRETS : MAX_FRET + 1}
+          leftHanded={member.leftHanded}
           active={active}
           press={onPress}
           release={release}
