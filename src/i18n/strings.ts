@@ -17,6 +17,13 @@ const en = {
   clubBadge: "Light Music Club",
   footer:
     "A fan-made practice tool, not affiliated with the rights holders of K-ON!. The instruments are free CC0 recordings by Karoryfer Samples and Versilian Studios (nothing from the show), and the demo song was written for this project. Your session is saved in this browser only.",
+  importFormatsTitle: "Song files you can import",
+  importFormatsHow: "Use Import song at the top, or drop the file anywhere on the page.",
+  importFormats: [
+    { name: "MIDI", ext: ".mid, .midi", note: "the most common song file; each instrument is a track" },
+    { name: "Guitar Pro", ext: ".gp, .gp3, .gp4, .gp5, .gpx", note: "guitar tab files, versions 3 to 8" },
+    { name: "MusicXML", ext: ".musicxml, .mxl, .xml", note: "exported by MuseScore, Sibelius, Finale and most notation apps" },
+  ] as { name: string; ext: string; note: string }[],
   dropHint: "Drop a MIDI, Guitar Pro or MusicXML file to load it",
   dismiss: "Dismiss message",
 
@@ -194,6 +201,13 @@ const zh: Strings = {
   clubBadge: "轻音部",
   footer:
     "粉丝自制的练习工具，与《轻音少女》版权方无关。乐器声音来自 Karoryfer Samples 与 Versilian Studios 的免费 CC0 录音（不含任何动画原声），演示曲是为本项目原创的。你的进度只保存在这个浏览器里。",
+  importFormatsTitle: "支持导入的乐谱格式",
+  importFormatsHow: "点上方的「导入乐谱」，或者直接把文件拖到页面上。",
+  importFormats: [
+    { name: "MIDI", ext: ".mid、.midi", note: "最常见的乐曲文件，每种乐器一个音轨" },
+    { name: "Guitar Pro", ext: ".gp、.gp3、.gp4、.gp5、.gpx", note: "吉他谱软件的文件，支持第 3 到第 8 版" },
+    { name: "MusicXML", ext: ".musicxml、.mxl、.xml", note: "MuseScore、Sibelius、Finale 等大多数打谱软件都能导出" },
+  ],
   dropHint: "松开即可载入 MIDI、Guitar Pro 或 MusicXML 文件",
   dismiss: "关闭提示",
 

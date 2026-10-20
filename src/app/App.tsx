@@ -64,6 +64,20 @@ function Studio() {
         <InstrumentPanel />
       </main>
       <footer className="app-footer">
+        <section className="formats" aria-labelledby="formats-title">
+          <h2 id="formats-title" className="formats__title">
+            {t.importFormatsTitle}
+          </h2>
+          <ul className="formats__list">
+            {t.importFormats.map((f) => (
+              <li key={f.name} className="formats__item">
+                <strong>{f.name}</strong> <code>{f.ext}</code>
+                <span className="formats__note">{f.note}</span>
+              </li>
+            ))}
+          </ul>
+          <p className="formats__how">{t.importFormatsHow}</p>
+        </section>
         <p>{t.footer}</p>
       </footer>
       <MidiMappingDialog />

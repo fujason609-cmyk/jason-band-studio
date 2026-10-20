@@ -1437,6 +1437,42 @@ select {
   color: var(--ink-soft);
 }
 
+// supported song formats, above the disclaimer
+.formats {
+  max-width: 80ch;
+  margin-bottom: 14px;
+  &__title {
+    margin: 0 0 8px;
+    font-size: 14px;
+    font-weight: 800;
+  }
+  &__list {
+    display: grid;
+    gap: 6px;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+  &__item {
+    font-size: 13px;
+    code {
+      padding: 1px 6px;
+      border-radius: 6px;
+      background: var(--paper);
+      border: 1px solid var(--rule-strong);
+      font-size: 12px;
+      overflow-wrap: anywhere;
+    }
+  }
+  &__note {
+    display: block;
+    color: var(--ink-soft);
+  }
+  &__how {
+    margin: 8px 0 0;
+  }
+}
+
 .drop-hint {
   position: fixed;
   inset: 12px;
