@@ -9,7 +9,7 @@ import { clampBpm, secondsToTicks } from "@/lib/time";
 import type { InstrumentId, InstrumentLoadState, TransportStatus } from "@/types/audio";
 import type { NoteEvent } from "@/types/midi";
 import type { StudioProject } from "@/types/project";
-import { LOOK_AHEAD, PPQ } from "./audioConfig";
+import { LOOK_AHEAD, PPQ, ROOM_BUS } from "./audioConfig";
 import { AudioTrack } from "./AudioTrack";
 import { Metronome } from "./Metronome";
 import { SampleManager } from "./SampleManager";
@@ -31,6 +31,10 @@ export interface EngineEvents {
  */
 export class AudioEngine {
   private master: Tone.Volume | null = null;
+  private bus: Tone.Gain | null = null;
+  private glue: Tone.Compressor | null = null;
+  private room: Tone.Reverb | null = null;
+  private roomReturn: Tone.Channel | null = null;
   private readonly tracks = new Map<MemberId, AudioTrack>();
   private readonly samples = new SampleManager();
   private transport: TransportController | null = null;
@@ -62,6 +66,12 @@ export class AudioEngine {
       await Tone.start();
       Tone.getContext().lookAhead = LOOK_AHEAD;
       this.master = new Tone.Volume(0).toDestination();
+      // the band bus: every track and the shared room, gently glued by one compressor
+      // (a couple of dB on the loudest hits, so the parts move together), then the master
+      this.glue = new Tone.Compressor({ threshold: -18, ratio: 2, knee: 8, attack: 0.02, release: 0.25 });
+      this.bus = new Tone.Gain(1).chain(this.glue, this.master);
+      this.room = new Tone.Reverb({ decay: 1.6, preDelay: 0.012, wet: 1 });
+      this.roomReturn = new Tone.Channel().receive(ROOM_BUS).chain(this.room, this.bus);
       this.transport = new TransportController(
         () => {
           this.tracks.forEach((t) => t.releaseAll());
@@ -96,7 +106,7 @@ export class AudioEngine {
     for (const track of project.tracks) {
       let audio = this.tracks.get(track.memberId);
       if (!audio) {
-        audio = new AudioTrack(track.memberId, track.instrument, this.master, this.samples, this.feel, this.style);
+        audio = new AudioTrack(track.memberId, track.instrument, this.bus!, this.samples, this.feel, this.style);
         this.tracks.set(track.memberId, audio);
         this.loadInstrument(audio, track.instrument);
       } else if (audio.currentInstrument !== track.instrument) {
@@ -271,6 +281,8 @@ export class AudioEngine {
     this.tracks.forEach((t) => t.dispose());
     this.tracks.clear();
     this.samples.dispose();
+    for (const node of [this.roomReturn, this.room, this.bus, this.glue]) node?.dispose();
+    this.roomReturn = this.room = this.bus = this.glue = null;
     this.master?.dispose();
     this.master = null;
     this.transport = null;

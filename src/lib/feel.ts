@@ -2,11 +2,15 @@ import type { MemberId } from "@/features/band/types";
 
 /**
  * "Feel": how each member plays the written notes, so the band sounds like five
- * people instead of a sequencer. Pure maths; AudioTrack applies the result.
+ * people instead of a sequencer, but five people who rehearse together: the band
+ * locks to Ritsu, who pushes a little ahead of the beat, and Mio's bass sits right on
+ * her kick. Everyone's own timing differs by a few milliseconds at most: much more and
+ * fast songs sound as if each member were playing on their own. Pure maths; AudioTrack
+ * applies the result.
  *
- *   ritsu   pushes ahead of the beat and hits the downbeats hard
- *   mio     steady as a rock, even dynamics
- *   yui     big dynamics, sometimes lays back a little
+ *   ritsu   leads the push and hits the downbeats hard
+ *   mio     locked to the kick, steady, even dynamics
+ *   yui     big dynamics, a hair behind the band
  *   azusa   tight and clean, quick strums
  *   tsumugi gentle touch, soft dynamics
  */
@@ -28,11 +32,11 @@ export interface FeelProfile {
 }
 
 export const FEEL_PROFILES: Record<MemberId, FeelProfile> = {
-  ritsu: { pushSeconds: -0.008, jitterSeconds: 0.006, velocitySpread: 0.1, velocityScale: 1.05, downbeatAccent: 0.15, strumSeconds: 0 },
-  mio: { pushSeconds: 0, jitterSeconds: 0.002, velocitySpread: 0.04, velocityScale: 1, downbeatAccent: 0.04, strumSeconds: 0.008 },
-  yui: { pushSeconds: 0.005, jitterSeconds: 0.01, velocitySpread: 0.16, velocityScale: 1, downbeatAccent: 0.08, strumSeconds: 0.014 },
-  azusa: { pushSeconds: 0, jitterSeconds: 0.003, velocitySpread: 0.06, velocityScale: 1, downbeatAccent: 0.06, strumSeconds: 0.009 },
-  tsumugi: { pushSeconds: 0, jitterSeconds: 0.004, velocitySpread: 0.06, velocityScale: 0.9, downbeatAccent: 0.03, strumSeconds: 0.004 },
+  ritsu: { pushSeconds: -0.004, jitterSeconds: 0.003, velocitySpread: 0.1, velocityScale: 1.05, downbeatAccent: 0.15, strumSeconds: 0 },
+  mio: { pushSeconds: -0.004, jitterSeconds: 0.0015, velocitySpread: 0.04, velocityScale: 1, downbeatAccent: 0.06, strumSeconds: 0.006 },
+  yui: { pushSeconds: -0.002, jitterSeconds: 0.004, velocitySpread: 0.14, velocityScale: 1, downbeatAccent: 0.08, strumSeconds: 0.008 },
+  azusa: { pushSeconds: -0.004, jitterSeconds: 0.002, velocitySpread: 0.06, velocityScale: 1, downbeatAccent: 0.06, strumSeconds: 0.006 },
+  tsumugi: { pushSeconds: -0.003, jitterSeconds: 0.0025, velocitySpread: 0.06, velocityScale: 0.9, downbeatAccent: 0.04, strumSeconds: 0.003 },
 };
 
 /** No personality: on the grid, written velocities. Chords still roll a little so guitars sound strummed. */
@@ -88,4 +92,23 @@ export function strumOffsets(notes: readonly { ticks: number; pitch: number }[],
     });
   }
   return result;
+}
+
+/**
+ * Keep a strum inside `maxRollSeconds` (from its first string to its last): at a fast
+ * tempo a full-speed roll smears into the next chord, so the strings are brought closer
+ * together. Returns each note's (possibly fractional) place in its strum.
+ */
+export function capStrums(
+  notes: readonly { ticks: number }[],
+  strums: readonly number[],
+  strumSeconds: number,
+  maxRollSeconds: number,
+): number[] {
+  const widest = new Map<number, number>();
+  notes.forEach((n, i) => widest.set(n.ticks, Math.max(widest.get(n.ticks) ?? 0, strums[i]!)));
+  return strums.map((place, i) => {
+    const roll = widest.get(notes[i]!.ticks)! * strumSeconds;
+    return roll > maxRollSeconds ? (place * maxRollSeconds) / roll : place;
+  });
 }

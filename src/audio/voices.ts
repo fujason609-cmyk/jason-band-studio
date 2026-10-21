@@ -476,7 +476,7 @@ class VocalVoice implements SingingVoice {
   constructor(set: SungSet, trimDb: number) {
     this.sampler = new Tone.Sampler({ urls: set.notes, release: 0.25 });
     this.breath = new Tone.Player(set.breath);
-    const room = new Tone.Reverb({ decay: 2.2, wet: 0.22 });
+    const room = new Tone.Reverb({ decay: 1.2, wet: 0.12 }); // close: the band's shared room does the rest
     this.output = new Tone.Gain(Tone.dbToGain(trimDb));
     this.sampler.chain(room, this.output);
     this.breath.chain(this.breathLevel, room);
@@ -671,7 +671,7 @@ export function createPackVoice(
         trimDb,
       );
     case "keys": {
-      const room = new Tone.Reverb({ decay: 2.2, wet: 0.2 });
+      const room = new Tone.Reverb({ decay: 1.2, wet: 0.1 }); // close: the band's shared room does the rest
       return soft
         ? new VelocityLayers(sampler, soft.sampler, soft.below, [room], trimDb)
         : new MelodicVoice(sampler, [room], trimDb);

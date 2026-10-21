@@ -1,13 +1,14 @@
 import * as Tone from "tone";
+import { getMember } from "@/features/band/members";
 import type { MemberId } from "@/features/band/types";
-import { humanize, profileFor, strumOffsets, type FeelProfile, type FeelSetting } from "@/lib/feel";
+import { FEEL_PROFILES, capStrums, humanize, profileFor, strumOffsets, type FeelProfile, type FeelSetting } from "@/lib/feel";
 import { gainToDb } from "@/lib/mix";
 import { breathTimes, fitToVoice, type VocalRole } from "@/features/band/vocals";
 import { arrange, arrangeVocal, type BandContext, type PlayStyle, type StyledNote } from "@/lib/playStyle";
 import { secondsToTicks } from "@/lib/time";
 import type { InstrumentId } from "@/types/audio";
 import type { NoteEvent } from "@/types/midi";
-import { PPQ } from "./audioConfig";
+import { PPQ, ROOM_BUS, ROOM_SEND_DB } from "./audioConfig";
 import type { SampleManager } from "./SampleManager";
 import { createVocalVoice, type SingingVoice, type Voice } from "./voices";
 
@@ -43,7 +44,9 @@ function toTicks(notes: readonly NoteEvent[], baseBpm: number): StyledNote[] {
  */
 export class AudioTrack {
   readonly channel: Tone.Channel;
-  private readonly liveChannel: Tone.Volume;
+  private readonly liveChannel: Tone.Channel;
+  /** the singing stays centred, however the member's instrument is panned */
+  private readonly vocalChannel: Tone.Channel;
   private voice: Voice | null = null;
   private liveVoice: Voice | null = null;
   private part: Tone.Part<ScheduledNote> | null = null;
@@ -72,8 +75,11 @@ export class AudioTrack {
   ) {
     this.instrument = instrument;
     this.feel = profileFor(member, feel);
-    this.channel = new Tone.Channel({ volume: 0 }).connect(master);
-    this.liveChannel = new Tone.Volume(0).connect(master);
+    const pan = getMember(member).pan;
+    this.channel = new Tone.Channel({ volume: 0, pan }).connect(master);
+    this.liveChannel = new Tone.Channel({ volume: 0, pan }).connect(master);
+    this.vocalChannel = new Tone.Channel({ volume: 0, pan: 0 }).connect(master);
+    for (const c of [this.channel, this.liveChannel, this.vocalChannel]) c.send(ROOM_BUS, ROOM_SEND_DB);
   }
 
   get currentInstrument() {
@@ -135,7 +141,7 @@ export class AudioTrack {
         this.vocalLoading = false;
         if (this.disposed || this.vocalRef.length === 0) return voice.dispose();
         this.vocalVoice = voice;
-        voice.output.connect(this.channel);
+        voice.output.connect(this.vocalChannel);
       });
     }
     this.scheduleVocal();
@@ -188,7 +194,9 @@ export class AudioTrack {
     if (!this.notesRef) return;
     const written = toTicks(this.notesRef, this.baseBpm);
     const played = arrange(this.style, this.instrument, written, PPQ, this.beatsPerBar, this.band);
-    const strums = strumOffsets(played, PPQ);
+    // a strum takes at most a third of a sixteenth, so fast songs stay tight
+    const maxRoll = (60 / this.baseBpm / 4) * 0.33;
+    const strums = capStrums(played, strumOffsets(played, PPQ), FEEL_PROFILES[this.member].strumSeconds, maxRoll);
     const events: ScheduledNote[] = played.map((n, i) => ({ ...n, time: `${n.ticks}i`, strumIndex: strums[i]! }));
 
     this.part = new Tone.Part<ScheduledNote>((time, ev) => {
@@ -206,6 +214,7 @@ export class AudioTrack {
     const db = gainToDb(volume);
     this.channel.volume.value = db;
     this.liveChannel.volume.value = db;
+    this.vocalChannel.volume.value = db;
   }
 
   /** Apply the result of the mute / solo rules. Going silent also cuts ringing notes. */
@@ -213,6 +222,7 @@ export class AudioTrack {
     if (audible === this.audible) return;
     this.audible = audible;
     this.channel.mute = !audible;
+    this.vocalChannel.mute = !audible;
     if (!audible) this.releaseAll();
   }
 
@@ -246,5 +256,6 @@ export class AudioTrack {
     this.liveVoice?.dispose();
     this.channel.dispose();
     this.liveChannel.dispose();
+    this.vocalChannel.dispose();
   }
 }

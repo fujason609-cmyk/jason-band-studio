@@ -14,7 +14,7 @@ describe("TrackMixer", () => {
 
   it("shows all five members", () => {
     render(<TrackMixer />);
-    for (const name of ["Yui", "Mio", "Ritsu", "Mugi", "Azusa"]) {
+    for (const name of ["Yui", "Mio", "Ritsu", "Tsumugi", "Azusa"]) {
       expect(screen.getByRole("button", { name: `Mute ${name}` })).toBeInTheDocument();
     }
   });

@@ -93,7 +93,7 @@ const en = {
   octaveUp: "Octave up",
   octave: (n: number) => `Octave ${n}`,
   keysPatch: "Sound",
-  keysPatchHint: "Mugi's KORG Triton sound. Used for the keys part when the song plays and when you play live.",
+  keysPatchHint: "Tsumugi's KORG Triton sound. Used for the keys part when the song plays and when you play live.",
   keysPatches: { piano: "Piano", strings: "Strings", synth: "Synth lead", organ: "Organ" } as Record<string, string>,
 
   // timeline
@@ -173,7 +173,7 @@ const en = {
     `Couldn't load the recorded ${instrument} sound, so it's playing the synthesized one. Use Retry on the mixer to try again.`,
 
   // band
-  memberName: { yui: "Yui", mio: "Mio", ritsu: "Ritsu", tsumugi: "Mugi", azusa: "Azusa" } as Record<MemberId, string>,
+  memberName: { yui: "Yui", mio: "Mio", ritsu: "Ritsu", tsumugi: "Tsumugi", azusa: "Azusa" } as Record<MemberId, string>,
   memberRole: {
     yui: "Lead guitar, vocals",
     mio: "Bass",

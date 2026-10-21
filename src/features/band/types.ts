@@ -12,4 +12,6 @@ export interface BandMember {
   colorVar: string;
   /** plays a left-handed instrument (Mio's Jazz Bass): the live fretboard is mirrored */
   leftHanded?: boolean;
+  /** where they stand in the stereo picture, -1 (left) … 1 (right); vocals stay centred */
+  pan: number;
 }

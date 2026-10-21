@@ -6,6 +6,14 @@ import { SAMPLE_FILES } from "./samplePacks.generated";
 /** Transport resolution. Notes are scheduled in ticks at this PPQ. */
 export const PPQ = 192;
 
+/**
+ * The band's shared room: every track sends into one reverb (the same space for all five,
+ * which is a lot of what makes separate parts sound like one band playing together), at
+ * this level below the track. The voices keep only their own small, close reverbs.
+ */
+export const ROOM_BUS = "band-room";
+export const ROOM_SEND_DB = -14;
+
 /** Scheduling look-ahead in seconds — trades latency for glitch-free playback. */
 export const LOOK_AHEAD = 0.1;
 

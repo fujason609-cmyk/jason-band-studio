@@ -6,15 +6,15 @@ A small browser DAW for a five-piece light-music club band. Listen to each membe
 
 ## What it does
 
-- **Five tracks**, one per member: Yui (lead guitar), Mio (bass), Ritsu (drums), Mugi (keys) and Azusa (rhythm guitar). Each member's instrument can be changed.
+- **Five tracks**, one per member: Yui (lead guitar), Mio (bass), Ritsu (drums), Tsumugi (keys) and Azusa (rhythm guitar). Each member's instrument can be changed.
 - **Real instruments, chosen and voiced after each member's gear** (about 4 MB, loaded when first needed):
   - Yui (Gibson Les Paul Standard): an Epiphone humbucker guitar through a crunchy Les Paul-style amp.
   - Azusa (Fender Mustang): a Hofner, the brightest free recording, through a glassy, lightly driven single-coil-style amp.
   - Mio (left-handed Fender Jazz Bass): a Squier Jazz Bass. Her live fretboard is mirrored, nut on the right.
   - Ritsu (Yamaha Hipgig): a full rock kit with the kick and toms retuned up like a compact kit's smaller shells, and a hi-hat that chokes.
-  - Mugi (KORG Triton): a recorded grand piano (soft and hard hammer layers), plus Triton-style strings, synth lead and organ patches, picked in her live panel; the choice applies to her part in playback too.
+  - Tsumugi (KORG Triton): a recorded grand piano (soft and hard hammer layers), plus Triton-style strings, synth lead and organ patches, picked in her live panel; the choice applies to her part in playback too.
   If the recordings can't load, each instrument falls back to a synthesized version so the band keeps playing. Nothing is sampled from the show.
-- **Each member plays with their own feel.** Ritsu pushes ahead of the beat and hits the downbeats hard, Mio is steady, Yui has big dynamics and sometimes lays back, Azusa is tight, Mugi plays gently, and guitar chords are strummed string by string (up-strokes on the off-beats). The ✨ button above the score switches everyone to strictly on the beat.
+- **Each member plays with their own feel.** Ritsu pushes ahead of the beat and hits the downbeats hard, Mio is steady, Yui has big dynamics and sometimes lays back, Azusa is tight, Tsumugi plays gently, and guitar chords are strummed string by string (up-strokes on the off-beats). The ✨ button above the score switches everyone to strictly on the beat.
 - **Play the score in another style.** The 🎸 picker above the score has As written, Rock, Punk, Ballad and Swing. The notes on screen stay as written, but the band changes how it plays them. Rock and punk turn Azusa's chords into power chords picked in eighths, drive the bass in eighths, add crashes and crank the amps. Ballad lets notes ring, picks held chords as arpeggios and cleans up the guitars. Swing moves the off-beat eighths late and gives the guitars a dark jazz tone. You can switch while the song plays. If the score has no drum part, the 🥁 switch has Ritsu play a basic beat in Rock and Punk.
 - **Vocals.** Yui sings the lead and Mio the harmony, with a synthesized, wordless young female voice: a bright, light "ah" for Yui and a warm, round "oh" for Mio (character types; it doesn't imitate anyone's real voice). They take a breath before each phrase, and parts written too low for a girl are moved up by octaves. When you import a song, tracks named Vocal, Voice, Choir, ボーカル, 歌, 主唱 and the like go to them; in the import window you can also pick "Yui (lead vocal)" or "Mio (harmony vocal)" for any track. The 🎤 buttons on their mixer strips switch each vocal on or off. Sung notes show as outlined notes in their lane. The demo song has both.
 - **Count-in and metronome.** Two switches next to the tempo: one bar of clicks before playback, and a click on every beat. Only you hear them; they never go into a recorded video.
@@ -102,7 +102,7 @@ Packs load lazily and are shared by every track that uses them. Each mixer strip
 
 ## Testing
 
-`pnpm test` runs 134 tests covering:
+`pnpm test` runs 137 tests covering:
 - mute and solo rules
 - tick and second conversions, and tempo scaling
 - the keyboard map

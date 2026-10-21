@@ -127,6 +127,54 @@ describe("track mapping", () => {
     expect(song.tracks.find((t) => t.memberId === "ritsu")!.vocal).toBeUndefined();
   });
 
+  it("gives a track named after a member to that member, ahead of any guess", () => {
+    // like a fan transcription that says who plays what (the busiest guitar is the wah double)
+    const midi = new Midi();
+    const add = (name: string, program: number, count: number, channel: number) => {
+      const t = midi.addTrack();
+      t.name = String.fromCharCode(...new TextEncoder().encode(name));
+      t.channel = channel;
+      t.instrument.number = program;
+      for (let i = 0; i < count; i++) t.addNote({ midi: channel === 9 ? 36 : 52, time: i * 0.25, duration: 0.2, velocity: 0.8 });
+    };
+    add("Guitar: Yui Hirasawa", 29, 20, 0);
+    add("Gitah!", 30, 15, 1);
+    add("Guitar: Azusa Nakano", 30, 21, 2);
+    add("Azu-nyan! w/ Wah", 29, 22, 3);
+    add("Bass: Mio Akiyama", 33, 9, 4);
+    add("Drums: Ritsu Tainaka", 0, 19, 9);
+    add("Keyboard: Tsugumi Kotobuki", 80, 11, 5);
+    const named = parseMidi(midi.toArray(), "fuwa.mid");
+    const { assignments } = suggestMapping(named);
+    const who = (name: string) => assignments.find((a) => a.midiTrackIndex === named.tracks.find((t) => t.name === name)!.index)!.memberId;
+    expect(who("Guitar: Yui Hirasawa")).toBe("yui");
+    expect(who("Guitar: Azusa Nakano")).toBe("azusa"); // her real name beats her nickname
+    expect(who("Azu-nyan! w/ Wah")).toBeNull(); // she already has her part
+    expect(who("Gitah!")).toBeNull();
+    expect(who("Keyboard: Tsugumi Kotobuki")).toBe("tsumugi"); // a misspelt surname still counts
+    expect(who("Bass: Mio Akiyama")).toBe("mio");
+    expect(who("Drums: Ritsu Tainaka")).toBe("ritsu");
+  });
+
+  it("gives a keys part to Mugi before handing her a spare guitar", () => {
+    const midi = new Midi();
+    const add = (name: string, program: number, count: number) => {
+      const t = midi.addTrack();
+      t.name = name;
+      t.instrument.number = program;
+      for (let i = 0; i < count; i++) t.addNote({ midi: 60, time: i * 0.25, duration: 0.2, velocity: 0.8 });
+    };
+    add("Guitar 1", 29, 30);
+    add("Guitar 2", 30, 25);
+    add("Guitar 3", 27, 20);
+    add("Synth", 80, 5);
+    const parts = parseMidi(midi.toArray(), "parts.mid");
+    const { assignments } = suggestMapping(parts);
+    const who = (name: string) => assignments.find((a) => a.midiTrackIndex === parts.tracks.find((t) => t.name === name)!.index)!.memberId;
+    expect(who("Synth")).toBe("tsumugi");
+    expect(who("Guitar 3")).toBeNull();
+  });
+
   it("builds five tracks, merges shared parts and keeps mixer settings", () => {
     const assignments = [
       { midiTrackIndex: idx("Piano"), memberId: "tsumugi" as const },

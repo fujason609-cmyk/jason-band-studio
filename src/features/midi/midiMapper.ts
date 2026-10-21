@@ -52,7 +52,41 @@ const PREFERENCES: Record<Exclude<Family, "drums" | "bass">, MemberId[]> = {
 };
 const MELODIC_MEMBERS: MemberId[] = ["yui", "azusa", "tsumugi"];
 
-/** Best-guess assignment of MIDI tracks to band members. The user can change all of it. */
+/**
+ * Tracks named after a band member ("Guitar: Yui Hirasawa", "Bass: Mio Akiyama", "梓",
+ * "あずにゃん"), in English, Japanese and Chinese. Fan transcriptions of the band's songs
+ * often say who plays what, and that beats any guess. `nick` names (Azu-nyan, Mugi)
+ * count for less than real names when two tracks name the same member.
+ */
+const MEMBER_NAMES: Record<MemberId, { name: RegExp; nick?: RegExp }> = {
+  yui: { name: /\byui\b|hirasawa|唯|平沢|平泽|ゆい/i },
+  mio: { name: /\bmio\b|akiyama|澪|秋山|みお/i },
+  ritsu: { name: /\britsu\b|tainaka|律|田井中|りっちゃん|りつ/i },
+  tsumugi: { name: /tsumugi|tsugumi|kotobuki|紬|琴吹|つむぎ/i, nick: /\bmugi\b|むぎ/i },
+  azusa: { name: /azusa|nakano|梓|中野|あずさ/i, nick: /azu-?nyan|あずにゃん/i },
+};
+
+/** The member a track's name points at, and how sure: 2 a real name, 1 a nickname. */
+export function memberFromName(name: string): { member: MemberId; strength: 1 | 2 } | null {
+  for (const [member, n] of Object.entries(MEMBER_NAMES) as [MemberId, (typeof MEMBER_NAMES)[MemberId]][]) {
+    if (n.name.test(name)) return { member, strength: 2 };
+  }
+  for (const [member, n] of Object.entries(MEMBER_NAMES) as [MemberId, (typeof MEMBER_NAMES)[MemberId]][]) {
+    if (n.nick?.test(name)) return { member, strength: 1 };
+  }
+  return null;
+}
+
+/** What each member plays, to break ties between tracks that name the same member. */
+const MEMBER_FAMILY: Record<MemberId, Family> = { yui: "guitar", mio: "bass", ritsu: "drums", tsumugi: "keys", azusa: "guitar" };
+
+/**
+ * Best-guess assignment of MIDI tracks to band members. The user can change all of it.
+ * In order: sung parts to the singers; tracks named after a member to that member (one
+ * each: a real name over a nickname, their own instrument first, then the busiest);
+ * drums to Ritsu and bass to Mio; then the rest by instrument, busiest first, each to a
+ * member who plays that instrument, and only then to whoever is still free.
+ */
 export function suggestMapping(parsed: ParsedMidi): MappingSuggestion {
   const taken = new Set<MemberId>();
   const byIndex = new Map<number, MemberId | null>();
@@ -63,22 +97,53 @@ export function suggestMapping(parsed: ParsedMidi): MappingSuggestion {
     .sort((a, b) => Number(BACKING_VOCAL.test(a.name)) - Number(BACKING_VOCAL.test(b.name)) || b.notes.length - a.notes.length);
   const vocalOf = new Map<number, MemberId>();
   sung.slice(0, VOCALISTS.length).forEach((t, i) => vocalOf.set(t.index, VOCALISTS[i]!));
+  const playable = parsed.tracks.filter((t) => !vocalOf.has(t.index));
 
-  for (const track of parsed.tracks) {
-    if (vocalOf.has(track.index)) continue;
-    const family = familyOf(track);
-    if (family === "drums") byIndex.set(track.index, "ritsu");
-    if (family === "bass") byIndex.set(track.index, "mio");
+  // named after a member: the strongest claim for each member wins, other claims are left out
+  const named = playable
+    .map((t) => ({ track: t, claim: memberFromName(t.name) }))
+    .filter((x): x is { track: ParsedMidiTrack; claim: NonNullable<ReturnType<typeof memberFromName>> } => x.claim !== null)
+    .sort(
+      (a, b) =>
+        b.claim.strength - a.claim.strength ||
+        Number(familyOf(b.track) === MEMBER_FAMILY[b.claim.member]) - Number(familyOf(a.track) === MEMBER_FAMILY[a.claim.member]) ||
+        b.track.notes.length - a.track.notes.length,
+    );
+  for (const { track, claim } of named) {
+    if (taken.has(claim.member)) {
+      byIndex.set(track.index, null);
+      continue;
+    }
+    taken.add(claim.member);
+    byIndex.set(track.index, claim.member);
   }
 
-  const melodic = parsed.tracks
-    .filter((t) => !byIndex.has(t.index) && !vocalOf.has(t.index))
-    .sort((a, b) => b.notes.length - a.notes.length);
+  // unnamed drum and bass tracks: Ritsu and Mio take all of them (a kit is often split over
+  // several tracks), unless a track named after them already gave them their part
+  const namedFor = new Set(named.map((n) => n.claim.member));
+  for (const track of playable) {
+    if (byIndex.has(track.index)) continue;
+    const family = familyOf(track);
+    const member = family === "drums" ? "ritsu" : family === "bass" ? "mio" : null;
+    if (member) byIndex.set(track.index, namedFor.has(member) ? null : member);
+  }
+  for (const id of byIndex.values()) if (id) taken.add(id);
 
-  for (const track of melodic) {
+  const melodic = playable.filter((t) => !byIndex.has(t.index)).sort((a, b) => b.notes.length - a.notes.length);
+  const prefsOf = (track: ParsedMidiTrack) => {
     const family = familyOf(track) as keyof typeof PREFERENCES;
-    const prefs = family === "guitar" && RHYTHM.test(track.name) ? ["azusa", "yui"] as MemberId[] : PREFERENCES[family];
-    const choice = prefs.find((m) => !taken.has(m)) ?? MELODIC_MEMBERS.find((m) => !taken.has(m)) ?? null;
+    return family === "guitar" && RHYTHM.test(track.name) ? (["azusa", "yui"] as MemberId[]) : PREFERENCES[family];
+  };
+  // a member who plays the part's instrument first, for every part; only then anyone free
+  for (const track of melodic) {
+    const choice = prefsOf(track).find((m) => !taken.has(m));
+    if (!choice) continue;
+    taken.add(choice);
+    byIndex.set(track.index, choice);
+  }
+  for (const track of melodic) {
+    if (byIndex.has(track.index)) continue;
+    const choice = MELODIC_MEMBERS.find((m) => !taken.has(m)) ?? null;
     if (choice) taken.add(choice);
     byIndex.set(track.index, choice);
   }
