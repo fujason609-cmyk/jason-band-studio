@@ -187,6 +187,10 @@ const en = {
     azusa: "Rhythm guitar",
   } as Record<MemberId, string>,
   vocalRole: { lead: "lead vocal", harmony: "harmony vocal" } as Record<VocalRole, string>,
+  vocalSoundLabel: { lead: "Lead vocal on", harmony: "Harmony on" } as Record<VocalRole, string>,
+  vocalSounds: { voice: "Sung voice", guitar: "Yui's guitar", synth: "Synth lead", piano: "Piano", strings: "Strings" } as Record<string, string>,
+  vocalSoundHint: (name: string, role: string) =>
+    `What plays ${name}'s ${role}: the sung voice, or an instrument taking the tune like a band's instrumental cover. The 🎤 button on the mixer switches it on or off`,
   vocalOn: (name: string, role: string) => `${name}'s ${role} is on (a sung "ah" voice, no words). Switch off`,
   vocalOff: (name: string, role: string) => `${name}'s ${role} is off. Switch on`,
   noVocal: (name: string, role: string) =>
@@ -372,6 +376,9 @@ const zh: Strings = {
     azusa: "节奏吉他",
   },
   vocalRole: { lead: "主唱", harmony: "和声" },
+  vocalSoundLabel: { lead: "主唱用", harmony: "和声用" },
+  vocalSounds: { voice: "合成人声", guitar: "唯的吉他", synth: "合成主音", piano: "钢琴", strings: "弦乐" },
+  vocalSoundHint: (name, role) => `${name}的${role}用什么来演奏：合成人声，或者像乐队的纯音乐翻唱那样，换成乐器来演奏旋律。调音台上的 🎤 按钮可以打开或关闭`,
   vocalOn: (name, role) => `${name}的${role}：开（合成的「啊～」人声，没有歌词）。点击关闭`,
   vocalOff: (name, role) => `${name}的${role}：关。点击打开`,
   noVocal: (name, role) => `这首歌没有给${name}的${role}声部。导入时把人声音轨分给「${name}（${role}）」`,

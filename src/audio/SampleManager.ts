@@ -114,10 +114,10 @@ export class SampleManager {
   /** The playing style, which sets the guitar amps; set by AudioEngine.setStyle. */
   style: PlayStyle = "original";
 
-  /** Build a new voice for an instrument. Call `load()` first. */
-  createVoice(instrument: InstrumentId): Voice {
-    if (instrument === "keys" && this.keysPatch !== "piano") {
-      return createKeysPatchVoice(this.keysPatch, KEYS_PATCH_TRIM_DB[this.keysPatch]);
+  /** Build a new voice for an instrument. Call `load()` first. `patch` overrides Mugi's chosen sound for keys. */
+  createVoice(instrument: InstrumentId, patch: KeysPatch = this.keysPatch): Voice {
+    if (instrument === "keys" && patch !== "piano") {
+      return createKeysPatchVoice(patch, KEYS_PATCH_TRIM_DB[patch]);
     }
     const pack = SAMPLE_PACKS[instrument];
     const buffers = this.packs.get(instrument);

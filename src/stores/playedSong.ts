@@ -19,7 +19,7 @@ const merged = new Map<StudioTrack["memberId"], { song: readonly unknown[]; solo
 let lastPlayed: { project: StudioProject; on: boolean; played: PlayedSong } | null = null;
 
 function roundFor(project: StudioProject): SoloRound {
-  const key = [project.baseBpm, project.beatsPerBar, project.durationSeconds, project.name, ...project.tracks.flatMap((t) => [t.notes, t.instrument])];
+  const key = [project.baseBpm, project.beatsPerBar, project.durationSeconds, project.name, ...project.tracks.flatMap((t) => [t.notes, t.vocal, t.instrument])];
   if (lastRound && lastRound.key.length === key.length && lastRound.key.every((k, i) => k === key[i])) return lastRound.round;
   const round = soloRound(project.tracks, project.baseBpm, project.beatsPerBar, project.durationSeconds, project.name);
   lastRound = { key, round };

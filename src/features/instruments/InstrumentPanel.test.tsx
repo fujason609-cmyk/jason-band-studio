@@ -61,6 +61,27 @@ describe("InstrumentPanel", () => {
     expect(useStudioStore.getState().settings.keysPatch).toBe("organ");
   });
 
+  it("lets Yui's lead vocal and Mio's harmony be played on an instrument; nobody else has one", () => {
+    select("yui");
+    const { unmount } = render(<InstrumentPanel />);
+    const lead = screen.getByRole("combobox", { name: "Lead vocal on" });
+    expect(lead).toHaveValue("voice");
+    fireEvent.change(lead, { target: { value: "guitar" } });
+    expect(useStudioStore.getState().settings.vocalSounds).toEqual({ lead: "guitar", harmony: "voice" });
+    unmount();
+    useStudioStore.getState().selectMember("mio"); // keeps the other settings, as the app does
+    render(<InstrumentPanel />);
+    fireEvent.change(screen.getByRole("combobox", { name: "Harmony on" }), { target: { value: "strings" } });
+    expect(useStudioStore.getState().settings.vocalSounds).toEqual({ lead: "guitar", harmony: "strings" });
+    useStudioStore.getState().updateSettings({ vocalSounds: { lead: "voice", harmony: "voice" } });
+  });
+
+  it("offers no vocal sound to members who don't sing", () => {
+    select("ritsu");
+    render(<InstrumentPanel />);
+    expect(screen.queryByRole("combobox", { name: /vocal on|Harmony on/ })).not.toBeInTheDocument();
+  });
+
   it("shows no sound picker for instruments other than keys", () => {
     select("yui");
     render(<InstrumentPanel />);

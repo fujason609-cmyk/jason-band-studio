@@ -61,6 +61,70 @@ describe("solo round", () => {
     expect(round.notes.mio.some((x) => x.start >= yui.start && x.start < yui.end)).toBe(true);
   });
 
+  describe("from the score", () => {
+    // 120 BPM, 4/4, 8 bars: the chorus G D Em C twice; Yui repeats one hook, Ritsu one groove
+    const beat = 0.5;
+    const at = (pitch: number, b: number, beats = 1): NoteEvent => ({ pitch, start: b * beat, duration: beats * beat, velocity: 0.8 });
+    const changes = [
+      [55, false],
+      [62, false],
+      [64, true],
+      [60, false],
+    ] as const;
+    const keys: NoteEvent[] = [];
+    const bass: NoteEvent[] = [];
+    const lead: NoteEvent[] = [];
+    const drums: NoteEvent[] = [];
+    for (let bar = 0; bar < 8; bar++) {
+      const [root, minor] = changes[bar % 4]!;
+      keys.push(at(root, bar * 4, 4), at(root + (minor ? 3 : 4), bar * 4, 4), at(root + 7, bar * 4, 4));
+      bass.push(at(root - 24, bar * 4, 1), at(root - 24, bar * 4 + 1.5, 0.5), at(root - 12, bar * 4 + 2, 1));
+      // the hook: always the same rhythm, starting on the chord's fifth
+      lead.push(at(root + 19, bar * 4, 0.5), at(root + 21, bar * 4 + 0.5, 0.5), at(root + 19, bar * 4 + 1, 1.5), at(root + 16, bar * 4 + 3, 1));
+      drums.push(at(36, bar * 4, 0.25), at(42, bar * 4 + 0.5, 0.25), at(38, bar * 4 + 1, 0.25), at(36, bar * 4 + 1.75, 0.25), at(38, bar * 4 + 3, 0.25));
+    }
+    const song: SoloTrack[] = [
+      { memberId: "yui", instrument: "lead-guitar", notes: lead },
+      { memberId: "mio", instrument: "bass", notes: bass },
+      { memberId: "ritsu", instrument: "drums", notes: drums },
+      { memberId: "tsumugi", instrument: "keys", notes: keys },
+      { memberId: "azusa", instrument: "rhythm-guitar", notes: [] },
+    ];
+    const round = soloRound(song, 120, 4, 16, "chorus song");
+    const within = (member: keyof typeof round.notes, spotOf: string, fromBar: number, toBar: number) => {
+      const spot = round.spots.find((s) => s.member === spotOf)!;
+      return round.notes[member].filter((x) => x.start >= spot.start + fromBar * 2 - 1e-6 && x.start < spot.start + toBar * 2 - 1e-6);
+    };
+
+    it("plays Yui's own hook to open her solo", () => {
+      const spot = round.spots.find((s) => s.member === "yui")!;
+      const firstBar = within("yui", "yui", 0, 1).map((x) => +((x.start - spot.start) / beat).toFixed(3));
+      expect(firstBar).toEqual([0, 0.5, 1, 3]); // the hook's rhythm
+    });
+
+    it("opens Ritsu's solo with her own groove", () => {
+      const firstBar = within("ritsu", "ritsu", 0, 1).filter((x) => x.pitch !== 49);
+      expect(firstBar.map((x) => x.pitch)).toEqual([36, 42, 38, 36, 38]);
+    });
+
+    it("runs over the song's own chords", () => {
+      // under Yui's solo, Mio holds the root of each bar: G D E C
+      const roots = within("mio", "yui", 0, 4).map((x) => x.pitch % 12);
+      expect(roots).toEqual([7, 2, 4, 0]);
+    });
+
+    it("gives a member with no part of their own the song's tune (Azusa plays Yui's hook)", () => {
+      const spot = round.spots.find((s) => s.member === "azusa")!;
+      const firstBar = within("azusa", "azusa", 0, 1).map((x) => +((x.start - spot.start) / beat).toFixed(3));
+      expect(firstBar).toEqual([0, 0.5, 1, 3]);
+    });
+
+    it("comes out different for a different song", () => {
+      const other = soloRound(band([60, 64, 67].map((p) => n(p))), 120, 4, 16, "chorus song");
+      expect(other.notes.yui).not.toEqual(round.notes.yui);
+    });
+  });
+
   it("is the same every time for the same song", () => {
     const a = soloRound(band([60, 64, 67].map((p) => n(p))), 120, 4, 0, "x");
     const b = soloRound(band([60, 64, 67].map((p) => n(p))), 120, 4, 0, "x");

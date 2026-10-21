@@ -4,7 +4,7 @@ import { DEFAULT_OVERLAY, sanitizeOverlay, type OverlaySettings } from "@/featur
 import { detectLanguage, type Language } from "@/i18n/strings";
 import type { FeelSetting } from "@/lib/feel";
 import { isPlayStyle, type PlayStyle } from "@/lib/playStyle";
-import { DEFAULT_VOCALS, type VocalSwitches } from "@/features/band/vocals";
+import { DEFAULT_VOCALS, DEFAULT_VOCAL_SOUNDS, isVocalSound, type VocalSounds, type VocalSwitches } from "@/features/band/vocals";
 import { isKeysPatch, type KeysPatch } from "@/audio/keysPatches";
 
 export type ThemeSetting = "system" | "light" | "dark";
@@ -35,6 +35,8 @@ export interface StudioSettings {
   metronome: boolean;
   /** Yui's lead vocal and Mio's harmony, each on or off */
   vocals: VocalSwitches;
+  /** what plays each vocal part: the synthesized voice or an instrument */
+  vocalSounds: VocalSounds;
 }
 
 export const DEFAULT_SETTINGS: StudioSettings = {
@@ -53,6 +55,7 @@ export const DEFAULT_SETTINGS: StudioSettings = {
   countIn: false,
   metronome: false,
   vocals: DEFAULT_VOCALS,
+  vocalSounds: DEFAULT_VOCAL_SOUNDS,
 };
 
 const KEY = "kon-band-studio:settings:v1";
@@ -62,6 +65,14 @@ function sanitizeVocals(raw: unknown): VocalSwitches {
   return {
     lead: typeof r.lead === "boolean" ? r.lead : DEFAULT_VOCALS.lead,
     harmony: typeof r.harmony === "boolean" ? r.harmony : DEFAULT_VOCALS.harmony,
+  };
+}
+
+function sanitizeVocalSounds(raw: unknown): VocalSounds {
+  const r = raw && typeof raw === "object" ? (raw as Record<string, unknown>) : {};
+  return {
+    lead: isVocalSound(r.lead) ? r.lead : DEFAULT_VOCAL_SOUNDS.lead,
+    harmony: isVocalSound(r.harmony) ? r.harmony : DEFAULT_VOCAL_SOUNDS.harmony,
   };
 }
 
@@ -85,6 +96,7 @@ export function sanitizeSettings(raw: unknown): StudioSettings {
     countIn: typeof r.countIn === "boolean" ? r.countIn : DEFAULT_SETTINGS.countIn,
     metronome: typeof r.metronome === "boolean" ? r.metronome : DEFAULT_SETTINGS.metronome,
     vocals: sanitizeVocals(r.vocals),
+    vocalSounds: sanitizeVocalSounds(r.vocalSounds),
   };
 }
 

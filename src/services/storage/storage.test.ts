@@ -58,6 +58,8 @@ describe("settings", () => {
     expect(sanitizeSettings({ playStyle: "punk" }).playStyle).toBe("punk");
     expect(sanitizeSettings({}).vocals).toEqual({ lead: true, harmony: true });
     expect(sanitizeSettings({ vocals: { lead: false, harmony: "no" } }).vocals).toEqual({ lead: false, harmony: true });
+    expect(sanitizeSettings({}).vocalSounds).toEqual({ lead: "voice", harmony: "voice" });
+    expect(sanitizeSettings({ vocalSounds: { lead: "guitar", harmony: "kazoo" } }).vocalSounds).toEqual({ lead: "guitar", harmony: "voice" });
     expect(sanitizeSettings({ playStyle: "metal" }).playStyle).toBe("original");
     expect(sanitizeSettings({}).autoDrums).toBe(true);
     expect(sanitizeSettings({ countIn: true, metronome: true })).toMatchObject({ countIn: true, metronome: true });

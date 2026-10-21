@@ -3,6 +3,7 @@ import { KEYS_PATCHES, isKeysPatch } from "@/audio/keysPatches";
 import { IconButton } from "@/components/common/IconButton";
 import { MemberBadge } from "@/features/band/components/MemberBadge";
 import { getMember } from "@/features/band/members";
+import { VOCAL_SOUNDS, isVocalSound, vocalRoleOf } from "@/features/band/vocals";
 import { NARROW_QUERY, TOUCH_QUERY, useMediaQuery } from "@/hooks/useMediaQuery";
 import { useT } from "@/i18n/useT";
 import { MAX_FRET, liveLayoutFor, tuningFor, type LiveLayout } from "@/lib/fretboard";
@@ -43,6 +44,8 @@ export function InstrumentPanel() {
   const touch = useMediaQuery(TOUCH_QUERY);
   const t = useT();
   const keysPatch = useStudioStore((s) => s.settings.keysPatch);
+  const vocalSounds = useStudioStore((s) => s.settings.vocalSounds);
+  const vocalRole = vocalRoleOf(memberId);
   const updateSettings = useStudioStore((s) => s.updateSettings);
   // On the fretboard the octave only moves the computer-keyboard notes, so touch screens don't need it.
   const showOctave = layout === "piano" || (layout === "fretboard" && !touch);
@@ -75,6 +78,24 @@ export function InstrumentPanel() {
               <Plus size={16} />
             </IconButton>
           </div>
+        )}
+        {vocalRole && (
+          <label className="patch" title={t.vocalSoundHint(t.memberName[memberId], t.vocalRole[vocalRole])}>
+            <span className="patch__label">{t.vocalSoundLabel[vocalRole]}</span>
+            <select
+              value={vocalSounds[vocalRole]}
+              onChange={(e) => {
+                const v = e.currentTarget.value;
+                if (isVocalSound(v)) updateSettings({ vocalSounds: { ...vocalSounds, [vocalRole]: v } });
+              }}
+            >
+              {VOCAL_SOUNDS.map((s) => (
+                <option key={s} value={s}>
+                  {t.vocalSounds[s]}
+                </option>
+              ))}
+            </select>
+          </label>
         )}
         {instrument === "keys" && (
           <label className="patch" title={t.keysPatchHint}>

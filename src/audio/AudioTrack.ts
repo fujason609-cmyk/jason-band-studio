@@ -3,14 +3,15 @@ import { getMember } from "@/features/band/members";
 import type { MemberId } from "@/features/band/types";
 import { FEEL_PROFILES, capStrums, humanize, profileFor, strumOffsets, type FeelProfile, type FeelSetting } from "@/lib/feel";
 import { gainToDb } from "@/lib/mix";
-import { breathTimes, fitToVoice, type VocalRole } from "@/features/band/vocals";
+import { breathTimes, fitToVoice, type VocalRole, type VocalSound } from "@/features/band/vocals";
 import { arrange, arrangeVocal, type BandContext, type PlayStyle, type StyledNote } from "@/lib/playStyle";
 import { secondsToTicks } from "@/lib/time";
 import type { InstrumentId } from "@/types/audio";
 import type { NoteEvent } from "@/types/midi";
 import { PPQ, ROOM_BUS, ROOM_SEND_DB } from "./audioConfig";
 import type { SampleManager } from "./SampleManager";
-import { createVocalVoice, type SingingVoice, type Voice } from "./voices";
+import { createSinger } from "./vocalSounds";
+import type { SingingVoice, Voice } from "./voices";
 
 interface ScheduledNote {
   time: string;
@@ -72,7 +73,10 @@ export class AudioTrack {
   private vocalPart: Tone.Part<ScheduledNote> | null = null;
   private vocalRef: readonly NoteEvent[] = [];
   private vocalRole: VocalRole | null = null;
-  private vocalLoading = false;
+  /** what plays the vocal part: the singer or an instrument (settings.vocalSounds) */
+  private vocalSound: VocalSound = "voice";
+  /** counts vocal-voice builds, so only the latest one is kept */
+  private vocalRequest = 0;
   private singing = true;
   private disposed = false;
   /** counts setInstrument calls, so a slower, older one doesn't build voices too */
@@ -149,19 +153,41 @@ export class AudioTrack {
    */
   setVocal(notes: readonly NoteEvent[], role: VocalRole | null) {
     if (notes === this.vocalRef) return;
+    const wasEmpty = this.vocalRef.length === 0;
     this.vocalRef = notes;
     this.vocalRole = role;
-    if (notes.length > 0 && role && !this.vocalVoice && !this.vocalLoading) {
-      // the singer's notes are rendered the first time; until then the part stays silent
-      this.vocalLoading = true;
-      void createVocalVoice(role).then((voice) => {
-        this.vocalLoading = false;
-        if (this.disposed || this.vocalRef.length === 0) return voice.dispose();
-        this.vocalVoice = voice;
-        voice.output.connect(this.vocalChannel);
-      });
-    }
+    if (notes.length > 0 && wasEmpty) this.buildVocalVoice();
     this.scheduleVocal();
+  }
+
+  /** Sing the vocal part, or play it on an instrument. Rebuilds the voice when it changes. */
+  setVocalSound(sound: VocalSound) {
+    if (sound === this.vocalSound) return;
+    this.vocalSound = sound;
+    this.buildVocalVoice();
+  }
+
+  /** Rebuild the vocal voice if it is the guitar, whose amp follows the playing style. */
+  refreshVocalGuitar() {
+    if (this.vocalSound === "guitar") this.buildVocalVoice();
+  }
+
+  /**
+   * Build the voice for the vocal part in the current sound (the singer's notes are
+   * rendered, or the instrument loaded, the first time; until then the part is silent).
+   * Only the latest request is kept.
+   */
+  private buildVocalVoice() {
+    this.vocalVoice?.dispose();
+    this.vocalVoice = null;
+    const role = this.vocalRole;
+    if (!role || this.vocalRef.length === 0) return;
+    const request = ++this.vocalRequest;
+    void createSinger(role, this.vocalSound, this.samples).then((voice) => {
+      if (request !== this.vocalRequest || this.disposed || this.vocalRef.length === 0) return voice.dispose();
+      this.vocalVoice = voice;
+      voice.output.connect(this.vocalChannel);
+    });
   }
 
   /** The vocal switch: off stops the singing (now) but keeps the part. */

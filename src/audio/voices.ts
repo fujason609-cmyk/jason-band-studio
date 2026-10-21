@@ -462,8 +462,9 @@ function renderSinger(role: VocalRole): Promise<SungSet> {
  * room. Cheap however many notes sound, so it stays well inside the CPU budget. It
  * doesn't imitate anyone's real voice.
  */
+/** What plays a vocal part: the singer, or an instrument taking the tune (vocalSounds.ts). */
 export interface SingingVoice extends Voice {
-  /** the in-breath before a phrase */
+  /** the in-breath before a phrase (instruments ignore it) */
   breathe(time: number, velocity: number): void;
 }
 

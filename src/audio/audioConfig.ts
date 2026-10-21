@@ -1,4 +1,4 @@
-import type { VocalRole } from "@/features/band/vocals";
+import type { VocalRole, VocalSound } from "@/features/band/vocals";
 import type { InstrumentId } from "@/types/audio";
 import type { KeysPatch } from "./keysPatches";
 import { SAMPLE_FILES } from "./samplePacks.generated";
@@ -66,6 +66,16 @@ export function samplePackUrl(instrument: InstrumentId, file: string): string {
 export const VOCAL_TRIM_DB: Record<VocalRole, number> = {
   lead: -13,
   harmony: -15.5,
+};
+
+/**
+ * Level change for an instrument playing a vocal part, on top of the instrument's own trim,
+ * so the tune sits where the lead vocal does (about -24 dBFS RMS; harmony about 3 dB under).
+ * Measured like the other trims; "voice" is the singer, already trimmed by VOCAL_TRIM_DB.
+ */
+export const VOCAL_SOUND_GAIN_DB: Record<VocalRole, Record<VocalSound, number>> = {
+  lead: { voice: 0, guitar: 2, synth: 9.5, piano: 9, strings: 9.5 },
+  harmony: { voice: 0, guitar: 0.5, synth: 8, piano: 2.5, strings: 7 },
 };
 
 /** Level trims for Mugi's synthesized Triton patches, measured like SYNTH_TRIM_DB. */

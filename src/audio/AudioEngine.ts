@@ -1,6 +1,6 @@
 import * as Tone from "tone";
 import type { MemberId } from "@/features/band/types";
-import { DEFAULT_VOCALS, vocalRoleOf, type VocalSwitches } from "@/features/band/vocals";
+import { DEFAULT_VOCALS, DEFAULT_VOCAL_SOUNDS, vocalRoleOf, type VocalSounds, type VocalSwitches } from "@/features/band/vocals";
 import type { FeelSetting } from "@/lib/feel";
 import { playedBars, type BandContext, type PlayStyle } from "@/lib/playStyle";
 import type { KeysPatch } from "./keysPatches";
@@ -49,6 +49,7 @@ export class AudioEngine {
   private metronomeOn = false;
   private metronome: Metronome | null = null;
   private vocals: VocalSwitches = DEFAULT_VOCALS;
+  private vocalSounds: VocalSounds = DEFAULT_VOCAL_SOUNDS;
   private band: { sources: readonly (readonly NoteEvent[])[]; key: string; value: BandContext } | null = null;
   private capture: MediaStreamAudioDestinationNode | null = null;
 
@@ -129,7 +130,10 @@ export class AudioEngine {
       audio.setBand(band);
       const role = vocalRoleOf(track.memberId);
       audio.setVocal(track.vocal ?? NO_VOCAL, role);
-      if (role) audio.setSinging(this.vocals[role]);
+      if (role) {
+        audio.setSinging(this.vocals[role]);
+        audio.setVocalSound(this.vocalSounds[role]);
+      }
       audio.setVolume(track.volume);
       audio.setAudible(audible[track.id] ?? true);
     }
@@ -220,6 +224,7 @@ export class AudioEngine {
     this.tracks.forEach((t) => t.setStyle(style));
     this.retryInstrument("lead-guitar");
     this.retryInstrument("rhythm-guitar");
+    this.tracks.forEach((t) => t.refreshVocalGuitar()); // a vocal played on the guitar, too
   }
 
   /** Yui's lead vocal and Mio's harmony switched on or off. Works before start(). */
@@ -228,6 +233,15 @@ export class AudioEngine {
     this.tracks.forEach((track, member) => {
       const role = vocalRoleOf(member);
       if (role) track.setSinging(vocals[role]);
+    });
+  }
+
+  /** What plays Yui's and Mio's vocal parts: the singer, or an instrument taking the tune. */
+  setVocalSounds(sounds: VocalSounds) {
+    this.vocalSounds = sounds;
+    this.tracks.forEach((track, member) => {
+      const role = vocalRoleOf(member);
+      if (role) track.setVocalSound(sounds[role]);
     });
   }
 

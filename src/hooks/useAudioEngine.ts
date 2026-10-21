@@ -36,9 +36,10 @@ export function useAudioEngineBridge() {
     });
 
     // before the first sync, so the voices and parts are built with the right sound straight away
-    const { keysPatch, playStyle, autoDrums, vocals } = useStudioStore.getState().settings;
+    const { keysPatch, playStyle, autoDrums, vocals, vocalSounds } = useStudioStore.getState().settings;
     audioEngine.setKeysPatch(keysPatch);
     audioEngine.setVocals(vocals);
+    audioEngine.setVocalSounds(vocalSounds);
     audioEngine.setStyle(playStyle);
     audioEngine.setAutoDrums(autoDrums);
     // the engine plays the song as played: with the solo round after it when that's on
@@ -55,6 +56,7 @@ export function useAudioEngineBridge() {
       if (s.settings.countIn !== prev.settings.countIn) audioEngine.setCountIn(s.settings.countIn);
       if (s.settings.metronome !== prev.settings.metronome) audioEngine.setMetronome(s.settings.metronome);
       if (s.settings.vocals !== prev.settings.vocals) audioEngine.setVocals(s.settings.vocals);
+      if (s.settings.vocalSounds !== prev.settings.vocalSounds) audioEngine.setVocalSounds(s.settings.vocalSounds);
       if (s.settings.soloRound !== prev.settings.soloRound) audioEngine.sync(getPlayedSong().project);
     });
     return () => {

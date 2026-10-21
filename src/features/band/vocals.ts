@@ -52,6 +52,21 @@ export function breathTimes(notes: readonly { start: number; duration: number }[
   return times;
 }
 
+/**
+ * What plays a vocal part: the synthesized voice, or an instrument taking the tune, the way
+ * a band does an instrumental cover. Yui's guitar is her own Les Paul (and follows the
+ * playing style's amp); piano, synth lead and strings are Mugi's Triton sounds.
+ */
+export type VocalSound = "voice" | "guitar" | "synth" | "piano" | "strings";
+export const VOCAL_SOUNDS: VocalSound[] = ["voice", "guitar", "synth", "piano", "strings"];
+
+export function isVocalSound(value: unknown): value is VocalSound {
+  return typeof value === "string" && (VOCAL_SOUNDS as string[]).includes(value);
+}
+
+export type VocalSounds = Record<VocalRole, VocalSound>;
+export const DEFAULT_VOCAL_SOUNDS: VocalSounds = { lead: "voice", harmony: "voice" };
+
 export type VocalSwitches = Record<VocalRole, boolean>;
 
 export const DEFAULT_VOCALS: VocalSwitches = { lead: true, harmony: true };
