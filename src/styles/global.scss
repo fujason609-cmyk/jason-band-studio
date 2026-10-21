@@ -56,6 +56,8 @@ button:disabled {
   *::before,
   *::after {
     animation-duration: 0.01ms !important;
+    // or an endless animation (spinner, recording pulse) would cycle every frame and flicker
+    animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
   }
 }

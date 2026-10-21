@@ -553,5 +553,7 @@ export function soloRound(tracks: readonly SoloTrack[], baseBpm: number, beatsPe
   const endBeat = spots.length * SOLO_BARS * beatsPerBar;
   for (const [member, instrument] of instrumentOf) put(member, endBeat, finalHit(instrument, key));
   for (const list of Object.values(notes)) list.sort((a, b) => a.start - b.start || a.pitch - b.pitch);
-  return { notes, spots, end: start + (endBeat + beatsPerBar) * beat };
+  // the final chord rings 3 beats: as many whole bars as that takes (one, unless bars are short)
+  const tailBeats = Math.ceil(3 / beatsPerBar) * beatsPerBar;
+  return { notes, spots, end: start + (endBeat + tailBeats) * beat };
 }

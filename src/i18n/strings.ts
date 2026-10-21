@@ -1,5 +1,5 @@
 import type { MemberId } from "@/features/band/types";
-import type { VocalRole } from "@/features/band/vocals";
+import type { VocalRole, VocalSound } from "@/features/band/vocals";
 import type { InstrumentId } from "@/types/audio";
 
 export type Language = "en" | "zh";
@@ -127,7 +127,7 @@ const en = {
   recordFps: "Video frame rate",
   recordFpsOptions: { 30: "30 fps", 60: "60 fps" } as Record<number, string>,
   recordFpsHint: "60 fps scrolls smoother but makes files about twice as big, and older phones may stutter. 30 fps is plenty for Instagram.",
-  recordHint: "Record your screen, crop to the frame, then key out the colour to put other footage there. Everything below the frame is outside the shot.",
+  recordHint: "Press Play to record this frame with the band's sound, then key out the coloured strip to put other footage there. Everything below the frame is outside the shot.",
   exitRecord: "Leave the recording frame",
   recordVideoOn: "Video recording on: Play records this frame and the band's sound. Switch off",
   recordVideoOff: "Video recording off. Switch on to record a video when you press Play",
@@ -136,6 +136,10 @@ const en = {
   savePrompt: "Save the video to your phone?",
   saveDetails: (seconds: number, frame: string, ext: string, fps: number) => `${seconds} s · ${frame} · ${fps} fps · ${ext.toUpperCase()}`,
   webmNote: "This browser records WebM. Instagram may need it converted to MP4 first.",
+  recordingFailed: "The video recording couldn't start in this browser. Use your phone's screen recording and crop to the frame instead.",
+  recordingHidden: "Playback paused because the page was hidden: a video only records while it's on screen. Your take so far is ready to save.",
+  recordingTooLong: (minutes: number) => `Takes stop after ${minutes} minutes, so a forgotten one can't fill the memory. Your take is ready to save.`,
+  untitled: "Untitled session",
   saveVideo: "Save",
   discardVideo: "Don't save",
 
@@ -188,10 +192,10 @@ const en = {
   } as Record<MemberId, string>,
   vocalRole: { lead: "lead vocal", harmony: "harmony vocal" } as Record<VocalRole, string>,
   vocalSoundLabel: { lead: "Lead vocal on", harmony: "Harmony on" } as Record<VocalRole, string>,
-  vocalSounds: { voice: "Sung voice", guitar: "Yui's guitar", synth: "Synth lead", piano: "Piano", strings: "Strings" } as Record<string, string>,
+  vocalSounds: { voice: "Sung voice", guitar: "Yui's guitar", synth: "Synth lead", piano: "Piano", strings: "Strings" } as Record<VocalSound, string>,
   vocalSoundHint: (name: string, role: string) =>
     `What plays ${name}'s ${role}: the sung voice, or an instrument taking the tune like a band's instrumental cover. The 🎤 button on the mixer switches it on or off`,
-  vocalOn: (name: string, role: string) => `${name}'s ${role} is on (a sung "ah" voice, no words). Switch off`,
+  vocalOn: (name: string, role: string, sound: string) => `${name}'s ${role} is on (${sound}). Switch off`,
   vocalOff: (name: string, role: string) => `${name}'s ${role} is off. Switch on`,
   noVocal: (name: string, role: string) =>
     `This song has no ${role} for ${name}. When importing, give a vocal track to "${name} (${role})"`,
@@ -324,7 +328,7 @@ const zh: Strings = {
   recordFps: "视频帧率",
   recordFpsOptions: { 30: "30 fps", 60: "60 fps" },
   recordFpsHint: "60 fps 滚动更流畅，但文件大约大一倍，比较旧的手机可能会卡。发 Instagram 用 30 fps 就够了。",
-  recordHint: "录屏后裁成画框的大小，再对绿幕抠像贴上其他画面。画框下面的按钮都在画面外。",
+  recordHint: "按播放就会录下画框画面和乐队的声音，之后把纯色区域抠掉，就能贴上其他画面。画框下面的按钮都在画面外。",
   exitRecord: "退出录制画框",
   recordVideoOn: "视频录制：开（按播放就录下画框画面和乐队声音）。点击关闭",
   recordVideoOff: "视频录制：关。点击开启后，按播放就会录制视频",
@@ -333,6 +337,10 @@ const zh: Strings = {
   savePrompt: "要把视频保存到手机吗？",
   saveDetails: (seconds, frame, ext, fps) => `${seconds} 秒 · ${frame} · ${fps} fps · ${ext.toUpperCase()}`,
   webmNote: "这个浏览器录出来的是 WebM 格式，上传 IG 前可能需要先转成 MP4。",
+  recordingFailed: "这个浏览器没办法开始录制视频。请改用手机自带的录屏，再裁成画框大小。",
+  recordingHidden: "页面被切到后台，所以暂停了播放：视频只能在画面显示时录制。已经录到的部分可以保存。",
+  recordingTooLong: (minutes) => `每段录制最长 ${minutes} 分钟，避免忘记停止时把内存占满。这段已经可以保存。`,
+  untitled: "未命名",
   saveVideo: "保存",
   discardVideo: "不要",
 
@@ -379,7 +387,7 @@ const zh: Strings = {
   vocalSoundLabel: { lead: "主唱用", harmony: "和声用" },
   vocalSounds: { voice: "合成人声", guitar: "唯的吉他", synth: "合成主音", piano: "钢琴", strings: "弦乐" },
   vocalSoundHint: (name, role) => `${name}的${role}用什么来演奏：合成人声，或者像乐队的纯音乐翻唱那样，换成乐器来演奏旋律。调音台上的 🎤 按钮可以打开或关闭`,
-  vocalOn: (name, role) => `${name}的${role}：开（合成的「啊～」人声，没有歌词）。点击关闭`,
+  vocalOn: (name, role, sound) => `${name}的${role}：开（${sound}）。点击关闭`,
   vocalOff: (name, role) => `${name}的${role}：关。点击打开`,
   noVocal: (name, role) => `这首歌没有给${name}的${role}声部。导入时把人声音轨分给「${name}（${role}）」`,
   instrument: {

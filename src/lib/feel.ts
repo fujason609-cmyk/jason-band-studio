@@ -25,7 +25,7 @@ export interface FeelProfile {
   velocitySpread: number;
   /** velocity scale for the whole part */
   velocityScale: number;
-  /** extra velocity on beat 1 and 3 */
+  /** extra velocity on beat 1 and 3 (beat 1 only in odd meters) */
   downbeatAccent: number;
   /** gap between strings when a chord is strummed, in seconds */
   strumSeconds: number;
@@ -58,9 +58,11 @@ export interface FeelInput {
  * Timing offset (seconds) and velocity for one note. `random` returns 0..1 and is a
  * parameter so tests can pin it; playback passes Math.random.
  */
-export function humanize(profile: FeelProfile, note: FeelInput, ppq: number, random: () => number) {
+export function humanize(profile: FeelProfile, note: FeelInput, ppq: number, random: () => number, beatsPerBar = 4) {
   const spread = (amount: number) => (random() * 2 - 1) * amount;
-  const strongBeat = note.ticks % (ppq * 2) === 0; // beats 1 and 3 in 4/4
+  // beats 1 and 3 in even bars (4/4, 2/4); only beat 1 in odd ones (3/4, 6/8, 5/4, 7/8)
+  const inBar = note.ticks % (ppq * beatsPerBar);
+  const strongBeat = inBar === 0 || (beatsPerBar % 2 === 0 && inBar % (ppq * 2) === 0);
   const offset = profile.pushSeconds + spread(profile.jitterSeconds) + note.strumIndex * profile.strumSeconds;
   const velocity =
     note.velocity * profile.velocityScale + spread(profile.velocitySpread) + (strongBeat ? profile.downbeatAccent : 0);

@@ -13,6 +13,13 @@ describe("member feel", () => {
     expect(onOne.velocity).toBeGreaterThan(offBeat.velocity);
   });
 
+  it("accents each bar's downbeat in 3/4, not every other beat", () => {
+    const ritsu = profileFor("ritsu", "character");
+    const v = [0, 1, 2, 3, 4, 5].map((b) => humanize(ritsu, note(b * PPQ), PPQ, mid, 3).velocity);
+    const accent = ritsu.downbeatAccent;
+    expect(v.map((x) => x > v[1]! + accent / 2)).toEqual([true, false, false, true, false, false]);
+  });
+
   it("keeps Mio steadier than Yui", () => {
     expect(FEEL_PROFILES.mio.jitterSeconds).toBeLessThan(FEEL_PROFILES.yui.jitterSeconds);
     expect(FEEL_PROFILES.mio.velocitySpread).toBeLessThan(FEEL_PROFILES.yui.velocitySpread);

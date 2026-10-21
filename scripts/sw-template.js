@@ -5,8 +5,8 @@
  *   app shell (index.html, scripts, styles, icons, demo song): cached on install, per build
  *   instrument samples: cached the first time they're fetched, kept until they change
  *   lazy chunks (score import) and other same-origin files: cached on first use, per build;
- *              an older build's copies are kept for a week, so a tab left open across a
- *              deploy can still load the chunk it was built with
+ *              an older build's copies are kept for a week after the deploy that replaced
+ *              it, so a tab left open across it can still load the chunk it was built with
  *   Google Fonts: served from cache, refreshed in the background (successful CORS only)
  * Pages always try the network first (skipping the HTTP cache), so a new deploy shows up
  * on the next visit; only HTML responses are kept as the offline page.
@@ -18,6 +18,10 @@ const SAMPLES = `kon-instruments-${BUILD.samplesVersion}`;
 const FONTS = "kon-fonts";
 /** How long an older build's lazy chunks stay cached after a deploy. */
 const KEEP_OLD_RUNTIME_MS = 7 * 24 * 3600 * 1000;
+/** In an older build's runtime cache: when a newer build replaced it. */
+const RETIRED = "/__retired__";
+/** A page that hasn't answered by then is served from the cache (a connection that's up but stalled). */
+const PAGE_TIMEOUT_MS = 4000;
 /** Font files (the stylesheet plus its unicode-range subsets) kept at most. */
 const MAX_FONT_FILES = 80;
 const scope = new URL(self.registration.scope);
@@ -39,8 +43,15 @@ self.addEventListener("activate", (event) => {
       const keep = new Set([SHELL, RUNTIME, SAMPLES, FONTS]);
       for (const key of await caches.keys()) {
         if (!key.startsWith("kon-") || keep.has(key)) continue;
-        const runtimeBuiltAt = Number(key.split("-")[2]);
-        if (key.startsWith("kon-runtime-") && BUILD.builtAt - runtimeBuiltAt < KEEP_OLD_RUNTIME_MS) continue;
+        if (key.startsWith("kon-runtime-")) {
+          // kept for a week from the deploy that retired it (not from its own build time:
+          // deploys weeks apart would otherwise drop it at once)
+          const cache = await caches.open(key);
+          const mark = await cache.match(at(RETIRED));
+          const retiredAt = mark ? Number(await mark.text()) : Date.now();
+          if (!mark) await cache.put(at(RETIRED), new Response(String(retiredAt)));
+          if (Date.now() - retiredAt < KEEP_OLD_RUNTIME_MS) continue;
+        }
         await caches.delete(key);
       }
       await self.clients.claim();
@@ -52,10 +63,12 @@ self.addEventListener("activate", (event) => {
 // would make them miss the copies cached on install, so lookups ignore Vary.
 const MATCH = { ignoreVary: true };
 
-async function cacheFirst(request, cacheName) {
+async function cacheFirst(request, cacheName, revalidate = false) {
   const hit = await caches.match(request, MATCH);
   if (hit) return hit;
-  const response = await fetch(request);
+  // samples keep their names when re-rendered: ask the server, not the HTTP cache, or the
+  // old file could be cached here for good
+  const response = await fetch(revalidate ? new Request(request, { cache: "no-cache" }) : request);
   if (response.ok) {
     const cache = await caches.open(cacheName);
     await cache.put(request, response.clone());
@@ -64,16 +77,23 @@ async function cacheFirst(request, cacheName) {
 }
 
 async function networkFirstPage(request) {
-  try {
-    const response = await fetch(request.url, { cache: "no-cache", credentials: "same-origin" });
+  const network = fetch(request.url, { cache: "no-cache", credentials: "same-origin" }).then(async (response) => {
     // a .mid or .md opened in a tab is a navigation too: only an HTML page may become the offline app
     if (response.ok && (response.headers.get("content-type") ?? "").includes("text/html")) {
       const cache = await caches.open(SHELL);
       await cache.put(at("index.html"), response.clone());
     }
     return response;
+  });
+  network.catch(() => undefined); // still awaited below; this only keeps a late failure quiet
+  const cached = () => caches.match(at("index.html"), MATCH);
+  const timeout = new Promise((resolve) => setTimeout(resolve, PAGE_TIMEOUT_MS)).then(cached);
+  try {
+    // whichever comes first: the page, or the cached app once the network has stalled
+    const first = await Promise.race([network, timeout]);
+    return first ?? (await network);
   } catch (err) {
-    const page = await caches.match(at("index.html"), MATCH);
+    const page = await cached();
     if (page) return page;
     throw err;
   }
@@ -104,7 +124,7 @@ self.addEventListener("fetch", (event) => {
   if (request.mode === "navigate" && url.origin === scope.origin) {
     event.respondWith(networkFirstPage(request));
   } else if (url.origin === scope.origin && url.pathname.startsWith(`${scope.pathname}instruments/`)) {
-    event.respondWith(cacheFirst(request, SAMPLES));
+    event.respondWith(cacheFirst(request, SAMPLES, true));
   } else if (url.origin === scope.origin && url.pathname.startsWith(scope.pathname)) {
     event.respondWith(cacheFirst(request, RUNTIME));
   } else if (url.hostname === "fonts.googleapis.com" || url.hostname === "fonts.gstatic.com") {

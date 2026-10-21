@@ -1,6 +1,7 @@
 import { MEMBERS, getMember } from "@/features/band/members";
 import type { MemberId } from "@/features/band/types";
 import { VOCALISTS, vocalRoleOf } from "@/features/band/vocals";
+import { foldBpm } from "@/lib/time";
 import type { InstrumentId } from "@/types/audio";
 import type { MappingSuggestion, ParsedMidi, ParsedMidiTrack, TrackAssignment } from "@/types/midi";
 import type { StudioTrack } from "@/types/project";
@@ -118,7 +119,11 @@ export function suggestMapping(parsed: ParsedMidi): MappingSuggestion {
     const free = VOCALISTS.find((m) => ![...vocalOf.values()].includes(m));
     if (free) vocalOf.set(t.index, free);
   }
-  const playable = parsed.tracks.filter((t) => !vocalOf.has(t.index));
+  // sung parts beyond the two singers are played by the band, but only after every
+  // instrument part has its player: read as keys, they would otherwise take Mugi from the
+  // real piano part
+  const extraSung = sung.filter((t) => !vocalOf.has(t.index));
+  const playable = parsed.tracks.filter((t) => !vocalOf.has(t.index) && !extraSung.includes(t));
 
   // named after a member: the strongest claim for each member wins, other claims are left out
   const named = playable
@@ -166,9 +171,9 @@ export function suggestMapping(parsed: ParsedMidi): MappingSuggestion {
     taken.add(choice);
     byIndex.set(track.index, choice);
   }
-  for (const track of melodic) {
+  for (const track of [...melodic, ...extraSung]) {
     if (byIndex.has(track.index)) continue;
-    const choice = MELODIC_MEMBERS.find((m) => !taken.has(m)) ?? null;
+    const choice = (extraSung.includes(track) ? prefsOf(track).find((m) => !taken.has(m)) : undefined) ?? MELODIC_MEMBERS.find((m) => !taken.has(m)) ?? null;
     if (choice) taken.add(choice);
     byIndex.set(track.index, choice);
   }
@@ -257,7 +262,8 @@ export function buildTracksFromMapping(
   const firstSig = parsed.meta.timeSignatures[0];
   return {
     tracks,
-    baseBpm: firstTempo && Number.isFinite(firstTempo) ? Math.round(firstTempo * 100) / 100 : 120,
+    // in range by doubling or halving, so the song still plays at its own speed
+    baseBpm: foldBpm(firstTempo ?? 120),
     beatsPerBar: quarterBeatsPerBar(firstSig?.numerator ?? 4, firstSig?.denominator ?? 4),
   };
 }

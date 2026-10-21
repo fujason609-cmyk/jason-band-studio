@@ -97,11 +97,12 @@ export function TrackControls({ memberId }: { memberId: MemberId }) {
 /** Yui's lead vocal / Mio's harmony on or off (a setting, so it holds across songs). */
 function VocalSwitch({ memberId, role, hasPart }: { memberId: MemberId; role: VocalRole; hasPart: boolean }) {
   const vocals = useStudioStore((s) => s.settings.vocals);
+  const vocalSound = useStudioStore((s) => s.settings.vocalSounds[role]);
   const updateSettings = useStudioStore((s) => s.updateSettings);
   const t = useT();
   const name = t.memberName[memberId];
   const on = vocals[role];
-  const label = !hasPart ? t.noVocal(name, t.vocalRole[role]) : on ? t.vocalOn(name, t.vocalRole[role]) : t.vocalOff(name, t.vocalRole[role]);
+  const label = !hasPart ? t.noVocal(name, t.vocalRole[role]) : on ? t.vocalOn(name, t.vocalRole[role], t.vocalSounds[vocalSound]) : t.vocalOff(name, t.vocalRole[role]);
   return (
     <button
       type="button"

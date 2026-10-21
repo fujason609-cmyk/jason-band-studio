@@ -4,7 +4,7 @@ import type { MemberId } from "@/features/band/types";
 import { FEEL_PROFILES, capStrums, humanize, profileFor, strumOffsets, type FeelProfile, type FeelSetting } from "@/lib/feel";
 import { gainToDb } from "@/lib/mix";
 import { breathTimes, fitToVoice, type VocalRole, type VocalSound } from "@/features/band/vocals";
-import { arrange, arrangeVocal, type BandContext, type PlayStyle, type StyledNote } from "@/lib/playStyle";
+import { NO_BAND, arrange, arrangeVocal, type BandContext, type PlayStyle, type StyledNote } from "@/lib/playStyle";
 import { secondsToTicks } from "@/lib/time";
 import type { InstrumentId } from "@/types/audio";
 import type { NoteEvent } from "@/types/midi";
@@ -65,7 +65,7 @@ export class AudioTrack {
   private notesRef: readonly NoteEvent[] | null = null;
   private baseBpm = 120;
   private beatsPerBar = 4;
-  private band: BandContext = { autoDrums: false, playedBars: [] };
+  private band: BandContext = NO_BAND;
   private audible = true;
   private instrument: InstrumentId;
   private feel: FeelProfile;
@@ -104,7 +104,7 @@ export class AudioTrack {
   }
 
   /** Rebuild voices once the instrument's source is loaded. */
-  async setInstrument(instrument: InstrumentId) {
+  async setInstrument(instrument: InstrumentId, retry = false) {
     const changed = instrument !== this.instrument;
     this.instrument = instrument;
     if (changed) this.schedule(); // the style arranges each instrument differently
@@ -116,7 +116,8 @@ export class AudioTrack {
     // keys-patch change, or Retry, while the pack is still loading) would otherwise both
     // build them, and the first pair would keep running, connected and never freed
     const request = ++this.voiceRequest;
-    await this.samples.load(instrument);
+    // Mugi's synthesized patches need no recordings: don't wait for (or download) the piano
+    if (instrument !== "keys" || this.samples.keysPatch === "piano") await this.samples.load(instrument, retry);
     if (request !== this.voiceRequest || this.disposed) return;
     this.voice = this.samples.createVoice(instrument);
     this.voice.output.connect(this.channel);
@@ -214,7 +215,7 @@ export class AudioTrack {
     }
     this.vocalPart = new Tone.Part<ScheduledNote>((time, ev) => {
       if (!this.audible || !this.singing || !this.vocalVoice) return;
-      const { offset, velocity } = humanize(this.feel, ev, PPQ, Math.random);
+      const { offset, velocity } = humanize(this.feel, ev, PPQ, Math.random, this.beatsPerBar);
       if (ev.breath) return this.vocalVoice.breathe(notBefore(time + offset), velocity);
       this.vocalVoice.attackRelease(ev.pitch, `${ev.durationTicks}i`, notBefore(time + offset), velocity);
     }, events);
@@ -223,12 +224,12 @@ export class AudioTrack {
 
   /**
    * What the rest of the band plays (for generated drums). Pass the same object again
-   * when nothing changed; only an empty drum part re-schedules.
+   * when nothing changed; only the drums re-schedule.
    */
   setBand(band: BandContext) {
     if (band === this.band) return;
     this.band = band;
-    if (this.instrument === "drums" && this.notesRef?.length === 0) this.schedule();
+    if (this.instrument === "drums") this.schedule();
   }
 
   private schedule() {
@@ -245,28 +246,30 @@ export class AudioTrack {
     this.part = new Tone.Part<ScheduledNote>((time, ev) => {
       if (!this.audible || !this.voice) return; // instrument not ready yet → stay silent
       // drums hit together; only strings get strummed
-      const strumIndex = this.instrument === "drums" ? 0 : ev.strumIndex;
-      const { offset, velocity } = humanize(this.feel, { ...ev, strumIndex }, PPQ, Math.random);
+      // the cap above is at the song's tempo: played faster, a strum shrinks with the beat
+      const faster = Math.min(1, this.baseBpm / Tone.getTransport().bpm.value);
+      const strumIndex = this.instrument === "drums" ? 0 : ev.strumIndex * faster;
+      const { offset, velocity } = humanize(this.feel, { ...ev, strumIndex }, PPQ, Math.random, this.beatsPerBar);
       // Duration in ticks so it stretches with the transport tempo.
       this.voice.attackRelease(ev.pitch, `${ev.durationTicks}i`, notBefore(time + offset), velocity);
     }, events);
     this.part.start(0);
   }
 
-  setVolume(volume: number) {
+  /**
+   * The fader, and the result of the mute / solo rules (`audible`); going silent also cuts
+   * ringing notes. Both in one place: Tone's `mute` is just the volume at -Infinity, so
+   * writing the fader on every sync would unmute a muted channel, and muting a fader at 0
+   * (already -Infinity) would remember 0 dB to unmute to.
+   */
+  setMix(volume: number, audible: boolean) {
     const db = gainToDb(volume);
-    this.channel.volume.value = db;
-    this.liveChannel.volume.value = db;
-    this.vocalChannel.volume.value = db;
-  }
-
-  /** Apply the result of the mute / solo rules. Going silent also cuts ringing notes. */
-  setAudible(audible: boolean) {
-    if (audible === this.audible) return;
+    const changed = audible !== this.audible;
     this.audible = audible;
-    this.channel.mute = !audible;
-    this.vocalChannel.mute = !audible;
-    if (!audible) this.releaseAll();
+    this.channel.volume.value = audible ? db : -Infinity;
+    this.vocalChannel.volume.value = audible ? db : -Infinity;
+    this.liveChannel.volume.value = db; // playing along ignores mute and solo
+    if (changed && !audible) this.releaseAll();
   }
 
   releaseAll() {

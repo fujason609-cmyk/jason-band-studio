@@ -1,5 +1,5 @@
 import type { StudioProject } from "@/types/project";
-import { STORE_MIDI, STORE_PROJECTS, idbDelete, idbGet, idbPut } from "./idb";
+import { STORE_MIDI, STORE_PROJECTS, idbDelete, idbGet, idbKeys, idbPut } from "./idb";
 import { validateProject } from "./projectValidation";
 
 const CURRENT = "current";
@@ -37,4 +37,14 @@ export async function saveMidiBlob(key: string, data: ArrayBuffer): Promise<void
 
 export async function loadMidiBlob(key: string): Promise<Blob | undefined> {
   return idbGet<Blob>(STORE_MIDI, key);
+}
+
+/**
+ * Delete every stored MIDI file except `keep` (the current song's): each import stores
+ * a new one of up to 5 MB, and without this they would pile up until the storage quota
+ * made saving the project fail.
+ */
+export async function pruneMidiBlobs(keep: string | undefined): Promise<void> {
+  const keys = await idbKeys(STORE_MIDI);
+  await Promise.all(keys.filter((k) => k !== keep).map((k) => idbDelete(STORE_MIDI, k)));
 }

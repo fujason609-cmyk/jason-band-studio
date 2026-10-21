@@ -1,4 +1,5 @@
 import { SAMPLE_PACKS, samplePackUrl } from "@/audio/audioConfig";
+import { TOUCH_QUERY } from "@/hooks/useMediaQuery";
 import type { InstrumentId } from "@/types/audio";
 
 /** How many sample files download at once while warming the cache. */
@@ -19,12 +20,14 @@ export interface ConnectionInfo {
 }
 
 /**
- * Whether to download every sample (about 4.6 MB) before it's needed. Only when the browser
- * says the connection is not metered or slow: Safari reports no connection at all, so an
- * iPhone on mobile data fetches the samples on its first Play instead (cached then too).
+ * Whether to download every sample (about 4.6 MB) before it's needed, so the whole band
+ * works offline. When the browser says the connection is not metered or slow; when it says
+ * nothing (Safari, Firefox), only on a computer (`touch` false): a phone may be on mobile
+ * data, so it fetches each instrument on its first Play instead (cached then too).
  */
-export function shouldWarmSamples(connection: ConnectionInfo | undefined): boolean {
-  if (!connection || connection.saveData) return false;
+export function shouldWarmSamples(connection: ConnectionInfo | undefined, touch: boolean): boolean {
+  if (!connection) return !touch;
+  if (connection.saveData) return false;
   if (connection.type === "cellular") return false;
   return !connection.effectiveType || connection.effectiveType === "4g";
 }
@@ -48,7 +51,7 @@ export function registerServiceWorker() {
       .then(() => controlled())
       .then(() => {
         const connection = (navigator as Navigator & { connection?: ConnectionInfo }).connection;
-        if (!shouldWarmSamples(connection)) return;
+        if (!shouldWarmSamples(connection, matchMedia(TOUCH_QUERY).matches)) return;
         const idle = window.requestIdleCallback ?? ((cb: () => void) => setTimeout(cb, 2000));
         idle(() => void warm(sampleUrls()));
       })

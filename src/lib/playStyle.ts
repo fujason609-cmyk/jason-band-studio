@@ -8,8 +8,8 @@ import type { InstrumentId } from "@/types/audio";
  *
  *   rock    power chords chugged in eighths on rhythm guitar, eighth-note bass,
  *           harder drums with a crash at the top of every 4-bar phrase, more amp drive
- *   punk    rock pushed further: anything longer than an eighth is down-picked in
- *           eighths, a crash every 2 bars, the most drive
+ *   punk    rock pushed further: harder, a kick on every beat of a generated groove,
+ *           a crash every 2 bars, the most drive
  *   ballad  softer and legato; guitars pick held chords as arpeggios, clean amps, quiet drums
  *   swing   off-beat eighths fall late, on the last triplet; clean, dark jazz guitar
  *
@@ -43,25 +43,39 @@ function louder(notes: readonly StyledNote[], scale: number): StyledNote[] {
   return notes.map((n) => ({ ...n, velocity: clampVelocity(n.velocity * scale) }));
 }
 
-function byStart(notes: readonly StyledNote[]): StyledNote[][] {
-  const groups = new Map<number, StyledNote[]>();
-  for (const n of notes) {
-    const group = groups.get(n.ticks);
-    if (group) group.push(n);
-    else groups.set(n.ticks, [n]);
+/**
+ * Chords: notes starting together, in time order. Notes up to `CHORD_SPREAD` of a beat
+ * after a group's first note still belong to it (humanized MIDI and Guitar Pro brush
+ * strokes spread a chord over a few ticks).
+ */
+const CHORD_SPREAD = 1 / 16;
+
+function byStart(notes: readonly StyledNote[], ppq: number): StyledNote[][] {
+  const sorted = [...notes].sort((a, b) => a.ticks - b.ticks);
+  const groups: StyledNote[][] = [];
+  for (const n of sorted) {
+    const group = groups[groups.length - 1];
+    if (group && n.ticks - group[0]!.ticks <= ppq * CHORD_SPREAD) group.push(n);
+    else groups.push([n]);
   }
-  return [...groups.values()];
+  return groups;
 }
 
-/** Every chord (or single note) becomes root + fifth + octave, root on the low strings. */
-export function powerChords(notes: readonly StyledNote[]): StyledNote[] {
-  return byStart(notes).flatMap((group) => {
+/**
+ * Every chord (or single note) becomes root + fifth + octave, root on the low strings.
+ * A power chord stops where the next one starts, as a guitarist's would, so a held chord
+ * under moving notes never doubles them.
+ */
+export function powerChords(notes: readonly StyledNote[], ppq: number): StyledNote[] {
+  const groups = byStart(notes, ppq);
+  return groups.flatMap((group, g) => {
     let root = Math.min(...group.map((n) => n.pitch));
     while (root >= LOW_E + 12) root -= 12;
     while (root < LOW_E) root += 12;
-    const durationTicks = Math.max(...group.map((n) => n.durationTicks));
-    const velocity = Math.max(...group.map((n) => n.velocity));
     const { ticks } = group[0]!;
+    const next = groups[g + 1]?.[0]!.ticks ?? Infinity;
+    const durationTicks = Math.max(1, Math.min(next - ticks, Math.max(...group.map((n) => n.durationTicks))));
+    const velocity = Math.max(...group.map((n) => n.velocity));
     return [0, 7, 12].map((step) => ({ ticks, durationTicks, pitch: root + step, velocity }));
   });
 }
@@ -74,7 +88,9 @@ export function chug(notes: readonly StyledNote[], ppq: number, fromTicks: numbe
   const eighth = ppq / 2;
   return notes.flatMap((n) => {
     if (n.durationTicks < fromTicks) return [n];
-    const count = Math.max(1, Math.round(n.durationTicks / eighth));
+    // whole eighths only (a dotted eighth is one hit, not two); a little slack for notes
+    // converted from seconds that come out a tick short
+    const count = Math.max(1, Math.floor(n.durationTicks / eighth + 0.125));
     return Array.from({ length: count }, (_, i) => {
       const ticks = n.ticks + i * eighth;
       const onBeat = ticks % ppq === 0;
@@ -88,10 +104,11 @@ export function chug(notes: readonly StyledNote[], ppq: number, fromTicks: numbe
   });
 }
 
-/** Snare on beats 2 and 4 hit harder. */
-function backbeat(notes: readonly StyledNote[], ppq: number): StyledNote[] {
+/** Snare on the bar's even beats (2 and 4 in 4/4, 2 in 3/4) hit harder. */
+function backbeat(notes: readonly StyledNote[], ppq: number, beatsPerBar: number): StyledNote[] {
+  const bar = ppq * beatsPerBar;
   return notes.map((n) =>
-    SNARES.has(n.pitch) && n.ticks % (ppq * 2) === ppq ? { ...n, velocity: clampVelocity(n.velocity + 0.12) } : n,
+    SNARES.has(n.pitch) && (n.ticks % bar) % (ppq * 2) === ppq ? { ...n, velocity: clampVelocity(n.velocity + 0.12) } : n,
   );
 }
 
@@ -105,7 +122,9 @@ export function phraseCrashes(notes: readonly StyledNote[], ppq: number, beatsPe
     if (Math.abs(n.ticks - start) <= window) starts.add(start);
   }
   for (const n of notes) {
-    if (CRASHES.has(n.pitch)) starts.delete(Math.round(n.ticks / phrase) * phrase);
+    // a crash already written there (one elsewhere in the phrase doesn't count)
+    const start = Math.round(n.ticks / phrase) * phrase;
+    if (CRASHES.has(n.pitch) && Math.abs(n.ticks - start) <= window) starts.delete(start);
   }
   const added = [...starts].map((ticks) => ({ ticks, durationTicks: ppq, pitch: CRASH, velocity: 0.8 }));
   return [...notes, ...added];
@@ -135,15 +154,17 @@ export function legato(notes: readonly StyledNote[], ppq: number): StyledNote[] 
  */
 export function arpeggiate(notes: readonly StyledNote[], ppq: number): StyledNote[] {
   const eighth = ppq / 2;
-  return byStart(notes).flatMap((group) => {
+  return byStart(notes, ppq).flatMap((group) => {
     const shortest = Math.min(...group.map((n) => n.durationTicks));
     if (group.length < 3 || shortest < ppq) return group;
-    const lastStep = Math.max(0, Math.floor((shortest - 1) / eighth) - 1);
+    // the last string starts at least an eighth before the chord ends (a beat: one step)
+    const lastStep = Math.max(1, Math.floor((shortest - 1) / eighth) - 1);
+    const start = group[0]!.ticks;
     return [...group]
       .sort((a, b) => a.pitch - b.pitch)
       .map((n, i) => {
-        const offset = Math.min(i, lastStep) * eighth;
-        return { ...n, ticks: n.ticks + offset, durationTicks: n.durationTicks - offset };
+        const ticks = start + Math.min(i, lastStep) * eighth;
+        return { ...n, ticks, durationTicks: Math.max(1, n.ticks + n.durationTicks - ticks) };
       });
   });
 }
@@ -171,7 +192,14 @@ export interface BandContext {
   autoDrums: boolean;
   /** bars (0-based) where any other part has a note, sorted */
   playedBars: readonly number[];
+  /**
+   * where the written song ends, when a solo round follows it: only drum notes before it
+   * count as the song's drum part (Ritsu's solo after it doesn't). Infinity when absent.
+   */
+  songEndTicks?: number;
 }
+
+export const NO_BAND: BandContext = { autoDrums: false, playedBars: [] };
 
 const KICK = 36;
 const SNARE = 38;
@@ -240,18 +268,24 @@ function rock(
   punk: boolean,
   band: BandContext,
 ) {
-  // punk down-picks anything longer than an eighth; rock only notes a beat or longer
-  const chugFrom = punk ? ppq * 0.75 : ppq;
+  // notes a beat or longer are re-picked in whole eighths (a dotted eighth stays one hit:
+  // a second one would land off the grid, between it and the next note)
+  const chugFrom = ppq;
   switch (instrument) {
     case "rhythm-guitar":
-      return chug(powerChords(louder(notes, 1.05)), ppq, chugFrom);
+      return chug(powerChords(louder(notes, 1.05), ppq), ppq, chugFrom);
     case "bass":
       return chug(louder(notes, 1.05), ppq, chugFrom);
     case "lead-guitar":
       return louder(notes, punk ? 1.15 : 1.1);
-    case "drums":
-      if (notes.length === 0 && band.autoDrums) return drumGroove(band.playedBars, ppq, beatsPerBar, punk);
-      return phraseCrashes(backbeat(louder(notes, punk ? 1.2 : 1.12), ppq), ppq, beatsPerBar, punk ? 2 : 4);
+    case "drums": {
+      const harder = (part: readonly StyledNote[]) =>
+        phraseCrashes(backbeat(louder(part, punk ? 1.2 : 1.12), ppq, beatsPerBar), ppq, beatsPerBar, punk ? 2 : 4);
+      const songEnd = band.songEndTicks ?? Infinity;
+      if (!band.autoDrums || notes.some((n) => n.ticks < songEnd)) return harder(notes);
+      // the song has no drums: a groove for it, and the solo round's drums as written
+      return [...drumGroove(band.playedBars, ppq, beatsPerBar, punk), ...(notes.length > 0 ? harder(notes) : [])];
+    }
     case "keys":
       return louder(notes, punk ? 1.1 : 1.05);
   }
@@ -295,7 +329,7 @@ export function arrange(
   notes: readonly StyledNote[],
   ppq: number,
   beatsPerBar: number,
-  band: BandContext = { autoDrums: false, playedBars: [] },
+  band: BandContext = NO_BAND,
 ): readonly StyledNote[] {
   switch (style) {
     case "original":

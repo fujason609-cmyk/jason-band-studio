@@ -30,7 +30,8 @@ export function fitToVoice<T extends { pitch: number }>(notes: readonly T[], rol
   const sorted = notes.map((n) => n.pitch).sort((a, b) => a - b);
   const middle = sorted[Math.floor(sorted.length / 2)]!;
   const octaves = Math.round((VOICE_CENTRE[role] - middle) / 12);
-  return octaves === 0 ? notes : notes.map((n) => ({ ...n, pitch: n.pitch + octaves * 12 }));
+  // a very wide part can't move entirely in range: its outliers stay at the MIDI limits
+  return octaves === 0 ? notes : notes.map((n) => ({ ...n, pitch: Math.max(0, Math.min(127, n.pitch + octaves * 12)) }));
 }
 
 /** A rest at least this long (seconds) before a note starts a new phrase: time to breathe. */

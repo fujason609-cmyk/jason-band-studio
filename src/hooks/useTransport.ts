@@ -89,8 +89,12 @@ export function usePlaybackPosition(onFrame: (songSeconds: number) => void) {
       }
       raf = requestAnimationFrame(tick);
     };
-    ref.current(audioEngine.getPosition());
     raf = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(raf);
   }, []);
+  // and after every render: while paused the position doesn't move, but what it reads as
+  // can (a new tempo, the language), and only the frame loop would otherwise redraw it
+  useEffect(() => {
+    ref.current(audioEngine.getPosition());
+  });
 }

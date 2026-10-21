@@ -116,14 +116,19 @@ export function useKeyboardInput(member: MemberId, instrument: InstrumentId) {
   }, [instrument, releaseAll]);
 
   useEffect(() => {
+    // a held key is tracked by the physical key, not the character: Shift turns ";" into ":"
+    // between keydown and keyup, and the note would never stop
+    const sourceOf = (e: KeyboardEvent) => `key:${e.code || e.key.toLowerCase()}`;
     const onDown = (e: KeyboardEvent) => {
+      // on a Mac, keys let go while Cmd is held send no keyup: stop everything now
+      if (e.key === "Meta") return releaseAll();
       if (e.metaKey || e.ctrlKey || e.altKey || isTypingTarget(e.target)) return;
       const key = e.key.toLowerCase();
       if (layout === "chords") {
         const chord = CHORDS.find((c) => c.key === key);
         if (!chord) return;
         e.preventDefault();
-        if (!e.repeat) strum(`key:${key}`, chord);
+        if (!e.repeat) strum(sourceOf(e), chord);
         return;
       }
       let pitch: number | null = null;
@@ -140,9 +145,9 @@ export function useKeyboardInput(member: MemberId, instrument: InstrumentId) {
       }
       if (pitch === null) return;
       e.preventDefault();
-      if (!e.repeat) void press(`key:${key}`, pitch);
+      if (!e.repeat) void press(sourceOf(e), pitch);
     };
-    const onUp = (e: KeyboardEvent) => release(`key:${e.key.toLowerCase()}`);
+    const onUp = (e: KeyboardEvent) => release(sourceOf(e));
     const onBlur = () => releaseAll();
     const onVisibility = () => document.hidden && releaseAll();
     window.addEventListener("keydown", onDown);

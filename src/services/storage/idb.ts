@@ -18,7 +18,18 @@ export function openDb(): Promise<IDBDatabase> {
       if (!db.objectStoreNames.contains(STORE_PROJECTS)) db.createObjectStore(STORE_PROJECTS);
       if (!db.objectStoreNames.contains(STORE_MIDI)) db.createObjectStore(STORE_MIDI);
     };
-    req.onsuccess = () => resolve(req.result);
+    req.onsuccess = () => {
+      const db = req.result;
+      // the browser can close the connection (site data cleared, storage evicted, another tab
+      // upgrading): forget it, so the next call opens a new one instead of failing for good
+      const forget = () => {
+        db.close();
+        dbPromise = null;
+      };
+      db.onclose = forget;
+      db.onversionchange = forget;
+      resolve(db);
+    };
     req.onerror = () => reject(req.error ?? new Error("Couldn't open IndexedDB"));
   });
   dbPromise.catch(() => {
@@ -54,6 +65,15 @@ export async function idbDelete(store: string, key: string): Promise<void> {
     tx.objectStore(store).delete(key);
     tx.oncomplete = () => resolve();
     tx.onerror = () => reject(tx.error);
+  });
+}
+
+export async function idbKeys(store: string): Promise<string[]> {
+  const db = await openDb();
+  return new Promise((resolve, reject) => {
+    const req = db.transaction(store, "readonly").objectStore(store).getAllKeys();
+    req.onsuccess = () => resolve(req.result.map(String));
+    req.onerror = () => reject(req.error);
   });
 }
 

@@ -24,6 +24,8 @@ interface TimelineProps {
 
 /** After a wheel or touch scroll, follow mode waits this long before gliding back. */
 const USER_SCROLL_HOLD_MS = 2000;
+/** a touch that moves less than this (px) before lifting is a tap */
+const TAP_SLOP_PX = 8;
 
 export function Timeline({ laneHeight = LANE_HEIGHT, labels, forceFollow = false }: TimelineProps = {}) {
   const { project, spots } = usePlayedSong();
@@ -40,6 +42,8 @@ export function Timeline({ laneHeight = LANE_HEIGHT, labels, forceFollow = false
   const [viewport, setViewport] = useState(0);
   const frame = useRef(0);
   const scrubbing = useRef(false);
+  /** a finger down on the score: a tap seeks, a swipe scrolls */
+  const touchTap = useRef<{ id: number; x: number; y: number } | null>(null);
   // a wheel or touch scroll pauses following for a moment, so you can look around while it plays
   const userScrolledAt = useRef(-Infinity);
   /** set when follow mode scrolls the view itself (that frame is drawn already) */
@@ -125,8 +129,10 @@ export function Timeline({ laneHeight = LANE_HEIGHT, labels, forceFollow = false
       const target = cameraLeft(pos, zoom, scroller.clientWidth, project.durationSeconds);
       const next = followStep(scroller.scrollLeft, target);
       if (Math.abs(next - scroller.scrollLeft) >= 0.5) {
-        followScroll.current = true; // this frame draws below: the scroll event needn't draw again
+        const before = scroller.scrollLeft;
         scroller.scrollLeft = next;
+        // this frame draws below: the scroll event needn't draw again (nor count as the user's)
+        if (scroller.scrollLeft !== before) followScroll.current = true;
       }
     }
     // already inside an animation frame: redraw now so the glowing notes track the playhead
@@ -159,7 +165,11 @@ export function Timeline({ laneHeight = LANE_HEIGHT, labels, forceFollow = false
     lastZoom.current = zoom;
     if (!scroller || prev === zoom) return;
     const centre = (scroller.scrollLeft + scroller.clientWidth / 2 - TIMELINE_GUTTER) / prev;
+    const before = scroller.scrollLeft;
     scroller.scrollLeft = TIMELINE_GUTTER + centre * zoom - scroller.clientWidth / 2;
+    // not a user scroll (and the zoom change redraws anyway); only if it really moved, or
+    // no scroll event would come to clear the flag
+    if (scroller.scrollLeft !== before) followScroll.current = true;
   }, [zoom]);
 
   return (
@@ -168,8 +178,13 @@ export function Timeline({ laneHeight = LANE_HEIGHT, labels, forceFollow = false
         ref={scrollRef}
         className="timeline__scroll"
         onScroll={() => {
-          if (followScroll.current) followScroll.current = false;
-          else requestDraw();
+          if (followScroll.current) {
+            followScroll.current = false;
+          } else {
+            // scrolled by the user (wheel, swipe, or dragging the scrollbar): don't fight them
+            userScrolledAt.current = performance.now();
+            requestDraw();
+          }
         }}
         onWheel={() => (userScrolledAt.current = performance.now())}
         onTouchMove={() => (userScrolledAt.current = performance.now())}
@@ -180,15 +195,25 @@ export function Timeline({ laneHeight = LANE_HEIGHT, labels, forceFollow = false
         aria-valuemax={Math.floor(project.durationSeconds)}
         onKeyDown={(e) => {
           const pos = audioEngine.getPosition();
-          const bar = Math.round(pos / barSeconds);
+          // the bar the playhead is in (a hair of slack for a position just short of a downbeat)
+          const bar = Math.floor(pos / barSeconds + 1e-6);
           if (e.key === "ArrowRight") seek((bar + 1) * barSeconds);
-          else if (e.key === "ArrowLeft") seek(Math.max(0, bar - 1) * barSeconds);
+          // back to this bar's downbeat, or the bar before when already on it
+          else if (e.key === "ArrowLeft") seek(Math.max(0, pos - bar * barSeconds > 0.05 ? bar : bar - 1) * barSeconds);
           else if (e.key === "Home") seek(0);
           else return;
           e.preventDefault();
         }}
         onPointerDown={(e) => {
           if (e.button !== 0) return;
+          // a press on the scroller's own scrollbar scrolls, it doesn't seek
+          const rect = e.currentTarget.getBoundingClientRect();
+          if (e.clientY - rect.top > e.currentTarget.clientHeight) return;
+          if (e.pointerType === "touch") {
+            // a finger may be starting a swipe to scroll: seek only if it lifts where it landed
+            touchTap.current = { id: e.pointerId, x: e.clientX, y: e.clientY };
+            return;
+          }
           scrubbing.current = true;
           e.currentTarget.setPointerCapture(e.pointerId);
           seek(timeAt(e.clientX));
@@ -197,10 +222,18 @@ export function Timeline({ laneHeight = LANE_HEIGHT, labels, forceFollow = false
           if (scrubbing.current) seek(timeAt(e.clientX));
         }}
         onPointerUp={(e) => {
+          const tap = touchTap.current;
+          touchTap.current = null;
+          if (tap && tap.id === e.pointerId && Math.hypot(e.clientX - tap.x, e.clientY - tap.y) < TAP_SLOP_PX) {
+            seek(timeAt(e.clientX));
+          }
+          if (!scrubbing.current) return;
           scrubbing.current = false;
           e.currentTarget.releasePointerCapture(e.pointerId);
         }}
         onPointerCancel={() => {
+          // the browser took the touch for a scroll
+          touchTap.current = null;
           scrubbing.current = false;
         }}
       >

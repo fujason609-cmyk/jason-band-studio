@@ -23,6 +23,19 @@ export function clampBpm(bpm: number): number {
   return Math.min(MAX_BPM, Math.max(MIN_BPM, Math.round(bpm * 100) / 100));
 }
 
+/**
+ * A song's base tempo inside MIN_BPM…MAX_BPM by doubling or halving it: notes are in song
+ * seconds, so the base tempo only sets the grid (a 400 BPM file reads as 200 in half time)
+ * and the song still plays at its own speed. Clamping it instead would play it slower.
+ */
+export function foldBpm(bpm: number): number {
+  if (!Number.isFinite(bpm) || bpm <= 0) return 120;
+  let folded = bpm;
+  while (folded > MAX_BPM) folded /= 2;
+  while (folded < MIN_BPM) folded *= 2;
+  return clampBpm(folded);
+}
+
 export function secondsToTicks(songSeconds: number, baseBpm: number, ppq: number): number {
   return Math.round(songSeconds * (baseBpm / 60) * ppq);
 }

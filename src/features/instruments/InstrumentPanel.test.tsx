@@ -95,6 +95,24 @@ describe("InstrumentPanel", () => {
     expect(audioEngine.noteOn).toHaveBeenCalledWith("yui", 43);
   });
 
+  it("lights the tapped fret only, not the same note elsewhere on the neck", async () => {
+    select("yui");
+    render(<InstrumentPanel />);
+    const tapped = screen.getByRole("button", { name: "A2, string 6, fret 5" });
+    fireEvent.pointerDown(tapped, { pointerId: 1 });
+    await waitFor(() => expect(tapped).toHaveAttribute("aria-pressed", "true"));
+    expect(screen.getByRole("button", { name: "A2, string 5 open" })).toHaveAttribute("aria-pressed", "false");
+  });
+
+  it("stops a key's note when Shift changed its character before it was let go", async () => {
+    select("tsumugi");
+    render(<InstrumentPanel />);
+    fireEvent.keyDown(window, { key: ";", code: "Semicolon" });
+    await waitFor(() => expect(audioEngine.noteOn).toHaveBeenCalledTimes(1));
+    fireEvent.keyUp(window, { key: ":", code: "Semicolon", shiftKey: true });
+    expect(audioEngine.noteOff).toHaveBeenCalledTimes(1);
+  });
+
   it("strums every string of a chord from the computer keyboard and stops on release", async () => {
     select("azusa");
     render(<InstrumentPanel />);

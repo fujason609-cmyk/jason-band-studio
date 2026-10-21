@@ -42,6 +42,8 @@ export class AudioEngine {
   private starting: Promise<boolean> | null = null;
   private events: EngineEvents = {};
   private lastProject: StudioProject | null = null;
+  /** song seconds where the written song ends (the solo round after it), Infinity without one */
+  private songEnd = Infinity;
   private feel: FeelSetting = "character";
   private style: PlayStyle = "original";
   private autoDrums = true;
@@ -97,7 +99,7 @@ export class AudioEngine {
       this.metronome.enabled = this.metronomeOn;
       this.samples.subscribe((instrument, state) => this.events.onInstrumentState?.(instrument, state));
       this.started = true;
-      if (this.lastProject) this.sync(this.lastProject);
+      if (this.lastProject) this.sync(this.lastProject, this.songEnd);
       return true;
     } catch (err) {
       this.events.onStartError?.(err instanceof Error ? err.message : String(err));
@@ -105,9 +107,14 @@ export class AudioEngine {
     }
   }
 
-  /** Bring the engine in line with a project snapshot. Cheap to call often. */
-  sync(project: StudioProject) {
+  /**
+   * Bring the engine in line with a project snapshot. Cheap to call often. `songEnd` is
+   * where the written song ends when a solo round is appended (generated drums only fill
+   * the song, and only when the song itself has no drums).
+   */
+  sync(project: StudioProject, songEnd = Infinity) {
     this.lastProject = project;
+    this.songEnd = songEnd;
     if (!this.started || !this.master || !this.transport) return;
 
     this.master.volume.value = gainToDb(project.masterVolume);
@@ -129,20 +136,19 @@ export class AudioEngine {
       audio.setNotes(track.notes, project.baseBpm, project.beatsPerBar);
       audio.setBand(band);
       const role = vocalRoleOf(track.memberId);
+      // the sound first, so a part played on an instrument never renders the singer first
+      if (role) audio.setVocalSound(this.vocalSounds[role]);
       audio.setVocal(track.vocal ?? NO_VOCAL, role);
-      if (role) {
-        audio.setSinging(this.vocals[role]);
-        audio.setVocalSound(this.vocalSounds[role]);
-      }
-      audio.setVolume(track.volume);
-      audio.setAudible(audible[track.id] ?? true);
+      if (role) audio.setSinging(this.vocals[role]);
+      audio.setMix(track.volume, audible[track.id] ?? true);
     }
   }
 
   /** Where the non-drum parts play, for generated drums. Same object while nothing changed. */
   private bandContext(project: StudioProject): BandContext {
     const sources = project.tracks.filter((t) => t.instrument !== "drums").map((t) => t.notes);
-    const key = `${this.autoDrums}|${project.baseBpm}|${project.beatsPerBar}`;
+    const key = `${this.autoDrums}|${project.baseBpm}|${project.beatsPerBar}|${this.songEnd}`;
+    const songEndTicks = Number.isFinite(this.songEnd) ? secondsToTicks(this.songEnd, project.baseBpm, PPQ) : Infinity;
     const memo = this.band;
     if (memo && memo.key === key && memo.sources.length === sources.length && memo.sources.every((n, i) => n === sources[i])) {
       return memo.value;
@@ -156,19 +162,30 @@ export class AudioEngine {
     };
     const value: BandContext = {
       autoDrums: this.autoDrums,
-      playedBars: this.autoDrums ? playedBars(ticks(), PPQ * project.beatsPerBar) : [],
+      playedBars: this.autoDrums
+        ? playedBars(ticks(), PPQ * project.beatsPerBar).filter((bar) => bar * PPQ * project.beatsPerBar < songEndTicks)
+        : [],
+      songEndTicks,
     };
     this.band = { sources, key, value };
     return value;
   }
 
-  private loadInstrument(audio: AudioTrack, instrument: InstrumentId) {
-    audio.setInstrument(instrument).catch(() => {
+  private loadInstrument(audio: AudioTrack, instrument: InstrumentId, retry = false) {
+    audio.setInstrument(instrument, retry).catch(() => {
       /* state already reported through onInstrumentState */
     });
   }
 
+  /** The mixer's Retry: download a pack that failed again. */
   retryInstrument(instrument: InstrumentId) {
+    this.tracks.forEach((t) => {
+      if (t.currentInstrument === instrument) this.loadInstrument(t, instrument, true);
+    });
+  }
+
+  /** New voices for every track playing `instrument` (a style or patch change); a failed pack isn't fetched again. */
+  private rebuildInstrument(instrument: InstrumentId) {
     this.tracks.forEach((t) => {
       if (t.currentInstrument === instrument) this.loadInstrument(t, instrument);
     });
@@ -180,8 +197,10 @@ export class AudioEngine {
 
   /** Play, after one bar of count-in clicks when that's switched on. */
   play() {
-    if (!this.transport) return;
-    if (!this.countIn || !this.metronome || this.transport.status === "playing") {
+    // already playing, or counting in (a second tap while audio was starting would
+    // otherwise start the music at once, over the count-in clicks)
+    if (!this.transport || this.transport.status === "playing") return;
+    if (!this.countIn || !this.metronome) {
       this.transport.play();
       return;
     }
@@ -204,7 +223,7 @@ export class AudioEngine {
   setKeysPatch(patch: KeysPatch) {
     if (this.samples.keysPatch === patch) return;
     this.samples.keysPatch = patch;
-    this.retryInstrument("keys");
+    this.rebuildInstrument("keys");
   }
 
   /** Members' playing personality, or strictly on the grid. Applies from the next note. */
@@ -222,8 +241,8 @@ export class AudioEngine {
     this.style = style;
     this.samples.style = style;
     this.tracks.forEach((t) => t.setStyle(style));
-    this.retryInstrument("lead-guitar");
-    this.retryInstrument("rhythm-guitar");
+    this.rebuildInstrument("lead-guitar");
+    this.rebuildInstrument("rhythm-guitar");
     this.tracks.forEach((t) => t.refreshVocalGuitar()); // a vocal played on the guitar, too
   }
 
@@ -249,7 +268,7 @@ export class AudioEngine {
   setAutoDrums(on: boolean) {
     if (on === this.autoDrums) return;
     this.autoDrums = on;
-    if (this.lastProject) this.sync(this.lastProject);
+    if (this.lastProject) this.sync(this.lastProject, this.songEnd);
   }
 
   /** One bar of clicks before playback starts. */

@@ -13,6 +13,9 @@
   --lane-selected: #fff4e6;
   --danger: #c2334d;
   --on-ink: #fffdf8;
+  // text on a member colour, the accent or danger: white on the deep light-theme colours,
+  // the dark paper on the bright dark-theme ones (white on them was below 2.5:1)
+  --on-member: #fff;
   --accent: #e0507a;
 
   --member-yui: #e0507a;
@@ -54,6 +57,7 @@
   --lane-selected: #2c2748;
   --danger: #ff7a8f;
   --on-ink: #15132a;
+  --on-member: #15132a;
   --accent: #ff7da0;
 
   --member-yui: #ff7da0;

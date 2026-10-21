@@ -28,11 +28,24 @@ describe("playing styles", () => {
 
   it("turns chords into power chords on the low strings", () => {
     // C major up the neck → C root, fifth and octave from the 8th fret of the low E
-    const out = powerChords([note(0, 384, 60), note(0, 384, 64), note(0, 384, 67)]);
+    const out = powerChords([note(0, 384, 60), note(0, 384, 64), note(0, 384, 67)], PPQ);
     expect(out.map((n) => n.pitch)).toEqual([48, 55, 60]);
     expect(out.every((n) => n.ticks === 0 && n.durationTicks === 384)).toBe(true);
     // below the low E it moves up an octave
-    expect(powerChords([note(0, 96, 38)]).map((n) => n.pitch)).toEqual([50, 57, 62]);
+    expect(powerChords([note(0, 96, 38)], PPQ).map((n) => n.pitch)).toEqual([50, 57, 62]);
+    // a chord spread over a few ticks (a brush stroke) is still one chord
+    expect(powerChords([note(0, 384, 48), note(3, 384, 52), note(6, 384, 55)], PPQ).map((n) => [n.ticks, n.pitch])).toEqual([
+      [0, 48],
+      [0, 55],
+      [0, 60],
+    ]);
+  });
+
+  it("never doubles a held chord under moving notes", () => {
+    const held = [note(0, 768, 48), note(0, 768, 52), note(0, 768, 55), note(192, 192, 60), note(384, 192, 62)];
+    const out = arrange("rock", "rhythm-guitar", held, PPQ, 4);
+    const keys = out.map((n) => `${n.ticks}:${n.pitch}`);
+    expect(new Set(keys).size).toBe(keys.length);
   });
 
   it("re-picks long notes as eighths, digging in on the beat", () => {
@@ -46,7 +59,9 @@ describe("playing styles", () => {
     const quarterChord = [note(0, 192, 60), note(0, 192, 64)];
     expect(arrange("rock", "rhythm-guitar", quarterChord, PPQ, 4)).toHaveLength(6); // 2 eighths × 3 strings
     expect(arrange("rock", "bass", [note(0, 144, 40)], PPQ, 4)).toHaveLength(1); // dotted eighth: as written
-    expect(arrange("punk", "bass", [note(0, 144, 40)], PPQ, 4)).toHaveLength(2);
+    // whole eighths only: dotted eighths stay on their own grid
+    expect(arrange("punk", "bass", [note(0, 144, 40), note(144, 144, 40)], PPQ, 4).map((n) => n.ticks)).toEqual([0, 144]);
+    expect(arrange("punk", "bass", [note(0, 383, 40)], PPQ, 4)).toHaveLength(4); // a tick short of a half note
     // Yui's melody keeps its notes, a bit harder
     const lead = arrange("rock", "lead-guitar", [note(0, 96, 72, 0.5)], PPQ, 4);
     expect(lead.map((n) => n.pitch)).toEqual([72]);
@@ -60,6 +75,9 @@ describe("playing styles", () => {
     expect(crashes.map((n) => n.ticks).sort((a, b) => a - b)).toEqual([0, bar * 4, bar * 8]);
     // one already written there is enough
     expect(phraseCrashes([note(0, 48, 36), note(0, 96, 57)], PPQ, 4, 4).filter((n) => n.pitch === 49)).toHaveLength(0);
+    // but one written mid-phrase doesn't cancel the next phrase's
+    const midCrash = phraseCrashes([...groove, note(bar * 2, 96, 49)], PPQ, 4, 4).filter((n) => n.pitch === 49);
+    expect(midCrash.map((n) => n.ticks).sort((a, b) => a - b)).toEqual([0, bar * 2, bar * 4, bar * 8]);
   });
 
   it("ballad lets notes ring into the next and picks held chords one string at a time", () => {
@@ -101,6 +119,18 @@ describe("playing styles", () => {
     expect(arrange("rock", "drums", [], PPQ, 4, { ...band, autoDrums: false })).toHaveLength(0);
     expect(arrange("ballad", "drums", [], PPQ, 4, band)).toHaveLength(0);
     expect(arrange("rock", "drums", [note(0, 48, 36)], PPQ, 4, band).filter((n) => n.pitch === 42)).toHaveLength(0);
+    // Ritsu's solo-round notes after the song don't count as the song's drum part
+    const withSolo = arrange("rock", "drums", [note(bar * 5, 48, 36)], PPQ, 4, { ...band, songEndTicks: bar * 5 });
+    expect(withSolo.filter((n) => n.pitch === 42 && n.ticks < bar * 5)).toHaveLength(36); // 5 bars of eighths, less the crashes on bars 0 and 4 and bar 3's fill
+    expect(withSolo.some((n) => n.ticks === bar * 5 && n.pitch === 36)).toBe(true);
+  });
+
+  it("accents the snare backbeat by its place in the bar", () => {
+    const bar = PPQ * 3;
+    const snares = [0, 1, 2, 3, 4, 5].map((b) => note(b * PPQ, 48, 38, 0.5));
+    const out = arrange("rock", "drums", snares, PPQ, 3).filter((n) => n.pitch === 38);
+    const accented = out.filter((n) => n.velocity > 0.5 * 1.12 + 0.01).map((n) => n.ticks % bar);
+    expect(accented).toEqual([PPQ, PPQ]); // beat 2 of each 3/4 bar, never a downbeat
   });
 
   it("keeps a sung tune as written, only its delivery changes", () => {

@@ -184,7 +184,7 @@ select {
   place-items: center;
   flex: none;
   border-radius: 50%;
-  color: #fff;
+  color: var(--on-member);
   font-weight: 800;
   line-height: 1;
   width: 38px;
@@ -278,7 +278,7 @@ select {
     padding: 2px 10px 2px 8px;
     border-radius: 999px;
     background: var(--accent);
-    color: #fff;
+    color: var(--on-member);
     font-size: 12px;
     font-weight: 800;
     transform: rotate(-3deg);
@@ -628,7 +628,7 @@ select {
   &--solo[aria-pressed="true"] {
     background: var(--member);
     border-color: var(--member);
-    color: #fff;
+    color: var(--on-member);
   }
   // the vocal switch: outlined in the member's colour while they sing
   &--vocal {
@@ -820,7 +820,7 @@ select {
   &.is-down {
     background: var(--member);
     border-color: var(--member);
-    color: #fff;
+    color: var(--on-member);
   }
   &__hint {
     font-size: 12px;
@@ -868,7 +868,7 @@ select {
   &.is-down {
     background: var(--member);
     border-color: var(--member);
-    color: #fff;
+    color: var(--on-member);
     transform: scale(0.97);
     .pad__hint {
       color: inherit;
@@ -924,7 +924,7 @@ select {
   .pad.is-down {
     background: var(--member);
     border-color: var(--member);
-    color: #fff;
+    color: var(--on-member);
     .pad__hint {
       color: inherit;
     }
@@ -984,7 +984,7 @@ select {
   &.is-down {
     background: var(--member);
     border-color: var(--member);
-    color: #fff;
+    color: var(--on-member);
     transform: scale(0.97);
     i {
       background: #fff;
@@ -1106,7 +1106,7 @@ select {
     border-radius: 50%;
     background: var(--member);
     box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.75);
-    color: #fff;
+    color: var(--on-member);
     font-size: 11px;
     font-weight: 800;
   }
@@ -1347,7 +1347,7 @@ select {
   &[aria-pressed="true"] {
     background: var(--danger);
     border-color: var(--danger);
-    color: #fff;
+    color: var(--on-member);
   }
   &.is-recording {
     animation: rec-pulse 1.2s ease-in-out infinite;
@@ -1845,6 +1845,14 @@ select {
   .key__hint,
   .pad__hint,
   .chord__hint {
+    display: none;
+  }
+}
+
+// the smallest phones (320 px wide): the song length no longer fits beside the transport
+// buttons and pushed the page sideways, so only the position shows
+@media (max-width: 359px) {
+  .readout__total {
     display: none;
   }
 }

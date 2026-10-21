@@ -113,14 +113,22 @@ export interface Figure {
   chord: Chord | null;
 }
 
+/**
+ * The bar and beat (to a sixteenth) a note starts on. A note a hair early for the next
+ * downbeat rounds up to it, so it counts as that bar's first note, not as nothing.
+ */
+function onsetOf(start: number, len: number, grid: BarGrid): { bar: number; beat: number } {
+  const bar = Math.floor(start / len + 1e-6);
+  const beat = sixteenth((start - bar * len) / grid.beat);
+  return beat >= grid.beatsPerBar ? { bar: bar + 1, beat: 0 } : { bar, beat };
+}
+
 /** A part's notes, bar by bar, as a single top line (the highest note at each onset). */
 function topLines(notes: readonly NoteEvent[], grid: BarGrid): Map<number, FigureNote[]> {
   const len = barSeconds(grid);
   const byOnset = new Map<string, FigureNote & { bar: number }>();
   for (const n of notes) {
-    const bar = Math.floor(n.start / len + 1e-6);
-    const beat = sixteenth((n.start - bar * len) / grid.beat);
-    if (beat >= grid.beatsPerBar) continue;
+    const { bar, beat } = onsetOf(n.start, len, grid);
     const key = `${bar}:${beat}`;
     const had = byOnset.get(key);
     if (!had || n.pitch > had.pitch) byOnset.set(key, { bar, beat, pitch: n.pitch, beats: Math.max(0.25, sixteenth(n.duration / grid.beat)) });
@@ -192,9 +200,7 @@ export function signatureGroove(notes: readonly NoteEvent[], grid: BarGrid): Dru
   const len = barSeconds(grid);
   const bars = new Map<number, DrumHit[]>();
   for (const n of notes) {
-    const bar = Math.floor(n.start / len + 1e-6);
-    const beat = sixteenth((n.start - bar * len) / grid.beat);
-    if (beat >= grid.beatsPerBar) continue;
+    const { bar, beat } = onsetOf(n.start, len, grid);
     const hits = bars.get(bar);
     const hit = { beat, pitch: n.pitch, velocity: n.velocity };
     if (hits) hits.push(hit);

@@ -8,6 +8,8 @@ export interface PlayedSong {
   project: StudioProject;
   /** where each member's solo is (empty when the round is off) */
   spots: readonly SoloSpot[];
+  /** song seconds where the written song ends and the round starts (Infinity when off) */
+  songEnd: number;
 }
 
 const NO_SPOTS: readonly SoloSpot[] = [];
@@ -36,7 +38,7 @@ export function playedSong(project: StudioProject, soloRoundOn: boolean): Played
   if (lastPlayed && lastPlayed.project === project && lastPlayed.on === soloRoundOn) return lastPlayed.played;
   let played: PlayedSong;
   if (!soloRoundOn) {
-    played = { project, spots: NO_SPOTS };
+    played = { project, spots: NO_SPOTS, songEnd: Infinity };
   } else {
     const round = roundFor(project);
     const tracks = project.tracks.map((t) => {
@@ -48,7 +50,7 @@ export function playedSong(project: StudioProject, soloRoundOn: boolean): Played
       }
       return entry.notes === t.notes ? t : { ...t, notes: entry.notes };
     });
-    played = { project: { ...project, tracks, durationSeconds: round.end }, spots: round.spots };
+    played = { project: { ...project, tracks, durationSeconds: round.end }, spots: round.spots, songEnd: project.durationSeconds };
   }
   lastPlayed = { project, on: soloRoundOn, played };
   return played;

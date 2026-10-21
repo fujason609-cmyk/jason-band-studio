@@ -124,7 +124,9 @@ export function parseMidi(data: ArrayBuffer | Uint8Array, fileName: string): Par
     denominator: ts.timeSignature[1] ?? 4,
   }));
 
-  const lastNoteEnd = Math.max(...tracks.flatMap((t) => t.notes.map((n) => n.start + n.duration)));
+  // a loop, not Math.max(...notes): spreading 100k+ notes overflows the call stack
+  let lastNoteEnd = 0;
+  for (const t of tracks) for (const n of t.notes) lastNoteEnd = Math.max(lastNoteEnd, n.start + n.duration);
 
   return {
     meta: {

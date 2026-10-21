@@ -22,10 +22,45 @@ export interface Voice {
 
 const hz = (pitch: number) => Tone.Frequency(pitch, "midi").toFrequency();
 
+type SamplerInternals = { _activeSources: Map<number, Tone.ToneBufferSource[]> };
+
+/**
+ * Sequenced notes on a Sampler that can still be cut. Tone's `triggerAttackRelease`
+ * forgets a note as soon as its release is scheduled, so `Sampler.releaseAll()` can't
+ * stop it: pausing, stopping or seeking during a held piano chord or a sung note let it
+ * ring to its written end. This keeps every scheduled note until it has ended.
+ */
+class SampledNotes {
+  private readonly sounding = new Set<Tone.ToneBufferSource>();
+
+  play(sampler: Tone.Sampler, pitch: number, duration: Tone.Unit.Time, time: number, velocity: number) {
+    sampler.triggerAttack(hz(pitch), time, velocity);
+    const list = (sampler as unknown as SamplerInternals)._activeSources.get(Math.round(pitch));
+    const source = list?.pop(); // the one just started; released below, as triggerAttackRelease would
+    if (!source) return;
+    source.stop(time + sampler.toSeconds(duration));
+    this.sounding.add(source);
+    const ended = source.onended;
+    source.onended = (s) => {
+      this.sounding.delete(source);
+      ended(s);
+    };
+  }
+
+  /** Fade out (by the sampler's release) every note still sounding or yet to start. */
+  cut(time?: number) {
+    this.sounding.forEach((s) => s.stop(time));
+    this.sounding.clear();
+  }
+}
+
 /** Polyphonic melodic voice built around a PolySynth (or Sampler) plus an effects chain. */
 class MelodicVoice implements Voice {
   readonly output: Tone.Gain;
   private readonly nodes: Tone.ToneAudioNode[];
+  private readonly sampled = new SampledNotes();
+  /** bumped by releaseAll, so releases scheduled before it can't cut a later note */
+  private generation = 0;
 
   constructor(
     private readonly source: Tone.PolySynth | Tone.Sampler,
@@ -57,10 +92,21 @@ class MelodicVoice implements Voice {
     this.source.triggerRelease(hz(pitch), time);
   }
   attackRelease(pitch: number, duration: Tone.Unit.Time, time: number, velocity: number) {
+    const source = this.source;
+    if (source instanceof Tone.Sampler) return this.sampled.play(source, pitch, duration, time, velocity);
     if (this.full()) return;
-    this.source.triggerAttackRelease(hz(pitch), duration, time, velocity);
+    // Tone's PolySynth would wait for the release on a timer that survives releaseAll: after a
+    // seek back it would cut the same note played again. A stale release is dropped instead.
+    source.triggerAttack(hz(pitch), time, velocity);
+    const end = time + source.toSeconds(duration);
+    const generation = this.generation;
+    source.context.setTimeout(() => {
+      if (generation === this.generation && !source.disposed) source.triggerRelease(hz(pitch), end);
+    }, Math.max(0, end - source.now()));
   }
   releaseAll(time?: number) {
+    this.generation++;
+    this.sampled.cut(time);
     this.source.releaseAll(time);
   }
   dispose() {
@@ -474,6 +520,7 @@ class VocalVoice implements SingingVoice {
   private readonly breath: Tone.Player;
   private readonly breathLevel = new Tone.Gain(Tone.dbToGain(BREATH_DB));
   private readonly nodes: Tone.ToneAudioNode[];
+  private readonly sampled = new SampledNotes();
 
   constructor(set: SungSet, trimDb: number) {
     this.sampler = new Tone.Sampler({ urls: set.notes, release: 0.25 });
@@ -497,9 +544,10 @@ class VocalVoice implements SingingVoice {
     this.sampler.triggerRelease(hz(pitch), time);
   }
   attackRelease(pitch: number, duration: Tone.Unit.Time, time: number, velocity: number) {
-    this.sampler.triggerAttackRelease(hz(pitch), duration, time, velocity);
+    this.sampled.play(this.sampler, pitch, duration, time, velocity);
   }
   releaseAll(time?: number) {
+    this.sampled.cut(time);
     this.sampler.releaseAll(time);
     this.breath.stop(time);
   }
@@ -606,6 +654,7 @@ class SampledDrumKit implements Voice {
 class VelocityLayers implements Voice {
   readonly output: Tone.Gain;
   private readonly nodes: Tone.ToneAudioNode[];
+  private readonly sampled = new SampledNotes();
 
   constructor(
     private readonly hard: Tone.Sampler,
@@ -634,9 +683,10 @@ class VelocityLayers implements Voice {
     this.soft.triggerRelease(hz(pitch), time);
   }
   attackRelease(pitch: number, duration: Tone.Unit.Time, time: number, velocity: number) {
-    this.layer(velocity).triggerAttackRelease(hz(pitch), duration, time, velocity);
+    this.sampled.play(this.layer(velocity), pitch, duration, time, velocity);
   }
   releaseAll(time?: number) {
+    this.sampled.cut(time);
     this.hard.releaseAll(time);
     this.soft.releaseAll(time);
   }

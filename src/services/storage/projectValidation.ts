@@ -1,24 +1,29 @@
 import { MEMBERS, isInstrumentId, isMemberId } from "@/features/band/members";
 import { vocalRoleOf } from "@/features/band/vocals";
-import { clampBpm } from "@/lib/time";
+import { getT } from "@/i18n/useT";
+import { clampBpm, foldBpm } from "@/lib/time";
+import { songLength } from "@/stores/useProjectStore";
 import type { NoteEvent } from "@/types/midi";
 import { PROJECT_VERSION, type StudioProject, type StudioTrack } from "@/types/project";
 
 const num = (v: unknown, fallback: number) => (typeof v === "number" && Number.isFinite(v) ? v : fallback);
 const clamp01 = (v: number) => Math.min(1, Math.max(0, v));
 
+const finite = (v: unknown): v is number => typeof v === "number" && Number.isFinite(v);
+
+/** A whole MIDI pitch, a start and length that are real numbers (Infinity and NaN survive IndexedDB). */
 function validNote(n: unknown): n is NoteEvent {
   if (!n || typeof n !== "object") return false;
   const r = n as Record<string, unknown>;
   return (
-    typeof r.pitch === "number" &&
-    r.pitch >= 0 &&
-    r.pitch <= 127 &&
-    typeof r.start === "number" &&
+    Number.isInteger(r.pitch) &&
+    (r.pitch as number) >= 0 &&
+    (r.pitch as number) <= 127 &&
+    finite(r.start) &&
     r.start >= 0 &&
-    typeof r.duration === "number" &&
+    finite(r.duration) &&
     r.duration > 0 &&
-    typeof r.velocity === "number"
+    finite(r.velocity)
   );
 }
 
@@ -61,18 +66,22 @@ export function validateProject(raw: unknown): StudioProject | null {
     });
   }
 
-  const baseBpm = num(r.baseBpm, 120);
-  if (baseBpm <= 0) return null;
+  const rawBase = num(r.baseBpm, 120);
+  if (rawBase <= 0) return null;
+  // only sets the grid (notes are in seconds), so a tempo out of range is folded, not clamped
+  const baseBpm = foldBpm(rawBase);
+  const beatsPerBar = Math.max(1, Math.min(16, Math.round(num(r.beatsPerBar, 4))));
 
   return {
     version: PROJECT_VERSION,
-    name: typeof r.name === "string" && r.name.trim() ? r.name : "Untitled session",
+    name: typeof r.name === "string" && r.name.trim() ? r.name : getT().untitled,
     bpm: clampBpm(num(r.bpm, baseBpm)),
     baseBpm,
-    beatsPerBar: Math.max(1, Math.min(16, Math.round(num(r.beatsPerBar, 4)))),
+    beatsPerBar,
     masterVolume: clamp01(num(r.masterVolume, 0.8)),
     tracks,
-    durationSeconds: Math.max(0.1, num(r.durationSeconds, 1)),
+    // never shorter than the notes, or the song would end before they play
+    durationSeconds: Math.max(num(r.durationSeconds, 0), songLength(tracks, baseBpm, beatsPerBar)),
     midiMeta: r.midiMeta && typeof r.midiMeta === "object" ? (r.midiMeta as StudioProject["midiMeta"]) : undefined,
     midiBlobKey: typeof r.midiBlobKey === "string" ? r.midiBlobKey : undefined,
     updatedAt: typeof r.updatedAt === "string" ? r.updatedAt : new Date().toISOString(),

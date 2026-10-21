@@ -1,4 +1,4 @@
-import { useRef } from "react";
+import { useRef, useState } from "react";
 import { Minus, Pause, Play, Plus, Repeat, SkipBack, Square, Timer, Volume2 } from "lucide-react";
 import { IconButton } from "@/components/common/IconButton";
 import { Fader } from "@/components/common/Fader";
@@ -80,6 +80,14 @@ function BpmControl() {
   // the song's own tempo, decimals and all (133.33): the button shows it rounded
   const original = clampBpm(baseBpm);
   const t = useT();
+  // what's typed, while the field has focus: typing "90" over "150" passes through "9",
+  // which a field bound straight to the tempo would throw away
+  const [draft, setDraft] = useState<string | null>(null);
+  const commit = (text: string) => {
+    const v = Number(text);
+    if (text.trim() !== "" && Number.isFinite(v)) setBpm(v);
+    setDraft(null);
+  };
 
   return (
     <div className="bpm">
@@ -97,12 +105,18 @@ function BpmControl() {
           inputMode="numeric"
           min={MIN_BPM}
           max={MAX_BPM}
-          value={bpm}
+          value={draft ?? bpm}
           onChange={(e) => {
-            const v = Number(e.currentTarget.value);
-            if (Number.isFinite(v) && v >= MIN_BPM && v <= MAX_BPM) setBpm(v);
+            // the field keeps what's typed; a tempo in range applies at once (spinner, arrows)
+            const text = e.currentTarget.value;
+            const v = Number(text);
+            setDraft(text);
+            if (text.trim() !== "" && Number.isFinite(v) && v >= MIN_BPM && v <= MAX_BPM) setBpm(v);
           }}
-          onBlur={(e) => setBpm(Number(e.currentTarget.value))}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") commit(e.currentTarget.value);
+          }}
+          onBlur={(e) => commit(e.currentTarget.value)}
         />
         <IconButton label={t.faster} variant="quiet" onClick={() => setBpm(Math.floor(bpm + 1))} disabled={bpm >= MAX_BPM}>
           <Plus size={16} />

@@ -43,9 +43,13 @@ export function useAudioEngineBridge() {
     audioEngine.setStyle(playStyle);
     audioEngine.setAutoDrums(autoDrums);
     // the engine plays the song as played: with the solo round after it when that's on
-    audioEngine.sync(getPlayedSong().project);
+    const syncPlayed = () => {
+      const played = getPlayedSong();
+      audioEngine.sync(played.project, played.songEnd);
+    };
+    syncPlayed();
     const unsubProject = useProjectStore.subscribe((s, prev) => {
-      if (s.project !== prev.project) audioEngine.sync(getPlayedSong().project);
+      if (s.project !== prev.project) syncPlayed();
     });
     const unsubLoop = useStudioStore.subscribe((s, prev) => {
       if (s.settings.loop !== prev.settings.loop) audioEngine.setLoop(s.settings.loop);
@@ -57,7 +61,7 @@ export function useAudioEngineBridge() {
       if (s.settings.metronome !== prev.settings.metronome) audioEngine.setMetronome(s.settings.metronome);
       if (s.settings.vocals !== prev.settings.vocals) audioEngine.setVocals(s.settings.vocals);
       if (s.settings.vocalSounds !== prev.settings.vocalSounds) audioEngine.setVocalSounds(s.settings.vocalSounds);
-      if (s.settings.soloRound !== prev.settings.soloRound) audioEngine.sync(getPlayedSong().project);
+      if (s.settings.soloRound !== prev.settings.soloRound) syncPlayed();
     });
     return () => {
       unsubProject();

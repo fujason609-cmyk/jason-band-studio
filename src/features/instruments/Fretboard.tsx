@@ -33,18 +33,41 @@ export function Fretboard({ tuning, visible, active, press, release, leftHanded 
   const step = Math.max(1, visible - 2);
   const TowardNut = leftHanded ? ChevronRight : ChevronLeft;
   const UpTheNeck = leftHanded ? ChevronLeft : ChevronRight;
+  // the fret each finger (pointer) holds: a tapped note lights where it was tapped, not
+  // every place on the neck with the same pitch (notes from the computer keyboard still do)
+  const [held, setHeld] = useState<ReadonlyMap<number, string>>(new Map());
+  const hold = (id: number, cell: string | null) =>
+    setHeld((m) => {
+      const next = new Map(m);
+      if (cell) next.set(id, cell);
+      else next.delete(id);
+      return next;
+    });
+  const tappedPitches = new Set([...held.values()].map((cell) => Number(cell.split(":")[2])));
 
-  const handlers = (pitch: number) => ({
+  const handlers = (pitch: number, cell: string) => ({
     onPointerDown: (e: PointerEvent<HTMLButtonElement>) => {
       e.preventDefault();
       e.currentTarget.releasePointerCapture?.(e.pointerId);
+      hold(e.pointerId, cell);
       press(`ptr:${e.pointerId}`, pitch);
     },
-    onPointerUp: (e: PointerEvent) => release(`ptr:${e.pointerId}`),
-    onPointerLeave: (e: PointerEvent) => release(`ptr:${e.pointerId}`),
-    onPointerCancel: (e: PointerEvent) => release(`ptr:${e.pointerId}`),
+    onPointerUp: (e: PointerEvent) => {
+      hold(e.pointerId, null);
+      release(`ptr:${e.pointerId}`);
+    },
+    onPointerLeave: (e: PointerEvent) => {
+      hold(e.pointerId, null);
+      release(`ptr:${e.pointerId}`);
+    },
+    onPointerCancel: (e: PointerEvent) => {
+      hold(e.pointerId, null);
+      release(`ptr:${e.pointerId}`);
+    },
     onPointerEnter: (e: PointerEvent) => {
-      if (e.buttons === 1) press(`ptr:${e.pointerId}`, pitch);
+      if (e.buttons !== 1) return;
+      hold(e.pointerId, cell);
+      press(`ptr:${e.pointerId}`, pitch);
     },
     onClick: (e: React.MouseEvent) => {
       if (e.detail === 0) {
@@ -83,7 +106,9 @@ export function Fretboard({ tuning, visible, active, press, release, leftHanded 
             </span>
             {frets.map((fret) => {
               const pitch = fretPitch(tuning, s, fret);
-              const on = active.has(pitch);
+              const cell = `${s}:${fret}:${pitch}`;
+              const tapped = [...held.values()].includes(cell);
+              const on = active.has(pitch) && (tapped || !tappedPitches.has(pitch));
               return (
                 <button
                   key={fret}
@@ -91,7 +116,7 @@ export function Fretboard({ tuning, visible, active, press, release, leftHanded 
                   className={`fret ${fret === 0 ? "fret--open" : ""} ${on ? "is-down" : ""}`}
                   aria-label={t.fretNote(pitchName(pitch), tuning.length - s, fret)}
                   aria-pressed={on}
-                  {...handlers(pitch)}
+                  {...handlers(pitch, cell)}
                 >
                   {on && <span className="fret__dot">{pitchName(pitch).replace(/-?\d+$/, "")}</span>}
                 </button>

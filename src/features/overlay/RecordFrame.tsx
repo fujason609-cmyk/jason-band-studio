@@ -77,6 +77,14 @@ export function RecordFrame() {
   const finishing = recording && !playing && countdown === null;
   // counts countdowns, so one cancelled as it reaches 0 doesn't play anyway
   const countdownRun = useRef(0);
+  // leaving the frame cancels a countdown still starting playback (or the song would start
+  // on the main page after you left)
+  useEffect(
+    () => () => {
+      countdownRun.current += 1;
+    },
+    [],
+  );
 
   useEffect(() => {
     if (countdown === null || countdown === 0) return;

@@ -43,10 +43,14 @@ export class SampleManager {
     this.listeners.forEach((l) => l(instrument, state));
   }
 
-  /** Resolves once the instrument can make sound (recorded or synthesized); never rejects. */
-  load(instrument: InstrumentId): Promise<void> {
+  /**
+   * Resolves once the instrument can make sound (recorded or synthesized); never rejects.
+   * A pack that failed stays on its synth voice until `retry` (the mixer's Retry button),
+   * so rebuilding voices for a style change doesn't download it again and again.
+   */
+  load(instrument: InstrumentId, retry = false): Promise<void> {
     const existing = this.pending.get(instrument);
-    if (existing && this.getState(instrument).status !== "error") return existing;
+    if (existing && (!retry || this.getState(instrument).status !== "error")) return existing;
 
     const pack = SAMPLE_PACKS[instrument];
     const task = pack ? this.loadPack(instrument, pack) : this.loadSynth(instrument);
@@ -80,11 +84,18 @@ export class SampleManager {
     let done = 0;
     // every buffer that loaded, so a pack that fails part-way doesn't keep them all in memory
     const decoded: Tone.ToneAudioBuffer[] = [];
+    // once one file has failed, the others still downloading must neither report progress
+    // (that would put the state back to "loading" after "error", for good) nor be kept
+    let failed = false;
     this.set(instrument, { status: "loading", progress: 0 });
     try {
       const loaded = await Promise.all(
         entries.map(async (e) => {
           const buffer = await new Tone.ToneAudioBuffer().load(samplePackUrl(instrument, e.file));
+          if (failed) {
+            buffer.dispose();
+            return { ...e, buffer };
+          }
           decoded.push(buffer);
           done += 1;
           this.set(instrument, { status: "loading", progress: done / entries.length });
@@ -96,6 +107,7 @@ export class SampleManager {
       this.packs.set(instrument, { main: pick("main"), soft: pack.soft ? pick("soft") : undefined });
       this.set(instrument, { status: "ready", progress: 1 });
     } catch (err) {
+      failed = true;
       decoded.forEach((b) => b.dispose());
       // keep playing on the synth voice; the error state shows Retry in the mixer
       await this.loadSynth(instrument, false);

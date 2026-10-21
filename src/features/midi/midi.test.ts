@@ -118,6 +118,24 @@ describe("track mapping", () => {
     expect(of("Guitar")).toMatchObject({ memberId: "yui" });
     expect(of("Guitar").vocal).toBeUndefined();
 
+    // …but never before the real instrument parts: a busy third vocal doesn't take Mugi from the piano
+    const withPiano = new Midi();
+    const addTo = (name: string, program: number, count: number) => {
+      const t = withPiano.addTrack();
+      t.name = name;
+      t.instrument.number = program;
+      for (let i = 0; i < count; i++) t.addNote({ midi: 60 + (i % 5), time: i * 0.25, duration: 0.2, velocity: 0.8 });
+    };
+    addTo("Lead Vocal", 52, 10);
+    addTo("Backing Vocals", 52, 10);
+    addTo("Backing Vocal 2", 52, 40);
+    addTo("Piano", 0, 8);
+    const parsedPiano = parseMidi(withPiano.toArray(), "piano.mid");
+    const pianoMap = suggestMapping(parsedPiano).assignments;
+    const named = (name: string) => pianoMap.find((a) => a.midiTrackIndex === parsedPiano.tracks.find((t) => t.name === name)!.index)!;
+    expect(named("Piano").memberId).toBe("tsumugi");
+    expect(named("Backing Vocal 2").memberId).not.toBe("tsumugi");
+
     const song = buildTracksFromMapping(sung, assignments);
     const yui = song.tracks.find((t) => t.memberId === "yui")!;
     expect(yui.notes.map((n) => n.pitch)).toEqual([52, 55]); // she plays the guitar part…

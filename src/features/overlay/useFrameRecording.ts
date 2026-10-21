@@ -18,6 +18,16 @@ const TAIL_MS = 800;
  * the picture is drawn this much later to keep the video in sync.
  */
 const PICTURE_DELAY_SECONDS = 0.04;
+/** A take ends by itself after this long (with Loop on a forgotten one would fill the memory). */
+export const MAX_TAKE_MINUTES = 20;
+
+/** Stop playing the way the Pause button does, which ends the take; tell the user why. */
+function pauseTake(text: string) {
+  audioEngine.pause();
+  const studio = useStudioStore.getState();
+  studio.setTransport("paused");
+  studio.notify({ kind: "info", text });
+}
 
 export interface FrameLayout {
   width: number;
@@ -32,6 +42,11 @@ interface Session {
   frame: number;
   /** set once playback stops: the picture holds here for the tail */
   frozenAt: number | null;
+  /** the last position drawn while playing (Stop and the song's end put the clock back to 0) */
+  lastPos: number;
+  startedAt: number;
+  /** removes the page-visibility listener */
+  unlisten: () => void;
 }
 
 /**
@@ -72,15 +87,44 @@ export function useFrameRecording(armed: boolean, rolling: boolean, layout: Fram
     const palette = readPalette();
     const ripples = !matchMedia("(prefers-reduced-motion: reduce)").matches;
 
-    const s: Session = { recorder: new FrameRecorder(canvas, audio, useStudioStore.getState().settings.overlay.fps), canvas, frame: 0, frozenAt: null };
+    let recorder: FrameRecorder;
+    try {
+      recorder = new FrameRecorder(canvas, audio, useStudioStore.getState().settings.overlay.fps);
+      recorder.start();
+    } catch {
+      // the browser said it could record this type, then couldn't: no take, and say so
+      canvas.remove();
+      audioEngine.stopAudioCapture();
+      useStudioStore.getState().notify({ kind: "error", text: getT().recordingFailed });
+      return;
+    }
+    // pictures are only painted while the page is on screen: a hidden tab would freeze the
+    // video while the sound goes on, so hiding it pauses, which ends the take
+    const onVisibility = () => {
+      if (document.visibilityState === "hidden" && audioEngine.status === "playing") pauseTake(getT().recordingHidden);
+    };
+    document.addEventListener("visibilitychange", onVisibility);
+    const s: Session = {
+      recorder,
+      canvas,
+      frame: 0,
+      frozenAt: null,
+      lastPos: 0,
+      startedAt: performance.now(),
+      unlisten: () => document.removeEventListener("visibilitychange", onVisibility),
+    };
     const paint = () => {
+      if (audioEngine.status === "playing") s.lastPos = Math.max(0, audioEngine.getAudiblePosition() - PICTURE_DELAY_SECONDS);
+      if (s.frozenAt === null && performance.now() - s.startedAt > MAX_TAKE_MINUTES * 60_000 && audioEngine.status === "playing") {
+        pauseTake(getT().recordingTooLong(MAX_TAKE_MINUTES));
+      }
       const { project, spots } = getPlayedSong();
       const { settings } = useStudioStore.getState();
       ctx.setTransform(scale, 0, 0, scale, 0, 0);
       drawRecordFrame(ctx, {
         ...l,
         zoom: settings.zoom,
-        position: s.frozenAt ?? Math.max(0, audioEngine.getAudiblePosition() - PICTURE_DELAY_SECONDS),
+        position: s.frozenAt ?? s.lastPos,
         durationSeconds: project.durationSeconds,
         baseBpm: project.baseBpm,
         beatsPerBar: project.beatsPerBar,
@@ -91,16 +135,18 @@ export function useFrameRecording(armed: boolean, rolling: boolean, layout: Fram
       });
       s.frame = requestAnimationFrame(paint);
     };
-    paint();
-    s.recorder.start();
     session.current = s;
+    paint();
     setRecording(true);
   }, []);
 
   const finish = useCallback(async () => {
     const s = session.current;
     if (!s || s.frozenAt !== null) return;
-    s.frozenAt = audioEngine.getAudiblePosition();
+    // where the picture last was while playing: after Stop or the song's end the clock
+    // already reads 0, and the video would end on the first bar
+    s.frozenAt = s.lastPos;
+    s.unlisten();
     await new Promise((resolve) => setTimeout(resolve, TAIL_MS));
     // thrown away meanwhile (left the frame): nothing to finish, and the audio capture may
     // already belong to a new take
@@ -125,6 +171,7 @@ export function useFrameRecording(armed: boolean, rolling: boolean, layout: Fram
     const s = session.current;
     if (!s) return;
     cancelAnimationFrame(s.frame);
+    s.unlisten();
     void s.recorder.stop().then((v) => URL.revokeObjectURL(v.url));
     audioEngine.stopAudioCapture();
     s.canvas.remove();
@@ -137,7 +184,9 @@ export function useFrameRecording(armed: boolean, rolling: boolean, layout: Fram
 
   const dismiss = useCallback(() => {
     setResult((r) => {
-      if (r) URL.revokeObjectURL(r.url);
+      // later, not now: a download started from this URL a moment ago may still be reading
+      // it (Safari fails blob downloads whose URL is revoked straight away)
+      if (r) setTimeout(() => URL.revokeObjectURL(r.url), 60_000);
       return null;
     });
   }, []);
