@@ -58,7 +58,7 @@ export function RecordFrame() {
   const [rw, rh] = overlay.frame.split(":").map(Number) as [number, number];
   // Reels: the score keeps clear of Instagram's top bar and the sides cut off on tall phones
   const safe = safeArea(overlay.frame, size.width, size.height);
-  const { keyHeight, laneHeight } = recordLayout(size.width, size.height, RULER_HEIGHT, MEMBERS.length, safe);
+  const { keyWidth, keyHeight, laneHeight } = recordLayout(size.width, size.height, RULER_HEIGHT, MEMBERS.length, safe);
   const playing = status === "playing";
 
   // video recording: armed by default where the browser can do it; Play starts a take
@@ -74,6 +74,7 @@ export function RecordFrame() {
     laneHeight,
     safeTop: safe.top,
     safeSide: safe.side,
+    keySide: safe.keySide,
   });
   saving.current = result !== null;
   const loading = useSoundsLoading();
@@ -142,7 +143,7 @@ export function RecordFrame() {
         <div
           className="record-frame__key"
           data-testid="record-key"
-          style={{ background: OVERLAY_COLORS[overlay.color], height: keyHeight }}
+          style={{ background: OVERLAY_COLORS[overlay.color], height: keyHeight, width: keyWidth }}
         />
       </div>
 

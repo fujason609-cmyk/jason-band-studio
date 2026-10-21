@@ -36,6 +36,7 @@ export interface FrameLayout {
   laneHeight: number;
   safeTop: number;
   safeSide: number;
+  keySide: number;
 }
 
 interface Session {

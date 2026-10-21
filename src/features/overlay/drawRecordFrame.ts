@@ -11,6 +11,8 @@ export interface RecordScene {
   /** kept clear of the score (Reels: Instagram's controls and side crop) */
   safeTop: number;
   safeSide: number;
+  /** background left and right of the key strip (Reels crops the sides) */
+  keySide: number;
   zoom: number;
   /** song seconds of the sound being heard */
   position: number;
@@ -36,7 +38,7 @@ export function drawRecordFrame(ctx: CanvasRenderingContext2D, s: RecordScene) {
   const scrollLeft = cameraLeft(s.position, s.zoom, width, s.durationSeconds);
 
   ctx.fillStyle = s.palette.surface;
-  ctx.fillRect(0, 0, s.width, keyTop);
+  ctx.fillRect(0, 0, s.width, s.height);
   ctx.save();
   ctx.translate(s.safeSide, s.safeTop);
   ctx.beginPath();
@@ -80,5 +82,5 @@ export function drawRecordFrame(ctx: CanvasRenderingContext2D, s: RecordScene) {
 
   // the key colour: one flat rectangle, nothing drawn over it
   ctx.fillStyle = s.keyColor;
-  ctx.fillRect(0, keyTop, s.width, s.keyHeight);
+  ctx.fillRect(s.keySide, keyTop, s.width - 2 * s.keySide, s.keyHeight);
 }

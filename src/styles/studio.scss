@@ -1308,6 +1308,8 @@ select {
   // a 16:9 strip of flat key colour (height set from recordLayout): no border, radius or shadow
   &__key {
     flex: none;
+    // Reels: narrower than the frame (width set from recordLayout), centred on the background
+    align-self: center;
   }
 }
 

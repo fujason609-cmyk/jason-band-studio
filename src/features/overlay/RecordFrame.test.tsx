@@ -77,10 +77,10 @@ describe("Instagram recording frame", () => {
     expect(frame.style.getPropertyValue("--rh")).toBe("16");
     expect(screen.getByTestId("record-key")).toHaveStyle({ background: "#00ff00" });
     expect(screen.getByTestId("record-key")).toBeEmptyDOMElement();
-    // key strip is 16:9 of the 390px width (219px); the score gets the other 474px, less
-    // the 97px kept clear of Reels' top bar, minus the 40px ruler, over five lanes
-    expect(screen.getByTestId("record-key")).toHaveStyle({ height: "219px" });
-    expect(screen.getByTestId("timeline")).toHaveAttribute("data-lane", String(Math.floor((693 - 219 - 97 - 40) / 5)));
+    // Reels: the key strip is 92% of the 390px width (358px), 16:9 (201px); the score gets
+    // the rest less the 97px kept clear of Reels' top bar, minus the 40px ruler, over five lanes
+    expect(screen.getByTestId("record-key")).toHaveStyle({ height: "201px", width: "358px" });
+    expect(screen.getByTestId("timeline")).toHaveAttribute("data-lane", String(Math.floor((693 - 201 - 97 - 40) / 5)));
   });
 
   it("restarts from the beginning", async () => {
@@ -134,17 +134,18 @@ describe("Instagram recording frame", () => {
 
 describe("recording frame maths and settings", () => {
   it("gives the key colour a 16:9 strip and the score the rest", () => {
-    expect(recordLayout(390, 693, 40, 5)).toEqual({ keyHeight: 219, scoreHeight: 474, laneHeight: 86 });
-    expect(recordLayout(390, 488, 40, 5)).toEqual({ keyHeight: 219, scoreHeight: 269, laneHeight: 45 });
+    expect(recordLayout(390, 693, 40, 5)).toEqual({ keyWidth: 390, keyHeight: 219, scoreHeight: 474, laneHeight: 86 });
+    expect(recordLayout(390, 488, 40, 5)).toEqual({ keyWidth: 390, keyHeight: 219, scoreHeight: 269, laneHeight: 45 });
   });
 
   it("keeps a Reels score clear of Instagram's top bar and the sides cut on tall phones", () => {
     const safe = safeArea("9:16", 390, 693);
-    expect(safe).toEqual({ top: 97, side: 23 }); // 14% and 6%
-    expect(recordLayout(390, 693, 40, 5, safe)).toEqual({ keyHeight: 219, scoreHeight: 377, laneHeight: 67 });
+    expect(safe).toEqual({ top: 97, side: 23, keySide: 16 }); // 14%, 6% and 4%
+    // the key strip: 92% wide (358px), still 16:9, so the score gets a little more height
+    expect(recordLayout(390, 693, 40, 5, safe)).toEqual({ keyWidth: 358, keyHeight: 201, scoreHeight: 395, laneHeight: 71 });
     // feed posts show whole: no safe area
-    expect(safeArea("4:5", 390, 488)).toEqual({ top: 0, side: 0 });
-    expect(safeArea("1:1", 390, 390)).toEqual({ top: 0, side: 0 });
+    expect(safeArea("4:5", 390, 488)).toEqual({ top: 0, side: 0, keySide: 0 });
+    expect(safeArea("1:1", 390, 390)).toEqual({ top: 0, side: 0, keySide: 0 });
   });
 
   it("never shrinks lanes below the readable minimum", () => {
