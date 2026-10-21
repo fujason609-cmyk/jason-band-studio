@@ -1266,6 +1266,8 @@ select {
     position: relative; // holds the countdown
     flex: 1 1 auto;
     min-height: 0;
+    // the score never spills over the key strip (in a short frame lanes keep a minimum height)
+    overflow: hidden;
     background: var(--surface);
   }
   // a 16:9 strip of flat key colour (height set from recordLayout): no border, radius or shadow

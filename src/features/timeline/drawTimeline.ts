@@ -72,12 +72,7 @@ interface VocalFrame {
  * own instrument's tune, and this keeps both lines visible.
  */
 function drawVocal(ctx: CanvasRenderingContext2D, notes: readonly NoteEvent[], color: string, on: boolean, f: VocalFrame) {
-  let lo = 127;
-  let hi = 0;
-  for (const n of notes) {
-    if (n.pitch < lo) lo = n.pitch;
-    if (n.pitch > hi) hi = n.pitch;
-  }
+  const { lo, hi } = summarise(notes);
   const span = Math.max(12, hi - lo);
   const bottom = (lo + hi) / 2 - span / 2;
   const h = f.noteH + 1;
@@ -111,10 +106,36 @@ export function noteState(note: NoteEvent, position: number, isDrums: boolean): 
 }
 
 /** Index of the first note that could be visible, assuming notes are sorted by start. */
+/**
+ * What drawing needs to know about a whole part, worked out once per notes array (they
+ * are replaced, never changed in place) instead of on every playback frame.
+ */
+interface PartSummary {
+  lo: number;
+  hi: number;
+  longest: number;
+}
+const summaries = new WeakMap<readonly NoteEvent[], PartSummary>();
+
+export function summarise(notes: readonly NoteEvent[]): PartSummary {
+  let summary = summaries.get(notes);
+  if (!summary) {
+    summary = { lo: 127, hi: 0, longest: 0 };
+    for (const n of notes) {
+      if (n.pitch < summary.lo) summary.lo = n.pitch;
+      if (n.pitch > summary.hi) summary.hi = n.pitch;
+      if (n.duration > summary.longest) summary.longest = n.duration;
+    }
+    summaries.set(notes, summary);
+  }
+  return summary;
+}
+
 function firstVisible(notes: readonly NoteEvent[], fromSeconds: number): number {
   let lo = 0;
   let hi = notes.length;
-  const target = fromSeconds - 8; // generous: long notes may start well before the view
+  // back by the part's longest note, so one held from before the view is still drawn
+  const target = fromSeconds - summarise(notes).longest;
   while (lo < hi) {
     const mid = (lo + hi) >> 1;
     if (notes[mid]!.start < target) lo = mid + 1;
@@ -356,12 +377,7 @@ export function drawTimeline(input: DrawInput) {
     if (lane.isDrums) {
       yOf = (n) => top + pad + (DRUM_ROWS.indexOf(drumVoiceFor(n.pitch)) / (DRUM_ROWS.length - 1)) * inner;
     } else {
-      let lo = 127;
-      let hi = 0;
-      for (const n of lane.notes) {
-        if (n.pitch < lo) lo = n.pitch;
-        if (n.pitch > hi) hi = n.pitch;
-      }
+      const { lo, hi } = summarise(lane.notes);
       const span = Math.max(12, hi - lo);
       const mid = (lo + hi) / 2;
       const bottom = mid - span / 2;
@@ -378,15 +394,8 @@ export function drawTimeline(input: DrawInput) {
       if (x + w < 0) continue;
       const state = position === undefined ? "upcoming" : noteState(n, position, lane.isDrums);
       const y = yOf(n);
-      if (state === "active" && lane.audible) {
-        glowing.push({ x, y, w, pitch: n.pitch });
-        continue; // drawn last, on top
-      }
-      ctx.globalAlpha = (lane.audible ? 1 : 0.22) * (0.6 + 0.4 * n.velocity) * (state === "past" ? 0.5 : 1);
-      if (lane.isDrums) drumGlyph(ctx, drumVoiceFor(n.pitch), x, y + noteH / 2, glyph, lane.color);
-      else candy(ctx, x, y, w, noteH, lane.color);
-
-      // a ring spreading from each note as the playhead reaches it
+      // a ring spreading from each note as the playhead reaches it (while it sounds, so
+      // before the sounding notes are set aside to be drawn on top)
       if (input.ripples && position !== undefined && lane.audible) {
         const age = position - n.start;
         if (age >= 0 && age < RIPPLE_SECONDS) {
@@ -399,6 +408,13 @@ export function drawTimeline(input: DrawInput) {
           ctx.stroke();
         }
       }
+      if (state === "active" && lane.audible) {
+        glowing.push({ x, y, w, pitch: n.pitch });
+        continue; // drawn last, on top
+      }
+      ctx.globalAlpha = (lane.audible ? 1 : 0.22) * (0.6 + 0.4 * n.velocity) * (state === "past" ? 0.5 : 1);
+      if (lane.isDrums) drumGlyph(ctx, drumVoiceFor(n.pitch), x, y + noteH / 2, glyph, lane.color);
+      else candy(ctx, x, y, w, noteH, lane.color);
     }
 
     // sounding notes: a little thicker, glowing, with a white rim

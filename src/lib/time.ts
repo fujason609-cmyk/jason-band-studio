@@ -11,11 +11,16 @@
  */
 
 export const MIN_BPM = 40;
-export const MAX_BPM = 240;
+export const MAX_BPM = 300;
 
+/**
+ * A playable tempo: inside MIN_BPM…MAX_BPM, to two decimals. Not rounded to whole BPM:
+ * an imported song at 133.33 BPM must play at 133.33, or a 4-minute song drifts ~0.6 s
+ * against footage synced to the original.
+ */
 export function clampBpm(bpm: number): number {
   if (!Number.isFinite(bpm)) return 120;
-  return Math.min(MAX_BPM, Math.max(MIN_BPM, Math.round(bpm)));
+  return Math.min(MAX_BPM, Math.max(MIN_BPM, Math.round(bpm * 100) / 100));
 }
 
 export function secondsToTicks(songSeconds: number, baseBpm: number, ppq: number): number {

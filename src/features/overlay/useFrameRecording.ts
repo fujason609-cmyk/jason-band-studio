@@ -102,6 +102,9 @@ export function useFrameRecording(armed: boolean, rolling: boolean, layout: Fram
     if (!s || s.frozenAt !== null) return;
     s.frozenAt = audioEngine.getAudiblePosition();
     await new Promise((resolve) => setTimeout(resolve, TAIL_MS));
+    // thrown away meanwhile (left the frame): nothing to finish, and the audio capture may
+    // already belong to a new take
+    if (session.current !== s) return;
     cancelAnimationFrame(s.frame);
     const video = await s.recorder.stop();
     audioEngine.stopAudioCapture();

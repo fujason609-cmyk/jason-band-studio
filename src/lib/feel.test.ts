@@ -1,4 +1,4 @@
-import { FEEL_PROFILES, humanize, profileFor, strumOffsets } from "./feel";
+import { FEEL_PROFILES, capStrums, humanize, profileFor, strumOffsets } from "./feel";
 
 const PPQ = 192;
 const mid = () => 0.5; // random() at the centre: no jitter
@@ -49,5 +49,17 @@ describe("strums", () => {
 
   it("leaves single notes alone", () => {
     expect(strumOffsets([{ ticks: 0, pitch: 60 }, { ticks: 96, pitch: 62 }], PPQ)).toEqual([0, 0]);
+  });
+});
+
+describe("strum rolls at a fast tempo", () => {
+  it("brings the strings closer so a strum fits its time, and leaves a short roll alone", () => {
+    const chord = [0, 0, 0, 0, 0, 0].map((_, i) => ({ ticks: 0, pitch: 40 + i * 5 }));
+    const places = [0, 1, 2, 3, 4, 5];
+    // 6 strings × 8 ms = 40 ms, capped to 25 ms: the last string at 25 ms
+    const capped = capStrums(chord, places, 0.008, 0.025);
+    expect(capped[5]! * 0.008).toBeCloseTo(0.025);
+    expect(capped[0]).toBe(0);
+    expect(capStrums(chord, places, 0.004, 0.025)).toEqual(places); // 20 ms already fits
   });
 });

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef } from "react";
 import { audioEngine } from "@/audio/AudioEngine";
 import { isTypingTarget } from "@/lib/keyboardMap";
+import { useProjectStore } from "@/stores/useProjectStore";
 import { useStudioStore } from "@/stores/useStudioStore";
 import { ensureAudio } from "./useAudioEngine";
 
@@ -45,6 +46,14 @@ export function useTransport() {
   }, [setTransport]);
 
   return { status, play, pause, stop, restart, toggle, seek };
+}
+
+/** True while a sound the song needs is still downloading: Play waits, or parts would be missing. */
+export function useSoundsLoading(): boolean {
+  const audioStarted = useStudioStore((s) => s.audioStarted);
+  const instrumentStates = useStudioStore((s) => s.instrumentStates);
+  const tracks = useProjectStore((s) => s.project.tracks);
+  return audioStarted && tracks.some((t) => instrumentStates[t.instrument]?.status === "loading");
 }
 
 /** Space toggles playback unless the user is typing or pressing a focused control. */

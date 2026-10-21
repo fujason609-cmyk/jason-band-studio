@@ -5,9 +5,9 @@ import { Fader } from "@/components/common/Fader";
 import { ensureAudio } from "@/hooks/useAudioEngine";
 import { useHideOnScroll } from "@/hooks/useHideOnScroll";
 import { NARROW_QUERY, useMediaQuery } from "@/hooks/useMediaQuery";
-import { usePlaybackPosition, useSpacebarToggle, useTransport } from "@/hooks/useTransport";
+import { usePlaybackPosition, useSoundsLoading, useSpacebarToggle, useTransport } from "@/hooks/useTransport";
 import { useT } from "@/i18n/useT";
-import { MAX_BPM, MIN_BPM, barBeat, formatClock, songToRealSeconds } from "@/lib/time";
+import { MAX_BPM, MIN_BPM, barBeat, clampBpm, formatClock, songToRealSeconds } from "@/lib/time";
 import { useProjectStore } from "@/stores/useProjectStore";
 import { useStudioStore } from "@/stores/useStudioStore";
 
@@ -75,7 +75,8 @@ function BpmControl() {
   const bpm = useProjectStore((s) => s.project.bpm);
   const baseBpm = useProjectStore((s) => s.project.baseBpm);
   const setBpm = useProjectStore((s) => s.setBpm);
-  const roundedBase = Math.round(baseBpm);
+  // the song's own tempo, decimals and all (133.33): the button shows it rounded
+  const original = clampBpm(baseBpm);
   const t = useT();
 
   return (
@@ -84,7 +85,7 @@ function BpmControl() {
         {t.tempo}
       </label>
       <div className="bpm__field">
-        <IconButton label={t.slower} variant="quiet" onClick={() => setBpm(bpm - 1)} disabled={bpm <= MIN_BPM}>
+        <IconButton label={t.slower} variant="quiet" onClick={() => setBpm(Math.ceil(bpm - 1))} disabled={bpm <= MIN_BPM}>
           <Minus size={16} />
         </IconButton>
         <input
@@ -101,15 +102,15 @@ function BpmControl() {
           }}
           onBlur={(e) => setBpm(Number(e.currentTarget.value))}
         />
-        <IconButton label={t.faster} variant="quiet" onClick={() => setBpm(bpm + 1)} disabled={bpm >= MAX_BPM}>
+        <IconButton label={t.faster} variant="quiet" onClick={() => setBpm(Math.floor(bpm + 1))} disabled={bpm >= MAX_BPM}>
           <Plus size={16} />
         </IconButton>
         <span className="bpm__unit">BPM</span>
         <ClickControls />
       </div>
-      {bpm !== roundedBase && (
-        <button type="button" className="link-btn" onClick={() => setBpm(roundedBase)}>
-          {t.backToTempo(roundedBase)}
+      {bpm !== original && (
+        <button type="button" className="link-btn" onClick={() => setBpm(original)}>
+          {t.backToTempo(Math.round(original))}
         </button>
       )}
     </div>
@@ -122,8 +123,6 @@ export function TransportBar() {
   const audioStarted = useStudioStore((s) => s.audioStarted);
   const loop = useStudioStore((s) => s.settings.loop);
   const updateSettings = useStudioStore((s) => s.updateSettings);
-  const instrumentStates = useStudioStore((s) => s.instrumentStates);
-  const tracks = useProjectStore((s) => s.project.tracks);
   const masterVolume = useProjectStore((s) => s.project.masterVolume);
   const setMasterVolume = useProjectStore((s) => s.setMasterVolume);
   const t = useT();
@@ -131,7 +130,7 @@ export function TransportBar() {
   // and comes back on any scroll up, or when it gets keyboard focus.
   const [hidden, show] = useHideOnScroll(useMediaQuery(NARROW_QUERY));
 
-  const loading = audioStarted && tracks.some((t) => instrumentStates[t.instrument]?.status === "loading");
+  const loading = useSoundsLoading();
   const playing = status === "playing";
 
   return (

@@ -24,6 +24,17 @@ interface ScheduledNote {
   breath?: boolean;
 }
 
+/**
+ * The time to start a note at: as scheduled, unless that is already past. Compare with
+ * the audio clock itself, not Tone.now(): Tone.now() is the clock plus the look-ahead,
+ * which is exactly where the Part's scheduling window ends, so clamping to it pushed every
+ * note to the end of its 50 ms window. Notes landed up to 50 ms late and the ones in one
+ * window fired together: no strums, no feel, the band out of step with itself.
+ */
+function notBefore(time: number): number {
+  return Math.max(Tone.getContext().currentTime, time);
+}
+
 /** Notes in song seconds → Transport ticks, ready to arrange. */
 function toTicks(notes: readonly NoteEvent[], baseBpm: number): StyledNote[] {
   return notes.map((n) => ({
@@ -64,6 +75,8 @@ export class AudioTrack {
   private vocalLoading = false;
   private singing = true;
   private disposed = false;
+  /** counts setInstrument calls, so a slower, older one doesn't build voices too */
+  private voiceRequest = 0;
 
   constructor(
     private readonly member: MemberId,
@@ -95,8 +108,12 @@ export class AudioTrack {
     this.liveVoice?.dispose();
     this.voice = null;
     this.liveVoice = null;
+    // only the latest call builds voices: two calls for the same instrument (a style or
+    // keys-patch change, or Retry, while the pack is still loading) would otherwise both
+    // build them, and the first pair would keep running, connected and never freed
+    const request = ++this.voiceRequest;
     await this.samples.load(instrument);
-    if (this.instrument !== instrument) return; // a newer change won the race
+    if (request !== this.voiceRequest || this.disposed) return;
     this.voice = this.samples.createVoice(instrument);
     this.voice.output.connect(this.channel);
     this.liveVoice = this.samples.createVoice(instrument);
@@ -172,8 +189,8 @@ export class AudioTrack {
     this.vocalPart = new Tone.Part<ScheduledNote>((time, ev) => {
       if (!this.audible || !this.singing || !this.vocalVoice) return;
       const { offset, velocity } = humanize(this.feel, ev, PPQ, Math.random);
-      if (ev.breath) return this.vocalVoice.breathe(Math.max(Tone.now(), time + offset), velocity);
-      this.vocalVoice.attackRelease(ev.pitch, `${ev.durationTicks}i`, Math.max(Tone.now(), time + offset), velocity);
+      if (ev.breath) return this.vocalVoice.breathe(notBefore(time + offset), velocity);
+      this.vocalVoice.attackRelease(ev.pitch, `${ev.durationTicks}i`, notBefore(time + offset), velocity);
     }, events);
     this.vocalPart.start(0);
   }
@@ -205,7 +222,7 @@ export class AudioTrack {
       const strumIndex = this.instrument === "drums" ? 0 : ev.strumIndex;
       const { offset, velocity } = humanize(this.feel, { ...ev, strumIndex }, PPQ, Math.random);
       // Duration in ticks so it stretches with the transport tempo.
-      this.voice.attackRelease(ev.pitch, `${ev.durationTicks}i`, Math.max(Tone.now(), time + offset), velocity);
+      this.voice.attackRelease(ev.pitch, `${ev.durationTicks}i`, notBefore(time + offset), velocity);
     }, events);
     this.part.start(0);
   }
@@ -232,11 +249,12 @@ export class AudioTrack {
   }
 
   liveAttack(pitch: number, velocity = 0.8) {
-    this.liveVoice?.attack(pitch, Tone.now(), velocity);
+    // now, not Tone.now(): that is the look-ahead time, a tenth of a second late for a finger
+    this.liveVoice?.attack(pitch, Tone.immediate(), velocity);
   }
 
   liveRelease(pitch: number) {
-    this.liveVoice?.release(pitch, Tone.now());
+    this.liveVoice?.release(pitch, Tone.immediate());
   }
 
   liveReleaseAll() {

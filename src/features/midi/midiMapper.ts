@@ -23,12 +23,17 @@ export function familyFromName(name: string): Exclude<Family, "lead"> | null {
 }
 
 /** A part that is sung: vocals, voice, choir, in English, Japanese or Chinese. */
-const VOCAL = /vocal|voice|vox|singer|sing\b|choir|chorus|soprano|alto\b|\bwomen\b|\bmen\b|ボーカル|ヴォーカル|コーラス|歌|唄|合唱|主唱|人声|人聲|和声|和聲|女声|男声|女聲|男聲/i;
+const VOCAL = /vocal|voice|\bvox\b|\bsing(er|ers|ing)?\b|choir|chorus|soprano|\balto\b|\bwomen\b|\bmen\b|ボーカル|ヴォーカル|コーラス|歌|唄|合唱|主唱|人声|人聲|和声|和聲|女声|男声|女聲|男聲/i;
+/**
+ * Words that make a "sung" name an instrument after all: Alto Sax, Soprano Sax, Chorus
+ * Guitar, Vox Continental Organ, Vox AC30, Bass & Vocal (Mio plays it), Voice Oohs pad…
+ */
+const INSTRUMENT_WORD = /sax|organ|horn|trumpet|trombone|tuba|flute|clarinet|oboe|recorder|violin|viola|cello|harp|bell|ac30|amp\b|サックス|オルガン|萨克斯|风琴|風琴/i;
 /** Sung parts that sound like backing vocals rather than the lead. */
 const BACKING_VOCAL = /back|harmon|chorus|choir|コーラス|和声|和聲|合唱|\bmen\b/i;
 
 export function isVocalName(name: string): boolean {
-  return VOCAL.test(name);
+  return VOCAL.test(name) && !INSTRUMENT_WORD.test(name) && familyFromName(name) === null;
 }
 
 /** "Rhythm Guitar" / "リズムギター" / "节奏吉他": Azusa's part rather than Yui's. */
@@ -57,13 +62,16 @@ const MELODIC_MEMBERS: MemberId[] = ["yui", "azusa", "tsumugi"];
  * "あずにゃん"), in English, Japanese and Chinese. Fan transcriptions of the band's songs
  * often say who plays what, and that beats any guess. `nick` names (Azu-nyan, Mugi)
  * count for less than real names when two tracks name the same member.
+ *
+ * A given name written as one kanji only counts on its own, not inside a longer word:
+ * 律 is in 主旋律 (main melody) and 旋律吉他, 唯 in 唯美; kana after it are fine (唯ちゃん).
  */
 const MEMBER_NAMES: Record<MemberId, { name: RegExp; nick?: RegExp }> = {
-  yui: { name: /\byui\b|hirasawa|唯|平沢|平泽|ゆい/i },
-  mio: { name: /\bmio\b|akiyama|澪|秋山|みお/i },
-  ritsu: { name: /\britsu\b|tainaka|律|田井中|りっちゃん|りつ/i },
-  tsumugi: { name: /tsumugi|tsugumi|kotobuki|紬|琴吹|つむぎ/i, nick: /\bmugi\b|むぎ/i },
-  azusa: { name: /azusa|nakano|梓|中野|あずさ/i, nick: /azu-?nyan|あずにゃん/i },
+  yui: { name: /\byui\b|hirasawa|平沢|平泽|(?<![一-鿿])唯(?![一-鿿])|ゆい/i },
+  mio: { name: /\bmio\b|akiyama|秋山|(?<![一-鿿])澪(?![一-鿿])|みお/i },
+  ritsu: { name: /\britsu\b|tainaka|田井中|(?<![一-鿿])律(?![一-鿿])|りっちゃん|りつ/i },
+  tsumugi: { name: /tsumugi|tsugumi|kotobuki|琴吹|(?<![一-鿿])紬(?![一-鿿])|つむぎ/i, nick: /\bmugi\b|むぎ/i },
+  azusa: { name: /azusa|nakano|中野梓|(?<![一-鿿])梓(?![一-鿿])|あずさ/i, nick: /azu-?nyan|あずにゃん/i },
 };
 
 /** The member a track's name points at, and how sure: 2 a real name, 1 a nickname. */
@@ -91,12 +99,25 @@ export function suggestMapping(parsed: ParsedMidi): MappingSuggestion {
   const taken = new Set<MemberId>();
   const byIndex = new Map<number, MemberId | null>();
 
-  // sung parts first: the lead-sounding one to Yui, the next to Mio's harmony
+  // sung parts first: one naming a singer ("Vocal (Mio)") to her, then the lead-sounding
+  // one to Yui and the next to Mio's harmony
   const sung = parsed.tracks
     .filter((t) => !t.isPercussion && isVocalName(t.name))
     .sort((a, b) => Number(BACKING_VOCAL.test(a.name)) - Number(BACKING_VOCAL.test(b.name)) || b.notes.length - a.notes.length);
   const vocalOf = new Map<number, MemberId>();
-  sung.slice(0, VOCALISTS.length).forEach((t, i) => vocalOf.set(t.index, VOCALISTS[i]!));
+  const singerNamed = (t: ParsedMidiTrack) => {
+    const member = memberFromName(t.name)?.member;
+    return member && VOCALISTS.includes(member) ? member : null;
+  };
+  for (const t of sung) {
+    const member = singerNamed(t);
+    if (member && ![...vocalOf.values()].includes(member)) vocalOf.set(t.index, member);
+  }
+  for (const t of sung) {
+    if (vocalOf.has(t.index) || singerNamed(t)) continue;
+    const free = VOCALISTS.find((m) => ![...vocalOf.values()].includes(m));
+    if (free) vocalOf.set(t.index, free);
+  }
   const playable = parsed.tracks.filter((t) => !vocalOf.has(t.index));
 
   // named after a member: the strongest claim for each member wins, other claims are left out
@@ -119,8 +140,12 @@ export function suggestMapping(parsed: ParsedMidi): MappingSuggestion {
   }
 
   // unnamed drum and bass tracks: Ritsu and Mio take all of them (a kit is often split over
-  // several tracks), unless a track named after them already gave them their part
-  const namedFor = new Set(named.map((n) => n.claim.member));
+  // several tracks), unless a track named after them already gave them their drums / bass
+  const namedFor = new Set(
+    named
+      .filter((n) => byIndex.get(n.track.index) === n.claim.member && familyOf(n.track) === MEMBER_FAMILY[n.claim.member])
+      .map((n) => n.claim.member),
+  );
   for (const track of playable) {
     if (byIndex.has(track.index)) continue;
     const family = familyOf(track);
@@ -180,6 +205,17 @@ export function instrumentsFor(
   return result;
 }
 
+/**
+ * The studio counts a bar in quarter notes (grid, metronome, bar/beat readout, song
+ * length), so a time signature becomes quarters per bar: 6/8 → 3, 2/2 → 4, 12/8 → 6.
+ * A bar that isn't a whole number of quarters (7/8) keeps its numerator; 1 to 16.
+ */
+export function quarterBeatsPerBar(numerator: number, denominator: number): number {
+  const quarters = (numerator * 4) / denominator;
+  const beats = Number.isInteger(quarters) ? quarters : numerator;
+  return Math.max(1, Math.min(16, Math.round(beats)));
+}
+
 export interface MappedSong {
   tracks: StudioTrack[];
   baseBpm: number;
@@ -222,6 +258,6 @@ export function buildTracksFromMapping(
   return {
     tracks,
     baseBpm: firstTempo && Number.isFinite(firstTempo) ? Math.round(firstTempo * 100) / 100 : 120,
-    beatsPerBar: firstSig?.numerator ?? 4,
+    beatsPerBar: quarterBeatsPerBar(firstSig?.numerator ?? 4, firstSig?.denominator ?? 4),
   };
 }

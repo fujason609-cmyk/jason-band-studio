@@ -1,4 +1,4 @@
-import { noteState } from "./drawTimeline";
+import { noteState, summarise } from "./drawTimeline";
 
 describe("note state against the playhead", () => {
   const note = { pitch: 60, start: 2, duration: 1, velocity: 0.8 };
@@ -13,5 +13,17 @@ describe("note state against the playhead", () => {
   it("treats a drum hit as a short flash, whatever its stored length", () => {
     expect(noteState(note, 2.1, true)).toBe("active");
     expect(noteState(note, 2.5, true)).toBe("past");
+  });
+});
+
+describe("part summary", () => {
+  it("is worked out once per notes array and knows the longest note", () => {
+    const notes = [
+      { pitch: 48, start: 0, duration: 12, velocity: 0.8 }, // a 12 s pad: still on screen at 9 s
+      { pitch: 72, start: 1, duration: 0.5, velocity: 0.8 },
+    ];
+    const s = summarise(notes);
+    expect(s).toEqual({ lo: 48, hi: 72, longest: 12 });
+    expect(summarise(notes)).toBe(s); // cached: no rescan on the next frame
   });
 });

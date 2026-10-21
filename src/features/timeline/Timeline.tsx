@@ -42,6 +42,8 @@ export function Timeline({ laneHeight = LANE_HEIGHT, labels, forceFollow = false
   const scrubbing = useRef(false);
   // a wheel or touch scroll pauses following for a moment, so you can look around while it plays
   const userScrolledAt = useRef(-Infinity);
+  /** set when follow mode scrolls the view itself (that frame is drawn already) */
+  const followScroll = useRef(false);
   const lastAnnounced = useRef(-1);
   // read once per theme: getComputedStyle is too slow to run on every frame
   const palette = useRef<TimelinePalette | null>(null);
@@ -122,7 +124,10 @@ export function Timeline({ laneHeight = LANE_HEIGHT, labels, forceFollow = false
     if (scroller && following) {
       const target = cameraLeft(pos, zoom, scroller.clientWidth, project.durationSeconds);
       const next = followStep(scroller.scrollLeft, target);
-      if (Math.abs(next - scroller.scrollLeft) >= 0.5) scroller.scrollLeft = next;
+      if (Math.abs(next - scroller.scrollLeft) >= 0.5) {
+        followScroll.current = true; // this frame draws below: the scroll event needn't draw again
+        scroller.scrollLeft = next;
+      }
     }
     // already inside an animation frame: redraw now so the glowing notes track the playhead
     position.current = pos;
@@ -162,7 +167,10 @@ export function Timeline({ laneHeight = LANE_HEIGHT, labels, forceFollow = false
       <div
         ref={scrollRef}
         className="timeline__scroll"
-        onScroll={requestDraw}
+        onScroll={() => {
+          if (followScroll.current) followScroll.current = false;
+          else requestDraw();
+        }}
         onWheel={() => (userScrolledAt.current = performance.now())}
         onTouchMove={() => (userScrolledAt.current = performance.now())}
         role="slider"

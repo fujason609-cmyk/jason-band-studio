@@ -5,7 +5,7 @@ import { MEMBERS } from "@/features/band/members";
 import { MAX_ZOOM, MIN_ZOOM, RULER_HEIGHT } from "@/features/timeline/layout";
 import { Timeline } from "@/features/timeline/Timeline";
 import { ensureAudio } from "@/hooks/useAudioEngine";
-import { useSpacebarToggle, useTransport } from "@/hooks/useTransport";
+import { useSoundsLoading, useSpacebarToggle, useTransport } from "@/hooks/useTransport";
 import { useT } from "@/i18n/useT";
 import { useStudioStore } from "@/stores/useStudioStore";
 import { canRecordVideo } from "./frameRecorder";
@@ -43,9 +43,11 @@ export function RecordFrame() {
     return () => ro.disconnect();
   }, []);
 
+  // Esc leaves the frame, except while the save dialog is up: there it only closes the dialog
+  const saving = useRef(false);
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") setRecordMode(false);
+      if (e.key === "Escape" && !saving.current) setRecordMode(false);
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
@@ -69,6 +71,12 @@ export function RecordFrame() {
     keyHeight,
     laneHeight,
   });
+  saving.current = result !== null;
+  const loading = useSoundsLoading();
+  // the 800 ms tail after a take: the picture is frozen and the video still being written
+  const finishing = recording && !playing && countdown === null;
+  // counts countdowns, so one cancelled as it reaches 0 doesn't play anyway
+  const countdownRun = useRef(0);
 
   useEffect(() => {
     if (countdown === null || countdown === 0) return;
@@ -78,12 +86,17 @@ export function RecordFrame() {
   useEffect(() => {
     if (countdown !== 0) return;
     // keep counting as "rolling" until the transport says playing, so the take isn't cut
-    void play().finally(() => setCountdown(null));
-  }, [countdown, play]);
+    const run = countdownRun.current;
+    void play()
+      .then(() => {
+        if (run !== countdownRun.current) pause(); // cancelled while play() was starting
+      })
+      .finally(() => setCountdown(null));
+  }, [countdown, play, pause]);
 
   /** Play, through the countdown when this starts a new take. */
   const start = async (fromTop: boolean) => {
-    if (countdown !== null) return;
+    if (countdown !== null || finishing || loading) return;
     if (!armed || !supported || recording) return void (fromTop ? restart() : play());
     // unlock audio now, inside the tap: the countdown's timer isn't a user gesture
     if (!(await ensureAudio())) return;
@@ -91,6 +104,7 @@ export function RecordFrame() {
     setCountdown(COUNTDOWN_SECONDS);
   };
   const cancelCountdown = () => {
+    countdownRun.current += 1;
     setCountdown(null);
     discard();
   };
@@ -127,11 +141,17 @@ export function RecordFrame() {
               <Pause size={22} />
             </IconButton>
           ) : (
-            <IconButton label={t.play} variant="solid" className="transport__main" onClick={() => void start(false)}>
+            <IconButton
+              label={loading ? t.loadingSounds : t.play}
+              variant="solid"
+              className="transport__main"
+              onClick={() => void start(false)}
+              disabled={loading || finishing}
+            >
               <Play size={22} />
             </IconButton>
           )}
-          <IconButton label={t.restart} onClick={() => void start(true)}>
+          <IconButton label={t.restart} onClick={() => void start(true)} disabled={loading || finishing}>
             <SkipBack size={18} />
           </IconButton>
           <IconButton label={t.stop} onClick={halt(stop)}>

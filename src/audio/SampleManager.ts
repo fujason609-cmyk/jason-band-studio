@@ -78,11 +78,14 @@ export class SampleManager {
       Object.entries(files).map(([note, file]) => ({ layer: layer as "main" | "soft", note, file })),
     );
     let done = 0;
+    // every buffer that loaded, so a pack that fails part-way doesn't keep them all in memory
+    const decoded: Tone.ToneAudioBuffer[] = [];
     this.set(instrument, { status: "loading", progress: 0 });
     try {
       const loaded = await Promise.all(
         entries.map(async (e) => {
           const buffer = await new Tone.ToneAudioBuffer().load(samplePackUrl(instrument, e.file));
+          decoded.push(buffer);
           done += 1;
           this.set(instrument, { status: "loading", progress: done / entries.length });
           return { ...e, buffer };
@@ -93,6 +96,7 @@ export class SampleManager {
       this.packs.set(instrument, { main: pick("main"), soft: pack.soft ? pick("soft") : undefined });
       this.set(instrument, { status: "ready", progress: 1 });
     } catch (err) {
+      decoded.forEach((b) => b.dispose());
       // keep playing on the synth voice; the error state shows Retry in the mixer
       await this.loadSynth(instrument, false);
       const message = err instanceof Error ? err.message : String(err);

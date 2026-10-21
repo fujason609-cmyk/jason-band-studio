@@ -28,7 +28,7 @@ describe("project validation", () => {
     tracks[0]!.instrument = "theremin";
     tracks[0]!.notes = [{ pitch: 300, start: 0, duration: 1, velocity: 1 }, { pitch: 60, start: 1, duration: 0.5, velocity: 2 }];
     const project = validateProject({ ...raw, tracks, bpm: 999 })!;
-    expect(project.bpm).toBe(240);
+    expect(project.bpm).toBe(300);
     expect(project.tracks[0]).toMatchObject({ volume: 1, instrument: "lead-guitar" });
     expect(project.tracks[0]!.notes).toEqual([{ pitch: 60, start: 1, duration: 0.5, velocity: 1 }]);
   });

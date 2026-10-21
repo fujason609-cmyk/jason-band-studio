@@ -12,20 +12,43 @@ export function sampleUrls(): string[] {
   );
 }
 
+export interface ConnectionInfo {
+  saveData?: boolean;
+  type?: string;
+  effectiveType?: string;
+}
+
+/**
+ * Whether to download every sample (about 4.6 MB) before it's needed. Only when the browser
+ * says the connection is not metered or slow: Safari reports no connection at all, so an
+ * iPhone on mobile data fetches the samples on its first Play instead (cached then too).
+ */
+export function shouldWarmSamples(connection: ConnectionInfo | undefined): boolean {
+  if (!connection || connection.saveData) return false;
+  if (connection.type === "cellular") return false;
+  return !connection.effectiveType || connection.effectiveType === "4g";
+}
+
+/** Resolves once a service worker controls this page (not on a hard reload, which bypasses it). */
+function controlled(): Promise<void> {
+  if (navigator.serviceWorker.controller) return Promise.resolve();
+  return new Promise((resolve) => navigator.serviceWorker.addEventListener("controllerchange", () => resolve(), { once: true }));
+}
+
 /**
  * Production only: install the service worker (offline use, "Add to Home Screen"), then,
- * when the page is idle, fetch the instrument samples through it so the first Play doesn't
- * wait for downloads. Skipped when the browser asks to save data.
+ * once it controls the page and the page is idle, fetch the instrument samples through it
+ * so the first Play doesn't wait for downloads (see shouldWarmSamples for when).
  */
 export function registerServiceWorker() {
   if (!import.meta.env.PROD || !("serviceWorker" in navigator)) return;
   window.addEventListener("load", () => {
     navigator.serviceWorker
       .register(`${import.meta.env.BASE_URL}sw.js`)
-      .then(() => navigator.serviceWorker.ready)
+      .then(() => controlled())
       .then(() => {
-        const connection = (navigator as Navigator & { connection?: { saveData?: boolean } }).connection;
-        if (connection?.saveData) return;
+        const connection = (navigator as Navigator & { connection?: ConnectionInfo }).connection;
+        if (!shouldWarmSamples(connection)) return;
         const idle = window.requestIdleCallback ?? ((cb: () => void) => setTimeout(cb, 2000));
         idle(() => void warm(sampleUrls()));
       })

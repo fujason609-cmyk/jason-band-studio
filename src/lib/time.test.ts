@@ -21,9 +21,9 @@ describe("time model", () => {
 
   it("clamps tempo to the supported range", () => {
     expect(clampBpm(10)).toBe(40);
-    expect(clampBpm(500)).toBe(240);
+    expect(clampBpm(500)).toBe(300);
     expect(clampBpm(Number.NaN)).toBe(120);
-    expect(clampBpm(127.6)).toBe(128);
+    expect(clampBpm(133.333)).toBe(133.33); // an imported tempo keeps its decimals
   });
 
   it("formats clocks and bar positions", () => {

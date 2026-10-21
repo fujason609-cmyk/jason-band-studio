@@ -28,19 +28,48 @@ export function decodeMidiText(text: string): string {
   }
 }
 
+type ReaderTrack = Midi["tracks"][number];
+
+/** The parts of a file as they were written: what the MIDI reader split apart, put back. */
+interface Part {
+  /** the reader's index of the part's first piece */
+  index: number;
+  name: string;
+  first: ReaderTrack;
+  pieces: ReaderTrack[];
+}
+
 /**
- * The MIDI reader splits a track at its first program change. When a track sets volume
- * and pan before choosing its instrument, its name stays on that note-less first piece
- * (whose channel reads as 0, since the reader takes it from notes): an unnamed track
- * right after a named one without notes gets that name back.
+ * The MIDI reader splits a track at every program change, so one part can come out as
+ * several pieces, and only the first keeps the track's name:
+ *   - a track that sets volume and pan before choosing its instrument leaves its name on a
+ *     piece with controllers but no notes (its channel reads as 0, the reader takes it from
+ *     notes): the notes after it get that name back
+ *   - an instrument change mid-song (a guitar switching patch, a drum kit change) carries on
+ *     on the same channel without a name: it is joined back onto the part
+ * Names are decoded before they are trimmed: trim() would cut a UTF-8 byte 0xA0 (the end
+ * of "ム" in ドラム) off the raw text.
  */
-function trackNames(tracks: readonly Midi["tracks"][number][]): string[] {
-  return tracks.map((track, i) => {
-    const own = decodeMidiText(track.name.trim());
-    const before = tracks[i - 1];
-    if (own || !before || before.notes.length > 0) return own;
-    return decodeMidiText(before.name.trim());
+function partsOf(tracks: readonly ReaderTrack[]): Part[] {
+  const parts: Part[] = [];
+  tracks.forEach((track, index) => {
+    const name = decodeMidiText(track.name).trim();
+    const before = tracks[index - 1];
+    const last = parts[parts.length - 1];
+    if (!name && before && last) {
+      const settingsPiece = before.notes.length === 0 && Object.keys(before.controlChanges).length > 0 && last.name;
+      if (settingsPiece) {
+        parts.push({ index, name: last.name, first: track, pieces: [track] });
+        return;
+      }
+      if (before.notes.length > 0 && before.channel === track.channel && last.pieces.includes(before)) {
+        last.pieces.push(track);
+        return;
+      }
+    }
+    parts.push({ index, name, first: track, pieces: [track] });
   });
+  return parts;
 }
 
 /** Parse a Standard MIDI File into note events in song seconds, keeping timing metadata. */
@@ -56,11 +85,10 @@ export function parseMidi(data: ArrayBuffer | Uint8Array, fileName: string): Par
     );
   }
 
-  const names = trackNames(midi.tracks);
-  const tracks: ParsedMidiTrack[] = midi.tracks
-    .map((track, index): ParsedMidiTrack => {
-      const notes: NoteEvent[] = track.notes
-        .filter((n) => n.duration > 0 || track.instrument.percussion)
+  const tracks: ParsedMidiTrack[] = partsOf(midi.tracks)
+    .map(({ index, name, first, pieces }): ParsedMidiTrack => {
+      const notes: NoteEvent[] = pieces
+        .flatMap((piece) => piece.notes.filter((n) => n.duration > 0 || piece.instrument.percussion))
         .map((n) => ({
           pitch: n.midi,
           start: n.time,
@@ -68,13 +96,13 @@ export function parseMidi(data: ArrayBuffer | Uint8Array, fileName: string): Par
           velocity: n.velocity,
         }))
         .sort((a, b) => a.start - b.start || a.pitch - b.pitch);
-      const percussion = track.instrument.percussion || track.channel === 9;
+      const percussion = first.instrument.percussion || first.channel === 9;
       return {
         index,
-        name: names[index] || `Track ${index + 1}`,
-        channel: track.channel,
-        program: track.instrument.number,
-        instrumentName: percussion ? "drum kit" : track.instrument.name,
+        name: name || `Track ${index + 1}`,
+        channel: first.channel,
+        program: first.instrument.number,
+        instrumentName: percussion ? "drum kit" : first.instrument.name,
         isPercussion: percussion,
         notes,
       };

@@ -132,7 +132,8 @@ class SynthDrumKit implements Voice {
   private at(source: object, time: number): number {
     // A late callback asks for a time already past; Tone would move it up to "now",
     // which can equal the previous hit's start. Clamp to now first, then step past the last start.
-    const requested = Math.max(time, Tone.now());
+    // (the audio clock, not Tone.now(): see notBefore in AudioTrack)
+    const requested = Math.max(time, Tone.getContext().currentTime);
     const last = this.lastStart.get(source) ?? -1;
     const safe = requested <= last ? last + 0.002 : requested;
     this.lastStart.set(source, safe);

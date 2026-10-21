@@ -97,14 +97,24 @@ function variableLength(value: number): number[] {
 /** An MTrk chunk holding only "end of track". */
 const EMPTY_TRACK = [0x4d, 0x54, 0x72, 0x6b, 0, 0, 0, 4, 0x00, 0xff, 0x2f, 0x00];
 
+/** What to write at the start of a part's MIDI track. */
+export interface TrackHead {
+  name: string;
+  /** when given, the part's instrument, as a program change on `channel` */
+  program?: { channel: number; number: number };
+}
+
 /**
- * Put a track-name event (UTF-8) at the start of each MTrk chunk of a multi-track MIDI
- * file (`names[i]` names the i-th track; empty names are skipped), behind a new empty
- * first track. The MIDI reader drops a first track without notes, and splits a track at
- * its first program change, which leaves a part's name on a note-less first piece: for
- * the first part, that piece would be the dropped track.
+ * Put a track-name event (UTF-8) and a program change at the start of each MTrk chunk of
+ * a multi-track MIDI file (`heads[i]` is for the i-th track; empty names are skipped),
+ * behind a new empty first track. Why:
+ *   - the MIDI reader drops a first track without notes, and splits a track at a program
+ *     change that comes after other channel events (alphaTab writes volume and pan first),
+ *     which leaves the name on a note-less piece: a program change first avoids the split
+ *   - alphaTab writes a program change only when a channel's program changes, so a part
+ *     sharing a channel (past 15 parts) with an earlier one of the same instrument got none
  */
-export function nameMidiTracks(midi: Uint8Array, names: readonly string[]): Uint8Array {
+export function nameMidiTracks(midi: Uint8Array, heads: readonly TrackHead[]): Uint8Array {
   const view = new DataView(midi.buffer, midi.byteOffset, midi.byteLength);
   let offset = 8 + view.getUint32(4); // after the MThd chunk
   const header = midi.slice(0, offset);
@@ -112,11 +122,16 @@ export function nameMidiTracks(midi: Uint8Array, names: readonly string[]): Uint
   const parts: Uint8Array[] = [header, new Uint8Array(EMPTY_TRACK)];
   for (let track = 0; offset + 8 <= midi.length; track++) {
     const length = view.getUint32(offset + 4);
-    const name = new TextEncoder().encode(names[track] ?? "");
-    const event = name.length ? [0x00, 0xff, 0x03, ...variableLength(name.length), ...name] : [];
-    const head = midi.slice(offset, offset + 8); // "MTrk" + length
-    new DataView(head.buffer).setUint32(4, length + event.length);
-    parts.push(head, new Uint8Array(event), midi.subarray(offset + 8, offset + 8 + length));
+    const head = heads[track];
+    const name = new TextEncoder().encode(head?.name ?? "");
+    const program = head?.program;
+    const event = [
+      ...(name.length ? [0x00, 0xff, 0x03, ...variableLength(name.length), ...name] : []),
+      ...(program ? [0x00, 0xc0 | (program.channel & 0x0f), program.number & 0x7f] : []),
+    ];
+    const chunk = midi.slice(offset, offset + 8); // "MTrk" + length
+    new DataView(chunk.buffer).setUint32(4, length + event.length);
+    parts.push(chunk, new Uint8Array(event), midi.subarray(offset + 8, offset + 8 + length));
     offset += 8 + length;
   }
   const out = new Uint8Array(parts.reduce((n, p) => n + p.length, 0));
@@ -142,6 +157,9 @@ export function scoreToMidi(data: Uint8Array): ConvertedScore {
   new alphaTab.midi.MidiFileGenerator(score, settings, handler).generate();
 
   // alphaTab writes score track i as MIDI track i, without a name
-  const names = score.tracks.map((t) => clean(t.name) || clean(t.shortName));
-  return { midi: nameMidiTracks(file.toBinary(), names), title: clean(score.title) };
+  const heads = score.tracks.map((t): TrackHead => {
+    const { primaryChannel: channel, program } = t.playbackInfo;
+    return { name: clean(t.name) || clean(t.shortName), ...(channel === DRUM_CHANNEL ? {} : { program: { channel, number: program } }) };
+  });
+  return { midi: nameMidiTracks(file.toBinary(), heads), title: clean(score.title) };
 }

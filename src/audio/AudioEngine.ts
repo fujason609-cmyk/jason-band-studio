@@ -39,6 +39,7 @@ export class AudioEngine {
   private readonly samples = new SampleManager();
   private transport: TransportController | null = null;
   private started = false;
+  private starting: Promise<boolean> | null = null;
   private events: EngineEvents = {};
   private lastProject: StudioProject | null = null;
   private feel: FeelSetting = "character";
@@ -59,8 +60,20 @@ export class AudioEngine {
     return this.started;
   }
 
-  /** Must run from a user gesture: browsers keep audio locked until then. */
-  async start(): Promise<boolean> {
+  /**
+   * Must run from a user gesture: browsers keep audio locked until then. Calls made while
+   * it is starting share the same start (a first chord strum calls it once per string),
+   * so the audio graph is only ever built once.
+   */
+  start(): Promise<boolean> {
+    this.starting ??= this.startOnce().then((ok) => {
+      if (!ok) this.starting = null; // let the next gesture try again
+      return ok;
+    });
+    return this.starting;
+  }
+
+  private async startOnce(): Promise<boolean> {
     if (this.started) return true;
     try {
       await Tone.start();
@@ -287,6 +300,7 @@ export class AudioEngine {
     this.master = null;
     this.transport = null;
     this.started = false;
+    this.starting = null;
   }
 }
 

@@ -27,7 +27,7 @@ describe("project store", () => {
     s.setTrackVolume("ritsu", -1);
     s.setMasterVolume(3);
     const { project } = useProjectStore.getState();
-    expect(project.bpm).toBe(240);
+    expect(project.bpm).toBe(300);
     expect(project.tracks.find((t) => t.memberId === "ritsu")!.volume).toBe(0);
     expect(project.masterVolume).toBe(1);
   });

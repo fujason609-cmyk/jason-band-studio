@@ -36,11 +36,13 @@ export function serviceWorker(): Plugin {
       const samples = publicFiles.filter((f) => f.startsWith("instruments/"));
       const shell = [...built, ...publicFiles.filter((f) => !f.startsWith("instruments/"))].sort();
 
-      const size = (f: string) => statSync(join(publicDir, f)).size;
-      const sources = outputs.map((o) => (o.type === "chunk" ? o.code : String(o.source.length))).join("|");
+      // versions from file contents: a re-rendered sample or a new icon of the same size still updates
+      const content = (f: string) => createHash("sha256").update(readFileSync(join(publicDir, f))).digest("hex");
+      const sources = outputs.map((o) => (o.type === "chunk" ? o.code : hash(String(o.source)))).join("|");
       const build = {
-        version: hash(shell.join("\n") + sources + shell.filter((f) => !built.includes(f)).map(size).join(",")),
-        samplesVersion: hash(samples.map((f) => `${f}:${size(f)}`).join("\n")),
+        version: hash(shell.join("\n") + sources + shell.filter((f) => !built.includes(f)).map(content).join(",")),
+        samplesVersion: hash(samples.map((f) => `${f}:${content(f)}`).join("\n")),
+        builtAt: Date.now(),
         shell,
       };
       const template = readFileSync(new URL("./sw-template.js", import.meta.url), "utf8");

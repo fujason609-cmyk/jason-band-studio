@@ -1,5 +1,5 @@
 import { Midi } from "@tonejs/midi";
-import { buildTracksFromMapping, familyOf, suggestMapping } from "./midiMapper";
+import { buildTracksFromMapping, familyOf, isVocalName, memberFromName, quarterBeatsPerBar, suggestMapping } from "./midiMapper";
 import { MidiParseError, decodeMidiText, parseMidi } from "./midiParser";
 
 function makeMidi() {
@@ -173,6 +173,90 @@ describe("track mapping", () => {
     const who = (name: string) => assignments.find((a) => a.midiTrackIndex === parts.tracks.find((t) => t.name === name)!.index)!.memberId;
     expect(who("Synth")).toBe("tsumugi");
     expect(who("Guitar 3")).toBeNull();
+  });
+
+  describe("names that mislead", () => {
+    const fileWith = (tracks: { name: string; program?: number; channel?: number; drums?: boolean }[]) => {
+      const midi = new Midi();
+      for (const t of tracks) {
+        const track = midi.addTrack();
+        track.name = String.fromCharCode(...new TextEncoder().encode(t.name));
+        track.channel = t.drums ? 9 : (t.channel ?? 0);
+        track.instrument.number = t.program ?? 0;
+        for (let i = 0; i < 4; i++) track.addNote({ midi: t.drums ? 36 : 60, time: i * 0.5, duration: 0.4, velocity: 0.8 });
+      }
+      return parseMidi(midi.toArray(), "names.mid");
+    };
+    const whoIn = (parsed: ReturnType<typeof fileWith>) => (name: string) =>
+      suggestMapping(parsed).assignments.find((a) => a.midiTrackIndex === parsed.tracks.find((t) => t.name === name)!.index)!;
+
+    it("doesn't read a member's one-kanji name inside a word (主旋律 is not Ritsu)", () => {
+      const parsed = fileWith([{ name: "主旋律", program: 80, channel: 0 }, { name: "Drums", drums: true }, { name: "唯美钢琴", channel: 1 }]);
+      const who = whoIn(parsed);
+      expect(who("Drums").memberId).toBe("ritsu"); // the real drums aren't dropped
+      expect(who("主旋律").memberId).not.toBe("ritsu");
+      expect(memberFromName("律ちゃん ドラム")?.member).toBe("ritsu");
+      expect(memberFromName("田井中律")?.member).toBe("ritsu");
+    });
+
+    it("keeps Japanese names whose last byte reads as a no-break space (ドラム, リズム)", () => {
+      const parsed = fileWith([{ name: "ドラム", drums: true }, { name: "リズムギター", program: 29, channel: 1 }]);
+      expect(parsed.tracks.map((t) => t.name)).toEqual(["ドラム", "リズムギター"]);
+    });
+
+    it("doesn't sing instruments with voice-like names", () => {
+      for (const name of ["Alto Sax", "Soprano Sax", "Chorus Guitar", "Vox Continental Organ", "Rising Lead", "Bass & Vocal"]) {
+        expect(isVocalName(name)).toBe(false);
+      }
+      for (const name of ["Vocal", "Lead Vox", "Backing Vocals", "Singer", "ボーカル", "主唱"]) expect(isVocalName(name)).toBe(true);
+    });
+
+    it("gives a vocal that names its singer to her", () => {
+      const parsed = fileWith([{ name: "Vocal (Mio)", channel: 0 }, { name: "Vocal (Yui)", channel: 1 }]);
+      const who = whoIn(parsed);
+      expect(who("Vocal (Mio)")).toMatchObject({ memberId: "mio", vocal: true });
+      expect(who("Vocal (Yui)")).toMatchObject({ memberId: "yui", vocal: true });
+    });
+  });
+
+  it("keeps a part whole when its instrument changes mid-song", () => {
+    const midi = new Midi();
+    const guitar = midi.addTrack();
+    guitar.name = "Guitar";
+    guitar.channel = 0;
+    guitar.instrument.number = 29;
+    for (let i = 0; i < 4; i++) guitar.addNote({ midi: 52, time: i * 0.5, duration: 0.4, velocity: 0.8 });
+    const bytes = midi.toArray();
+    // splice a program change (to 30) into the middle of the guitar track: rewrite with one note after it
+    const withChange = new Midi(bytes);
+    withChange.tracks[0]!.instrument.number = 29;
+    const later = withChange.addTrack(); // what the reader makes of the second patch: same channel, no name
+    later.channel = 0;
+    later.instrument.number = 30;
+    for (let i = 4; i < 8; i++) later.addNote({ midi: 55, time: i * 0.5, duration: 0.4, velocity: 0.8 });
+    const parsed = parseMidi(withChange.toArray(), "patch.mid");
+    expect(parsed.tracks).toHaveLength(1);
+    expect(parsed.tracks[0]).toMatchObject({ name: "Guitar" });
+    expect(parsed.tracks[0]!.notes).toHaveLength(8);
+  });
+
+  it("doesn't hand an empty lyrics track's name to the next part", () => {
+    const midi = new Midi();
+    midi.addTrack().name = "Vocal"; // no notes, no controllers
+    const piano = midi.addTrack();
+    piano.channel = 1;
+    for (let i = 0; i < 4; i++) piano.addNote({ midi: 60, time: i * 0.5, duration: 0.4, velocity: 0.8 });
+    const parsed = parseMidi(midi.toArray(), "karaoke.mid");
+    expect(parsed.tracks.map((t) => t.name)).not.toContain("Vocal");
+  });
+
+  it("counts a bar in quarter notes, whatever the time signature", () => {
+    expect(quarterBeatsPerBar(4, 4)).toBe(4);
+    expect(quarterBeatsPerBar(6, 8)).toBe(3);
+    expect(quarterBeatsPerBar(12, 8)).toBe(6);
+    expect(quarterBeatsPerBar(2, 2)).toBe(4);
+    expect(quarterBeatsPerBar(7, 8)).toBe(7);
+    expect(quarterBeatsPerBar(17, 16)).toBe(16);
   });
 
   it("builds five tracks, merges shared parts and keeps mixer settings", () => {

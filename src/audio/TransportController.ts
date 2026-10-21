@@ -48,7 +48,10 @@ export class TransportController {
       // Tone.Draw, whose callbacks are dropped when the tab is in the background.
       this.transport.stop(time);
       const delayMs = Math.max(0, (time - Tone.now()) * 1000);
-      setTimeout(() => this.onEnd(), delayMs);
+      // unless playback started again in the meantime (Space right at the end)
+      setTimeout(() => {
+        if (this.transport.state !== "started" && !this.countingIn) this.onEnd();
+      }, delayMs);
     }, `${endTicks}i`);
 
     this.transport.loopStart = 0;

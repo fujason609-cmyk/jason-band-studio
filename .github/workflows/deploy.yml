@@ -12,7 +12,8 @@ permissions:
 
 concurrency:
   group: pages
-  cancel-in-progress: true
+  # let a running deploy finish (as GitHub's Pages workflows do); a newer push waits its turn
+  cancel-in-progress: false
 
 jobs:
   build:
