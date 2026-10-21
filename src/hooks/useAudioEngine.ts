@@ -1,6 +1,7 @@
 import { useEffect } from "react";
 import { audioEngine } from "@/audio/AudioEngine";
 import { getT } from "@/i18n/useT";
+import { getPlayedSong } from "@/stores/playedSong";
 import { useProjectStore } from "@/stores/useProjectStore";
 import { useStudioStore } from "@/stores/useStudioStore";
 
@@ -40,9 +41,10 @@ export function useAudioEngineBridge() {
     audioEngine.setVocals(vocals);
     audioEngine.setStyle(playStyle);
     audioEngine.setAutoDrums(autoDrums);
-    audioEngine.sync(useProjectStore.getState().project);
+    // the engine plays the song as played: with the solo round after it when that's on
+    audioEngine.sync(getPlayedSong().project);
     const unsubProject = useProjectStore.subscribe((s, prev) => {
-      if (s.project !== prev.project) audioEngine.sync(s.project);
+      if (s.project !== prev.project) audioEngine.sync(getPlayedSong().project);
     });
     const unsubLoop = useStudioStore.subscribe((s, prev) => {
       if (s.settings.loop !== prev.settings.loop) audioEngine.setLoop(s.settings.loop);
@@ -53,6 +55,7 @@ export function useAudioEngineBridge() {
       if (s.settings.countIn !== prev.settings.countIn) audioEngine.setCountIn(s.settings.countIn);
       if (s.settings.metronome !== prev.settings.metronome) audioEngine.setMetronome(s.settings.metronome);
       if (s.settings.vocals !== prev.settings.vocals) audioEngine.setVocals(s.settings.vocals);
+      if (s.settings.soloRound !== prev.settings.soloRound) audioEngine.sync(getPlayedSong().project);
     });
     return () => {
       unsubProject();

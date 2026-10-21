@@ -27,6 +27,8 @@ export interface StudioSettings {
   playStyle: PlayStyle;
   /** in rock and punk, play a generated beat when the score has no drum part */
   autoDrums: boolean;
+  /** after the song, each member plays a 4-bar solo in turn (lib/soloRound) */
+  soloRound: boolean;
   /** one bar of clicks before playback starts */
   countIn: boolean;
   /** a click on every beat while playing */
@@ -47,6 +49,7 @@ export const DEFAULT_SETTINGS: StudioSettings = {
   keysPatch: "piano",
   playStyle: "original",
   autoDrums: true,
+  soloRound: false,
   countIn: false,
   metronome: false,
   vocals: DEFAULT_VOCALS,
@@ -78,6 +81,7 @@ export function sanitizeSettings(raw: unknown): StudioSettings {
     keysPatch: isKeysPatch(r.keysPatch) ? r.keysPatch : DEFAULT_SETTINGS.keysPatch,
     playStyle: isPlayStyle(r.playStyle) ? r.playStyle : DEFAULT_SETTINGS.playStyle,
     autoDrums: typeof r.autoDrums === "boolean" ? r.autoDrums : DEFAULT_SETTINGS.autoDrums,
+    soloRound: typeof r.soloRound === "boolean" ? r.soloRound : DEFAULT_SETTINGS.soloRound,
     countIn: typeof r.countIn === "boolean" ? r.countIn : DEFAULT_SETTINGS.countIn,
     metronome: typeof r.metronome === "boolean" ? r.metronome : DEFAULT_SETTINGS.metronome,
     vocals: sanitizeVocals(r.vocals),

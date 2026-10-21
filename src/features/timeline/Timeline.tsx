@@ -5,7 +5,7 @@ import { NARROW_QUERY, useMediaQuery } from "@/hooks/useMediaQuery";
 import { usePlaybackPosition, useTransport } from "@/hooks/useTransport";
 import { useT } from "@/i18n/useT";
 import { barBeat } from "@/lib/time";
-import { useProjectStore } from "@/stores/useProjectStore";
+import { usePlayedSong } from "@/stores/playedSong";
 import { useStudioStore } from "@/stores/useStudioStore";
 import { drawTimeline } from "./drawTimeline";
 import { cameraLeft, followStep } from "./camera";
@@ -26,7 +26,7 @@ interface TimelineProps {
 const USER_SCROLL_HOLD_MS = 2000;
 
 export function Timeline({ laneHeight = LANE_HEIGHT, labels, forceFollow = false }: TimelineProps = {}) {
-  const project = useProjectStore((s) => s.project);
+  const { project, spots } = usePlayedSong();
   const { zoom, followPlayhead: followSetting, selectedMember, theme, vocals } = useStudioStore((s) => s.settings);
   const followPlayhead = forceFollow || followSetting;
   const transport = useStudioStore((s) => s.transport);
@@ -82,9 +82,9 @@ export function Timeline({ laneHeight = LANE_HEIGHT, labels, forceFollow = false
       laneHeight,
       position: position.current,
       ripples: playing && !reducedMotion,
-      lanes: buildLanes(project, colours, t.memberName, selectedMember, vocals),
+      lanes: buildLanes(project, colours, t.memberName, selectedMember, vocals, spots),
     });
-  }, [project, zoom, viewport, height, showLabels, laneHeight, selectedMember, vocals, t, playing, reducedMotion]);
+  }, [project, spots, zoom, viewport, height, showLabels, laneHeight, selectedMember, vocals, t, playing, reducedMotion]);
 
   const requestDraw = useCallback(() => {
     cancelAnimationFrame(frame.current);

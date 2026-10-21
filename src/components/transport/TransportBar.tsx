@@ -8,13 +8,15 @@ import { NARROW_QUERY, useMediaQuery } from "@/hooks/useMediaQuery";
 import { usePlaybackPosition, useSoundsLoading, useSpacebarToggle, useTransport } from "@/hooks/useTransport";
 import { useT } from "@/i18n/useT";
 import { MAX_BPM, MIN_BPM, barBeat, clampBpm, formatClock, songToRealSeconds } from "@/lib/time";
+import { usePlayedSong } from "@/stores/playedSong";
 import { useProjectStore } from "@/stores/useProjectStore";
 import { useStudioStore } from "@/stores/useStudioStore";
 
 function PositionReadout() {
   const clockRef = useRef<HTMLSpanElement>(null);
   const barRef = useRef<HTMLParagraphElement>(null);
-  const { baseBpm, bpm, beatsPerBar, durationSeconds } = useProjectStore((s) => s.project);
+  // the song as played: longer by the solo round when that's on
+  const { baseBpm, bpm, beatsPerBar, durationSeconds } = usePlayedSong().project;
   const t = useT();
 
   usePlaybackPosition((pos) => {

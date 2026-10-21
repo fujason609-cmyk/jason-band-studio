@@ -11,6 +11,8 @@ export interface LaneInput {
   selected: boolean;
   /** what the member sings (Yui, Mio), drawn as outlined notes over their part; `on` = vocal switch */
   vocal?: { notes: readonly NoteEvent[]; on: boolean };
+  /** this member's turns in the solo round (song seconds): the lane is lit and tagged SOLO */
+  solos?: readonly { start: number; end: number }[];
 }
 
 export interface Palette {
@@ -372,6 +374,26 @@ export function drawTimeline(input: DrawInput) {
   lanes.forEach((lane, i) => {
     const top = RULER_HEIGHT + i * laneH;
     const inner = laneH - pad * 2 - noteH;
+
+    // the member's solo-round turn: their lane lit up, tagged SOLO at its start
+    for (const solo of lane.solos ?? []) {
+      const x0 = Math.max(0, xOf(solo.start));
+      const x1 = Math.min(width, xOf(solo.end));
+      if (x1 <= x0) continue;
+      ctx.fillStyle = lane.color;
+      ctx.globalAlpha = 0.14;
+      ctx.fillRect(x0, top, x1 - x0, laneH);
+      ctx.globalAlpha = 1;
+      ctx.font = `800 11px ${FONT}`;
+      const text = "SOLO ★";
+      const tagW = ctx.measureText(text).width + 12;
+      const tagH = laneH < 40 ? 14 : 18;
+      const tagX = Math.min(Math.max(xOf(solo.start) + 6, 8), x1 - tagW - 4);
+      if (tagX < x0) continue;
+      pill(ctx, tagX, top + laneH - tagH - 4, tagW, tagH);
+      ctx.fillStyle = "#fff";
+      ctx.fillText(text, tagX + 6, top + laneH - tagH / 2 - 4 + 0.5);
+    }
 
     let yOf: (n: NoteEvent) => number;
     if (lane.isDrums) {

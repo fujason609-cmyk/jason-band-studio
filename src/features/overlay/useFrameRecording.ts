@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { audioEngine } from "@/audio/AudioEngine";
 import { buildLanes, readPalette } from "@/features/timeline/lanes";
 import { getT } from "@/i18n/useT";
-import { useProjectStore } from "@/stores/useProjectStore";
+import { getPlayedSong } from "@/stores/playedSong";
 import { useStudioStore } from "@/stores/useStudioStore";
 import { drawRecordFrame } from "./drawRecordFrame";
 import { FrameRecorder, type Recording } from "./frameRecorder";
@@ -74,7 +74,7 @@ export function useFrameRecording(armed: boolean, rolling: boolean, layout: Fram
 
     const s: Session = { recorder: new FrameRecorder(canvas, audio, useStudioStore.getState().settings.overlay.fps), canvas, frame: 0, frozenAt: null };
     const paint = () => {
-      const { project } = useProjectStore.getState();
+      const { project, spots } = getPlayedSong();
       const { settings } = useStudioStore.getState();
       ctx.setTransform(scale, 0, 0, scale, 0, 0);
       drawRecordFrame(ctx, {
@@ -84,7 +84,7 @@ export function useFrameRecording(armed: boolean, rolling: boolean, layout: Fram
         durationSeconds: project.durationSeconds,
         baseBpm: project.baseBpm,
         beatsPerBar: project.beatsPerBar,
-        lanes: buildLanes(project, palette, getT().memberName, settings.selectedMember, settings.vocals),
+        lanes: buildLanes(project, palette, getT().memberName, settings.selectedMember, settings.vocals, spots),
         palette,
         keyColor: OVERLAY_COLORS[settings.overlay.color],
         ripples,

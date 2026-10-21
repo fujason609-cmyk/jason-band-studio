@@ -2,6 +2,7 @@ import { MEMBERS } from "@/features/band/members";
 import type { MemberId } from "@/features/band/types";
 import { vocalRoleOf, type VocalSwitches } from "@/features/band/vocals";
 import { audibleMap } from "@/lib/mix";
+import type { SoloSpot } from "@/lib/soloRound";
 import type { StudioProject } from "@/types/project";
 import type { LaneInput, Palette } from "./drawTimeline";
 
@@ -31,6 +32,7 @@ export function buildLanes(
   names: Record<MemberId, string>,
   selectedMember: MemberId,
   vocals: VocalSwitches,
+  spots: readonly SoloSpot[] = [],
 ): LaneInput[] {
   const audible = audibleMap(project.tracks);
   return MEMBERS.map((m) => {
@@ -43,6 +45,7 @@ export function buildLanes(
       isDrums: track.instrument === "drums",
       selected: m.id === selectedMember,
       ...(track.vocal?.length ? { vocal: { notes: track.vocal, on: vocals[vocalRoleOf(m.id) ?? "lead"] } } : {}),
+      solos: spots.filter((s) => s.member === m.id),
     };
   });
 }
