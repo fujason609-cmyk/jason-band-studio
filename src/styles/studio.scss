@@ -116,8 +116,43 @@ $narrow: 760px;
   }
 }
 
-.fader {
+.fader-wrap {
   --fader-color: var(--ink);
+  position: relative;
+  display: block;
+  flex: 1;
+  min-width: 0;
+  width: 100%;
+}
+
+// the level in percent, above the handle while it moves (18px: the handle's width)
+.fader__bubble {
+  position: absolute;
+  bottom: calc(100% + 2px);
+  left: calc(9px + (100% - 18px) * var(--ratio));
+  z-index: 3;
+  padding: 2px 7px;
+  border-radius: 999px;
+  background: var(--ink);
+  color: var(--on-ink);
+  font-size: 11px;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.4;
+  white-space: nowrap;
+  pointer-events: none;
+  opacity: 0;
+  transform: translate(-50%, 4px);
+  transition:
+    opacity 0.15s ease,
+    transform 0.15s ease;
+  &.is-shown {
+    opacity: 1;
+    transform: translate(-50%, 0);
+  }
+}
+
+.fader {
   appearance: none;
   width: 100%;
   height: 24px;
