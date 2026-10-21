@@ -8,12 +8,21 @@ export type OverlayColor = "green" | "blue" | "magenta" | "black";
 /** Instagram shapes for the recording frame: Reels / Stories, portrait post, square post. */
 export type RecordFrame = "9:16" | "4:5" | "1:1";
 
+/**
+ * Video frame rate. 30 is the default: plenty for a scrolling score on Instagram and easy
+ * on older phones, which repaint the frame and play the band at the same time; 60 scrolls
+ * smoother, at about twice the file size.
+ */
+export type RecordFps = 30 | 60;
+export const RECORD_FPS: RecordFps[] = [30, 60];
+
 export interface OverlaySettings {
   color: OverlayColor;
   frame: RecordFrame;
+  fps: RecordFps;
 }
 
-export const DEFAULT_OVERLAY: OverlaySettings = { color: "green", frame: "9:16" };
+export const DEFAULT_OVERLAY: OverlaySettings = { color: "green", frame: "9:16", fps: 30 };
 
 /** Exact key colours. Fixed, never themed, so the editor's keyer sees one flat value. */
 export const OVERLAY_COLORS: Record<OverlayColor, string> = {
@@ -37,6 +46,7 @@ export function sanitizeOverlay(raw: unknown): OverlaySettings {
   return {
     color: pick(r.color, Object.keys(OVERLAY_COLORS) as OverlayColor[], DEFAULT_OVERLAY.color),
     frame: pick(r.frame, RECORD_FRAMES, DEFAULT_OVERLAY.frame),
+    fps: r.fps === 60 ? 60 : DEFAULT_OVERLAY.fps,
   };
 }
 

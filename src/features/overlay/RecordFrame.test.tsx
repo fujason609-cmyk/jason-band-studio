@@ -148,5 +148,7 @@ describe("recording frame maths and settings", () => {
     // keys left over from older versions (in-page overlay zone, score split) are dropped
     expect(sanitizeOverlay({ enabled: true, aspect: "16:9", size: "l", split: 0.6, color: "blue" })).toEqual({ ...DEFAULT_OVERLAY, color: "blue" });
     expect(sanitizeOverlay(null)).toEqual(DEFAULT_OVERLAY);
+    expect(sanitizeOverlay({ fps: 60 }).fps).toBe(60);
+    expect(sanitizeOverlay({ fps: 24 }).fps).toBe(30);
   });
 });

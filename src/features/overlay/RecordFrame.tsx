@@ -9,7 +9,7 @@ import { useSoundsLoading, useSpacebarToggle, useTransport } from "@/hooks/useTr
 import { useT } from "@/i18n/useT";
 import { useStudioStore } from "@/stores/useStudioStore";
 import { canRecordVideo } from "./frameRecorder";
-import { OVERLAY_COLORS, RECORD_FRAMES, recordLayout, type OverlayColor, type RecordFrame as Frame } from "./overlay";
+import { OVERLAY_COLORS, RECORD_FPS, RECORD_FRAMES, recordLayout, type OverlayColor, type RecordFrame as Frame } from "./overlay";
 import { SaveVideoDialog } from "./SaveVideoDialog";
 import { useFrameRecording } from "./useFrameRecording";
 
@@ -207,6 +207,21 @@ export function RecordFrame() {
               </option>
             ))}
           </select>
+          {supported && (
+            <select
+              aria-label={t.recordFps}
+              title={t.recordFpsHint}
+              value={overlay.fps}
+              disabled={recording}
+              onChange={(e) => set({ fps: Number(e.currentTarget.value) === 60 ? 60 : 30 })}
+            >
+              {RECORD_FPS.map((fps) => (
+                <option key={fps} value={fps}>
+                  {t.recordFpsOptions[fps]}
+                </option>
+              ))}
+            </select>
+          )}
         </div>
         {supported ? (
           <p className="record-controls__hint">{t.recordHint}</p>

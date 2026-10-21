@@ -57,7 +57,7 @@ export function SaveVideoDialog({ video, onClose }: { video: Recording; onClose:
     <dialog ref={dialogRef} className="video-dialog" aria-labelledby={titleId} onCancel={onClose}>
       <header className="video-dialog__head">
         <h2 id={titleId}>{t.savePrompt}</h2>
-        <p>{t.saveDetails(Math.round(video.seconds), frame, video.extension)}</p>
+        <p>{t.saveDetails(Math.round(video.seconds), frame, video.extension, video.fps)}</p>
       </header>
       <video className="video-dialog__preview" src={video.url} controls playsInline />
       {video.extension === "webm" && <p className="video-dialog__note">{t.webmNote}</p>}

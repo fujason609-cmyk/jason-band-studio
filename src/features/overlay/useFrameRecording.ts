@@ -72,7 +72,7 @@ export function useFrameRecording(armed: boolean, rolling: boolean, layout: Fram
     const palette = readPalette();
     const ripples = !matchMedia("(prefers-reduced-motion: reduce)").matches;
 
-    const s: Session = { recorder: new FrameRecorder(canvas, audio), canvas, frame: 0, frozenAt: null };
+    const s: Session = { recorder: new FrameRecorder(canvas, audio, useStudioStore.getState().settings.overlay.fps), canvas, frame: 0, frozenAt: null };
     const paint = () => {
       const { project } = useProjectStore.getState();
       const { settings } = useStudioStore.getState();

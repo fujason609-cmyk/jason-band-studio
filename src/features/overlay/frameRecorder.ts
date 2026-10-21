@@ -36,6 +36,12 @@ export interface Recording {
   mimeType: string;
   extension: "mp4" | "webm";
   seconds: number;
+  fps: number;
+}
+
+/** Video bit rate for a frame rate: twice the frames get more bits (at 1080 × 1920). */
+export function videoBitrate(fps: number): number {
+  return fps >= 60 ? 10_000_000 : 6_000_000;
 }
 
 /** "After School Jam", "9:16", a date → "After-School-Jam_9x16_20261020-1530.mp4" */
@@ -52,14 +58,18 @@ export class FrameRecorder {
   private readonly type: { mimeType: string; extension: "mp4" | "webm" };
   private startedAt = 0;
 
-  constructor(canvas: HTMLCanvasElement, audio: MediaStream, fps = 30) {
+  constructor(
+    canvas: HTMLCanvasElement,
+    audio: MediaStream,
+    private readonly fps = 30,
+  ) {
     const type = pickRecordingType();
     if (!type) throw new Error("No video type this browser can record");
     this.type = type;
     const stream = new MediaStream([...canvas.captureStream(fps).getVideoTracks(), ...audio.getAudioTracks()]);
     this.recorder = new MediaRecorder(stream, {
       mimeType: type.mimeType,
-      videoBitsPerSecond: 6_000_000,
+      videoBitsPerSecond: videoBitrate(fps),
       audioBitsPerSecond: 160_000,
     });
     this.recorder.ondataavailable = (e) => {
@@ -80,7 +90,7 @@ export class FrameRecorder {
         // only now: stopping the tracks first could cut the last chunk short
         this.recorder.stream.getTracks().forEach((t) => t.stop());
         const blob = new Blob(this.chunks, { type: this.type.mimeType.split(";")[0] });
-        resolve({ blob, url: URL.createObjectURL(blob), ...this.type, seconds });
+        resolve({ blob, url: URL.createObjectURL(blob), ...this.type, seconds, fps: this.fps });
       };
       if (this.recorder.state !== "inactive") this.recorder.stop();
       else this.recorder.onstop(new Event("stop"));

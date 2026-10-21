@@ -1,10 +1,15 @@
-import { pickRecordingType, recordingFileName } from "./frameRecorder";
+import { pickRecordingType, recordingFileName, videoBitrate } from "./frameRecorder";
 
 describe("video recording", () => {
   it("prefers MP4 (what Instagram takes) and falls back to WebM", () => {
     expect(pickRecordingType(() => true)).toEqual({ mimeType: "video/mp4;codecs=avc1.42E01E,mp4a.40.2", extension: "mp4" });
     expect(pickRecordingType((t) => t.startsWith("video/webm"))).toEqual({ mimeType: "video/webm;codecs=vp9,opus", extension: "webm" });
     expect(pickRecordingType(() => false)).toBeNull();
+  });
+
+  it("gives a 60 fps video more bits than a 30 fps one", () => {
+    expect(videoBitrate(30)).toBe(6_000_000);
+    expect(videoBitrate(60)).toBeGreaterThan(videoBitrate(30));
   });
 
   it("names the file after the song, the frame and the time", () => {
