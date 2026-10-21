@@ -1,21 +1,120 @@
 import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties } from "react";
 import { Pause, Play, SkipBack, Square, Video, X, ZoomIn, ZoomOut } from "lucide-react";
+import { audioEngine } from "@/audio/AudioEngine";
 import { IconButton } from "@/components/common/IconButton";
 import { MEMBERS } from "@/features/band/members";
 import { MAX_ZOOM, MIN_ZOOM, RULER_HEIGHT } from "@/features/timeline/layout";
 import { Timeline } from "@/features/timeline/Timeline";
 import { ensureAudio } from "@/hooks/useAudioEngine";
-import { useSoundsLoading, useSpacebarToggle, useTransport } from "@/hooks/useTransport";
+import { usePlaybackPosition, useSoundsLoading, useSpacebarToggle, useTransport } from "@/hooks/useTransport";
 import { useT } from "@/i18n/useT";
+import { usePlayedSong } from "@/stores/playedSong";
 import { useStudioStore } from "@/stores/useStudioStore";
 import { canRecordVideo } from "./frameRecorder";
-import { OVERLAY_COLORS, RECORD_FPS, RECORD_FRAMES, recordLayout, safeArea, type OverlayColor, type RecordFrame as Frame } from "./overlay";
+import {
+  MAX_TAKE_SECONDS,
+  MIN_TAKE_SECONDS,
+  OVERLAY_COLORS,
+  RECORD_FPS,
+  RECORD_FRAMES,
+  TAKE_PRESETS,
+  advanceTake,
+  clampTakeSeconds,
+  recordLayout,
+  safeArea,
+  startTake,
+  takeProgress,
+  type OverlayColor,
+  type RecordFrame as Frame,
+  type TakeLength,
+} from "./overlay";
 import { SaveVideoDialog } from "./SaveVideoDialog";
 import { useFrameRecording } from "./useFrameRecording";
 
 const ZOOM_STEP = 1.4;
 /** Seconds counted down on screen before a take's playback starts (the video already runs). */
 const COUNTDOWN_SECONDS = 3;
+
+/** Reels: the song's name over a five-colour progress bar, in the safe area's top band. */
+function RecordBanner({ height, progress }: { height: number; progress: () => number }) {
+  const { project } = usePlayedSong();
+  const rest = useRef<HTMLDivElement>(null);
+  usePlaybackPosition(() => {
+    if (rest.current) rest.current.style.width = `${(1 - progress()) * 100}%`;
+  });
+  return (
+    <div className="record-banner" style={{ height }} aria-hidden="true">
+      <p className="record-banner__title">{project.name}</p>
+      <div className="record-banner__bar">
+        <div ref={rest} className="record-banner__rest" />
+      </div>
+    </div>
+  );
+}
+
+/** The take length: the whole song, a preset, or a number of seconds typed in. */
+function TakeLengthPicker({ length, disabled, onChange }: { length: TakeLength; disabled: boolean; onChange: (l: TakeLength) => void }) {
+  const t = useT();
+  const preset = length === "song" || (TAKE_PRESETS as readonly number[]).includes(length);
+  const [custom, setCustom] = useState(!preset);
+  // what's typed, until it's a length (5 s and up) or the field is left
+  const [draft, setDraft] = useState<string | null>(null);
+  const seconds = typeof length === "number" ? length : 60;
+  const commit = (text: string) => {
+    const v = Number(text);
+    if (text.trim() !== "" && Number.isFinite(v)) onChange(clampTakeSeconds(v));
+    setDraft(null);
+  };
+  return (
+    <span className="take-length" title={t.recordLengthHint}>
+      <span className="take-length__label" aria-hidden="true">
+        {t.recordLength}
+      </span>
+      <select
+        aria-label={t.recordLength}
+        value={custom ? "custom" : String(length)}
+        disabled={disabled}
+        onChange={(e) => {
+          const v = e.currentTarget.value;
+          setCustom(v === "custom");
+          if (v === "song") onChange("song");
+          else if (v === "custom") onChange(seconds);
+          else onChange(Number(v));
+        }}
+      >
+        <option value="song">{t.recordLengths.song}</option>
+        {TAKE_PRESETS.map((n) => (
+          <option key={n} value={n}>
+            {t.recordSeconds(n)}
+          </option>
+        ))}
+        <option value="custom">{t.recordLengths.custom}</option>
+      </select>
+      {custom && (
+        <label className="take-length__custom">
+          <input
+            type="number"
+            inputMode="numeric"
+            aria-label={t.recordCustomSeconds}
+            min={MIN_TAKE_SECONDS}
+            max={MAX_TAKE_SECONDS}
+            value={draft ?? seconds}
+            disabled={disabled}
+            onChange={(e) => {
+              const text = e.currentTarget.value;
+              const v = Number(text);
+              setDraft(text);
+              if (text.trim() !== "" && Number.isInteger(v) && v >= MIN_TAKE_SECONDS && v <= MAX_TAKE_SECONDS) onChange(v);
+            }}
+            onKeyDown={(e) => e.key === "Enter" && commit(e.currentTarget.value)}
+            onBlur={(e) => commit(e.currentTarget.value)}
+          />
+          <span aria-hidden="true">{t.secondsUnit}</span>
+        </label>
+      )}
+    </span>
+  );
+}
 
 /**
  * Full-screen Instagram recording frame: the timeline on top and a 16:9 strip of
@@ -61,6 +160,22 @@ export function RecordFrame() {
   const { keyWidth, keyHeight, laneHeight } = recordLayout(size.width, size.height, RULER_HEIGHT, MEMBERS.length, safe);
   const playing = status === "playing";
 
+  // the take clock: how much has been played since Play, for the progress bar and to stop
+  // the take at its length
+  const { project } = usePlayedSong();
+  const loop = useStudioStore((s) => s.settings.loop);
+  const take = useRef(startTake(0));
+  const progress = useRef(0);
+  useEffect(() => {
+    if (playing) take.current = startTake(audioEngine.getPosition());
+  }, [playing]);
+  usePlaybackPosition((pos) => {
+    if (playing) advanceTake(take.current, pos, project.durationSeconds);
+    const now = takeProgress(take.current, overlay.length, pos, { ...project, loop });
+    progress.current = now.progress;
+    if (now.done && playing) pause();
+  });
+
   // video recording: armed by default where the browser can do it; Play starts a take
   const [supported] = useState(canRecordVideo);
   const [armed, setArmed] = useState(supported);
@@ -75,6 +190,7 @@ export function RecordFrame() {
     safeTop: safe.top,
     safeSide: safe.side,
     keySide: safe.keySide,
+    progress: () => progress.current,
   });
   saving.current = result !== null;
   const loading = useSoundsLoading();
@@ -133,7 +249,8 @@ export function RecordFrame() {
         style={{ "--rw": rw, "--rh": rh } as CSSProperties}
       >
         <div className="record-frame__score" style={{ paddingTop: safe.top, paddingInline: safe.side }}>
-          {size.height > 0 && <Timeline laneHeight={laneHeight} labels forceFollow />}
+          {safe.top > 0 && <RecordBanner height={safe.top} progress={() => progress.current} />}
+          {size.height > 0 && <Timeline laneHeight={laneHeight} labels forceFollow showcase />}
           {countdown !== null && countdown > 0 && (
             <div className="record-countdown" role="status" aria-label={t.countdown(countdown)}>
               <span key={countdown}>{countdown}</span>
@@ -235,6 +352,9 @@ export function RecordFrame() {
               ))}
             </select>
           )}
+        </div>
+        <div className="record-controls__row">
+          <TakeLengthPicker length={overlay.length} disabled={recording} onChange={(length) => set({ length })} />
         </div>
         {supported ? (
           <p className="record-controls__hint">{t.recordHint}</p>

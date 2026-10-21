@@ -16,13 +16,28 @@ export type RecordFrame = "9:16" | "4:5" | "1:1";
 export type RecordFps = 30 | 60;
 export const RECORD_FPS: RecordFps[] = [30, 60];
 
+/**
+ * How long a take runs: the whole song, or a number of seconds of playing (real seconds,
+ * whatever the tempo), after which it stops by itself. The banner's progress bar fills
+ * over exactly that.
+ */
+export type TakeLength = "song" | number;
+export const TAKE_PRESETS = [15, 30, 60, 90] as const;
+export const MIN_TAKE_SECONDS = 5;
+export const MAX_TAKE_SECONDS = 900;
+
+export function clampTakeSeconds(seconds: number): number {
+  return Math.round(Math.min(MAX_TAKE_SECONDS, Math.max(MIN_TAKE_SECONDS, seconds)));
+}
+
 export interface OverlaySettings {
   color: OverlayColor;
   frame: RecordFrame;
   fps: RecordFps;
+  length: TakeLength;
 }
 
-export const DEFAULT_OVERLAY: OverlaySettings = { color: "green", frame: "9:16", fps: 30 };
+export const DEFAULT_OVERLAY: OverlaySettings = { color: "green", frame: "9:16", fps: 30, length: "song" };
 
 /** Exact key colours. Fixed, never themed, so the editor's keyer sees one flat value. */
 export const OVERLAY_COLORS: Record<OverlayColor, string> = {
@@ -47,7 +62,54 @@ export function sanitizeOverlay(raw: unknown): OverlaySettings {
     color: pick(r.color, Object.keys(OVERLAY_COLORS) as OverlayColor[], DEFAULT_OVERLAY.color),
     frame: pick(r.frame, RECORD_FRAMES, DEFAULT_OVERLAY.frame),
     fps: r.fps === 60 ? 60 : DEFAULT_OVERLAY.fps,
+    length: typeof r.length === "number" && Number.isFinite(r.length) ? clampTakeSeconds(r.length) : "song",
   };
+}
+
+/**
+ * How much of a take has been played, followed frame by frame from the playback position
+ * (song seconds): it counts what was played, so a count-in (position still) doesn't count,
+ * a loop back to the start doesn't reset it, and a slower tempo makes it take longer.
+ */
+export interface TakeClock {
+  /** where the take started */
+  from: number;
+  last: number;
+  /** song seconds played so far */
+  played: number;
+}
+
+export function startTake(position: number): TakeClock {
+  return { from: position, last: position, played: 0 };
+}
+
+/** Move the clock to `position`; a jump back (the loop) counts as playing on from the start. */
+export function advanceTake(clock: TakeClock, position: number, durationSeconds: number) {
+  let step = position - clock.last;
+  if (step < -0.5) step = position + Math.max(0, durationSeconds - clock.last);
+  clock.played += Math.max(0, step);
+  clock.last = position;
+}
+
+export interface TakeSong {
+  durationSeconds: number;
+  baseBpm: number;
+  bpm: number;
+  loop: boolean;
+}
+
+/**
+ * The progress bar (0–1) and whether the take is over. The whole song: the position in
+ * the song. A length: real seconds played over the length, or over what's left of the
+ * song when that's shorter (it stops at its end without Loop), so the bar always fills.
+ */
+export function takeProgress(clock: TakeClock, length: TakeLength, position: number, song: TakeSong) {
+  if (length === "song") return { progress: Math.min(1, Math.max(0, position / Math.max(0.001, song.durationSeconds))), done: false };
+  const toReal = song.baseBpm / song.bpm;
+  const played = clock.played * toReal;
+  const left = song.loop ? Infinity : Math.max(0, song.durationSeconds - clock.from) * toReal;
+  const span = Math.min(length, left);
+  return { progress: span > 0 ? Math.min(1, played / span) : 1, done: played >= length };
 }
 
 /**

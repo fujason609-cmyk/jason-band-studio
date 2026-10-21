@@ -1301,6 +1301,10 @@ select {
     position: relative; // holds the countdown
     flex: 1 1 auto;
     min-height: 0;
+    // the score sits right on the key strip (pixels left over by whole-pixel lanes go on top)
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-end;
     // the score never spills over the key strip (in a short frame lanes keep a minimum height)
     overflow: hidden;
     background: var(--surface);
@@ -1310,6 +1314,81 @@ select {
     flex: none;
     // Reels: narrower than the frame (width set from recordLayout), centred on the background
     align-self: center;
+  }
+}
+
+// the take length: a select, and seconds to type in for a custom one
+.take-length {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  &__label {
+    flex: none;
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--ink-soft);
+  }
+  &__custom {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 13px;
+    color: var(--ink-soft);
+    input {
+      width: 64px;
+      height: 32px;
+      padding: 0 8px;
+      border-radius: var(--radius-sm);
+      border: 1.5px solid var(--rule-strong);
+      background: var(--surface);
+      color: var(--ink);
+      font: inherit;
+      font-weight: 700;
+      text-align: right;
+    }
+  }
+}
+
+// Reels: the song's name and its progress in the top band (drawRecordFrame draws the same)
+.record-banner {
+  position: absolute;
+  top: 0;
+  left: 6%;
+  right: 6%;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 8px;
+  padding-bottom: 9px;
+  pointer-events: none;
+  &__title {
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: 13px;
+    font-weight: 800;
+    color: var(--ink-soft);
+  }
+  // the five colours across the whole bar, covered by what is still to come
+  &__bar {
+    position: relative;
+    width: 100%;
+    height: 5px;
+    border-radius: 3px;
+    background: var(--band);
+    overflow: hidden;
+  }
+  &__rest {
+    position: absolute;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    width: 100%;
+    background: var(--rule);
   }
 }
 
@@ -1342,6 +1421,10 @@ select {
 
 @media (max-width: $narrow) {
   .record-controls {
+    // a third row (the take length) still fits in --controls-h, so the 9:16 frame keeps
+    // the full width of a 390 × 844 phone
+    gap: 6px;
+    padding-bottom: 8px;
     &__hint {
       display: none;
     }

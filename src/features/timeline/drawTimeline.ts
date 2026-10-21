@@ -44,6 +44,11 @@ export interface DrawInput {
   position?: number;
   /** draw the note-start ripples (only while playing, and not with reduced motion) */
   ripples?: boolean;
+  /**
+   * The recording frame's extras: a dot grid; while `ripples` are on, also sparkles from
+   * notes as they're hit and the playhead pulsing on the drums' accents. Off on the main page.
+   */
+  showcase?: boolean;
 }
 
 const DRUM_ROWS: DrumVoice[] = ["crash", "ride", "open-hat", "closed-hat", "tom", "snare", "clap", "kick"];
@@ -51,6 +56,12 @@ const DRUM_ROWS: DrumVoice[] = ["crash", "ride", "open-hat", "closed-hat", "tom"
 const DRUM_GLOW_SECONDS = 0.14;
 /** How long a note-start ripple takes to fade out. */
 const RIPPLE_SECONDS = 0.4;
+/** Showcase: how long a hit's sparkles fly, and how long the playhead pulses on a drum accent. */
+const SPARKLE_SECONDS = 0.45;
+const PULSE_SECONDS = 0.18;
+/** Drum sounds that make the playhead pulse and throw sparkles (not the hi-hats: they never stop). */
+const ACCENTS = new Set<DrumVoice>(["kick", "snare", "crash"]);
+const DOT_STEP = 16;
 const FONT = "'M PLUS Rounded 1c', system-ui, sans-serif";
 
 export type NoteState = "past" | "active" | "upcoming";
@@ -107,7 +118,6 @@ export function noteState(note: NoteEvent, position: number, isDrums: boolean): 
   return position < end ? "active" : "past";
 }
 
-/** Index of the first note that could be visible, assuming notes are sorted by start. */
 /**
  * What drawing needs to know about a whole part, worked out once per notes array (they
  * are replaced, never changed in place) instead of on every playback frame.
@@ -133,6 +143,7 @@ export function summarise(notes: readonly NoteEvent[]): PartSummary {
   return summary;
 }
 
+/** Index of the first note that could be visible, assuming notes are sorted by start. */
 function firstVisible(notes: readonly NoteEvent[], fromSeconds: number): number {
   let lo = 0;
   let hi = notes.length;
@@ -144,6 +155,31 @@ function firstVisible(notes: readonly NoteEvent[], fromSeconds: number): number 
     else hi = mid;
   }
   return lo;
+}
+
+/** How hard the playhead pulses (0 to 1): the latest kick, snare or crash, fading out. */
+function drumAccent(notes: readonly NoteEvent[], position: number): number {
+  let strength = 0;
+  for (let k = firstVisible(notes, position - PULSE_SECONDS); k < notes.length; k++) {
+    const n = notes[k]!;
+    if (n.start > position) break;
+    const age = position - n.start;
+    if (age < PULSE_SECONDS && ACCENTS.has(drumVoiceFor(n.pitch))) strength = Math.max(strength, n.velocity * (1 - age / PULSE_SECONDS));
+  }
+  return strength;
+}
+
+/** A hit's sparkles: four little stars in the member's colour flying out and fading. Same every frame for the same note. */
+function sparkle(ctx: CanvasRenderingContext2D, x: number, y: number, age: number, seed: number, color: string) {
+  const p = age / SPARKLE_SECONDS;
+  ctx.fillStyle = color;
+  for (let i = 0; i < 4; i++) {
+    const turn = (((seed * 0.618) % 1) + i / 4) * Math.PI * 2;
+    const reach = 6 + p * (16 + ((seed >> i) % 7));
+    ctx.globalAlpha = (1 - p) * 0.9;
+    star(ctx, x + Math.cos(turn) * reach, y + Math.sin(turn) * reach, 1.2 + (1 - p) * 2.4);
+  }
+  ctx.globalAlpha = 1;
 }
 
 function roundRect(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, r = Math.min(h / 2, w / 2)) {
@@ -293,6 +329,18 @@ export function drawTimeline(input: DrawInput) {
     ctx.stroke();
   });
 
+  // showcase: the notebook's dot grid, moving with the score
+  if (input.showcase) {
+    ctx.fillStyle = palette.ruleStrong;
+    ctx.globalAlpha = 0.45;
+    const offset = -(scrollLeft % DOT_STEP);
+    const bottom = Math.min(height, RULER_HEIGHT + lanes.length * laneH);
+    for (let y = RULER_HEIGHT + DOT_STEP / 2; y < bottom; y += DOT_STEP) {
+      for (let x = offset; x < width; x += DOT_STEP) ctx.fillRect(x - 0.75, y - 0.75, 1.5, 1.5);
+    }
+    ctx.globalAlpha = 1;
+  }
+
   // Bar lines (solid) and beat lines (dotted), plus the ruler with bar tags
   const beatSec = 60 / baseBpm;
   const barSec = beatSec * beatsPerBar;
@@ -370,6 +418,22 @@ export function drawTimeline(input: DrawInput) {
     ctx.restore();
   }
 
+  // showcase: the playhead glows wider on each kick, snare and crash
+  const live = input.showcase && input.ripples && position !== undefined ? position : undefined;
+  if (live !== undefined) {
+    const drums = lanes.find((l) => l.isDrums && l.audible);
+    const pulse = drums ? drumAccent(drums.notes, live) : 0;
+    if (pulse > 0) {
+      const x = xOf(live);
+      ctx.fillStyle = palette.accent;
+      ctx.globalAlpha = pulse * 0.12;
+      ctx.fillRect(x - 16, RULER_HEIGHT, 32, height - RULER_HEIGHT);
+      ctx.globalAlpha = pulse * 0.2;
+      ctx.fillRect(x - 6, RULER_HEIGHT, 12, height - RULER_HEIGHT);
+      ctx.globalAlpha = 1;
+    }
+  }
+
   // Notes
   lanes.forEach((lane, i) => {
     const top = RULER_HEIGHT + i * laneH;
@@ -407,6 +471,8 @@ export function drawTimeline(input: DrawInput) {
     }
 
     const glowing: { x: number; y: number; w: number; pitch: number }[] = [];
+    const sparks: { x: number; y: number; age: number; seed: number }[] = [];
+    let lastSpark = -1;
     for (let k = firstVisible(lane.notes, tStart); k < lane.notes.length; k++) {
       const n = lane.notes[k]!;
       const x = xOf(n.start);
@@ -428,6 +494,14 @@ export function drawTimeline(input: DrawInput) {
           ctx.beginPath();
           ctx.arc(x, y + noteH / 2, 5 + p * 18, 0, Math.PI * 2);
           ctx.stroke();
+        }
+      }
+      // showcase: one burst per chord (notes starting together), drums on their accents only
+      if (live !== undefined && lane.audible && n.start !== lastSpark) {
+        const age = live - n.start;
+        if (age >= 0 && age < SPARKLE_SECONDS && (!lane.isDrums || ACCENTS.has(drumVoiceFor(n.pitch)))) {
+          lastSpark = n.start;
+          sparks.push({ x, y: y + noteH / 2, age, seed: Math.round(n.start * 997) + n.pitch * 31 });
         }
       }
       if (state === "active" && lane.audible) {
@@ -460,6 +534,7 @@ export function drawTimeline(input: DrawInput) {
       ctx.restore();
     }
     ctx.globalAlpha = 1;
+    for (const sp of sparks) sparkle(ctx, sp.x, sp.y, sp.age, sp.seed, lane.color);
 
     if (lane.vocal && lane.vocal.notes.length > 0) {
       drawVocal(ctx, lane.vocal.notes, lane.color, lane.audible && lane.vocal.on, {

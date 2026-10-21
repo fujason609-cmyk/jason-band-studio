@@ -37,6 +37,8 @@ export interface FrameLayout {
   safeTop: number;
   safeSide: number;
   keySide: number;
+  /** the progress bar now (0–1), from the frame's take clock */
+  progress: () => number;
 }
 
 interface Session {
@@ -134,7 +136,9 @@ export function useFrameRecording(armed: boolean, rolling: boolean, layout: Fram
         lanes: buildLanes(project, palette, getT().memberName, settings.selectedMember, settings.vocals, spots),
         palette,
         keyColor: OVERLAY_COLORS[settings.overlay.color],
-        ripples,
+        ripples: ripples && audioEngine.status === "playing",
+        title: project.name,
+        progress: latestLayout.current.progress(),
       });
       s.frame = requestAnimationFrame(paint);
     };

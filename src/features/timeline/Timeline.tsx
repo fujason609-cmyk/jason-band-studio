@@ -20,6 +20,8 @@ interface TimelineProps {
   labels?: boolean;
   /** keep the playhead in view while playing, whatever the setting says */
   forceFollow?: boolean;
+  /** the recording frame's extras (dot grid, sparkles, drum pulse) */
+  showcase?: boolean;
 }
 
 /** After a wheel or touch scroll, follow mode waits this long before gliding back. */
@@ -27,7 +29,7 @@ const USER_SCROLL_HOLD_MS = 2000;
 /** a touch that moves less than this (px) before lifting is a tap */
 const TAP_SLOP_PX = 8;
 
-export function Timeline({ laneHeight = LANE_HEIGHT, labels, forceFollow = false }: TimelineProps = {}) {
+export function Timeline({ laneHeight = LANE_HEIGHT, labels, forceFollow = false, showcase = false }: TimelineProps = {}) {
   const { project, spots } = usePlayedSong();
   const { zoom, followPlayhead: followSetting, selectedMember, theme, vocals } = useStudioStore((s) => s.settings);
   const followPlayhead = forceFollow || followSetting;
@@ -87,8 +89,9 @@ export function Timeline({ laneHeight = LANE_HEIGHT, labels, forceFollow = false
       position: position.current,
       ripples: playing && !reducedMotion,
       lanes: buildLanes(project, colours, t.memberName, selectedMember, vocals, spots),
+      showcase,
     });
-  }, [project, spots, zoom, viewport, height, showLabels, laneHeight, selectedMember, vocals, t, playing, reducedMotion]);
+  }, [project, spots, zoom, viewport, height, showLabels, laneHeight, selectedMember, vocals, t, playing, reducedMotion, showcase]);
 
   const requestDraw = useCallback(() => {
     cancelAnimationFrame(frame.current);
