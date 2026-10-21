@@ -8,6 +8,9 @@ export interface RecordScene {
   height: number;
   keyHeight: number;
   laneHeight: number;
+  /** kept clear of the score (Reels: Instagram's controls and side crop) */
+  safeTop: number;
+  safeSide: number;
   zoom: number;
   /** song seconds of the sound being heard */
   position: number;
@@ -25,15 +28,23 @@ const PICK = "M10 21C6 16 1.5 10.5 1.5 6.2 1.5 2.8 5.2 1 10 1s8.5 1.8 8.5 5.2C18
 
 /** Paint one frame: score on top (same drawing as the page), playhead, flat key colour below. */
 export function drawRecordFrame(ctx: CanvasRenderingContext2D, s: RecordScene) {
-  const scoreHeight = s.height - s.keyHeight;
+  const keyTop = s.height - s.keyHeight;
+  // the score's own box, inside the safe area
+  const width = s.width - 2 * s.safeSide;
+  const scoreHeight = keyTop - s.safeTop;
   const timelineHeight = Math.min(scoreHeight, RULER_HEIGHT + s.lanes.length * s.laneHeight);
-  const scrollLeft = cameraLeft(s.position, s.zoom, s.width, s.durationSeconds);
+  const scrollLeft = cameraLeft(s.position, s.zoom, width, s.durationSeconds);
 
   ctx.fillStyle = s.palette.surface;
-  ctx.fillRect(0, 0, s.width, scoreHeight);
+  ctx.fillRect(0, 0, s.width, keyTop);
+  ctx.save();
+  ctx.translate(s.safeSide, s.safeTop);
+  ctx.beginPath();
+  ctx.rect(0, 0, width, scoreHeight);
+  ctx.clip();
   drawTimeline({
     ctx,
-    width: s.width,
+    width,
     height: timelineHeight,
     scrollLeft,
     zoom: s.zoom,
@@ -65,8 +76,9 @@ export function drawRecordFrame(ctx: CanvasRenderingContext2D, s: RecordScene) {
   ctx.lineWidth = 1.5;
   ctx.stroke(pick);
   ctx.restore();
+  ctx.restore(); // the safe-area box
 
   // the key colour: one flat rectangle, nothing drawn over it
   ctx.fillStyle = s.keyColor;
-  ctx.fillRect(0, scoreHeight, s.width, s.keyHeight);
+  ctx.fillRect(0, keyTop, s.width, s.keyHeight);
 }

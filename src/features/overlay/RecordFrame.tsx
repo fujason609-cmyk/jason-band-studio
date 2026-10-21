@@ -9,7 +9,7 @@ import { useSoundsLoading, useSpacebarToggle, useTransport } from "@/hooks/useTr
 import { useT } from "@/i18n/useT";
 import { useStudioStore } from "@/stores/useStudioStore";
 import { canRecordVideo } from "./frameRecorder";
-import { OVERLAY_COLORS, RECORD_FPS, RECORD_FRAMES, recordLayout, type OverlayColor, type RecordFrame as Frame } from "./overlay";
+import { OVERLAY_COLORS, RECORD_FPS, RECORD_FRAMES, recordLayout, safeArea, type OverlayColor, type RecordFrame as Frame } from "./overlay";
 import { SaveVideoDialog } from "./SaveVideoDialog";
 import { useFrameRecording } from "./useFrameRecording";
 
@@ -56,7 +56,9 @@ export function RecordFrame() {
   const set = (patch: Partial<typeof overlay>) => updateSettings({ overlay: { ...overlay, ...patch } });
   const setZoom = (next: number) => updateSettings({ zoom: Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, next)) });
   const [rw, rh] = overlay.frame.split(":").map(Number) as [number, number];
-  const { keyHeight, laneHeight } = recordLayout(size.width, size.height, RULER_HEIGHT, MEMBERS.length);
+  // Reels: the score keeps clear of Instagram's top bar and the sides cut off on tall phones
+  const safe = safeArea(overlay.frame, size.width, size.height);
+  const { keyHeight, laneHeight } = recordLayout(size.width, size.height, RULER_HEIGHT, MEMBERS.length, safe);
   const playing = status === "playing";
 
   // video recording: armed by default where the browser can do it; Play starts a take
@@ -70,6 +72,8 @@ export function RecordFrame() {
     height: size.height,
     keyHeight,
     laneHeight,
+    safeTop: safe.top,
+    safeSide: safe.side,
   });
   saving.current = result !== null;
   const loading = useSoundsLoading();
@@ -127,7 +131,7 @@ export function RecordFrame() {
         data-testid="record-frame"
         style={{ "--rw": rw, "--rh": rh } as CSSProperties}
       >
-        <div className="record-frame__score">
+        <div className="record-frame__score" style={{ paddingTop: safe.top, paddingInline: safe.side }}>
           {size.height > 0 && <Timeline laneHeight={laneHeight} labels forceFollow />}
           {countdown !== null && countdown > 0 && (
             <div className="record-countdown" role="status" aria-label={t.countdown(countdown)}>

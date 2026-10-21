@@ -1,7 +1,7 @@
 /**
  * Instagram recording frame settings: the score on top and a flat chroma-key box
- * below, in one IG-shaped frame. Record the screen, crop to the frame, then key
- * the colour out in a video editor to put other footage in its place.
+ * below, in one IG-shaped frame. The app records the frame as a video; key the colour
+ * out in a video editor to put other footage in its place.
  */
 
 export type OverlayColor = "green" | "blue" | "magenta" | "black";
@@ -50,16 +50,40 @@ export function sanitizeOverlay(raw: unknown): OverlaySettings {
   };
 }
 
+/**
+ * Reels and Stories (9:16) play full screen under Instagram's own controls: the top bar
+ * (back, title, camera) covers about the top 14%, and on phones taller than 9:16 the video
+ * is scaled to the screen's height, so a few percent of each side is cut off. The score
+ * keeps out of both (Meta's safe zone for Reels: 14% at the top, 6% at each side); that
+ * band is plain score background. Feed posts (4:5, 1:1) show whole, so they get none.
+ * The key strip stays full width at the bottom: footage under the caption is expected.
+ */
+export const REELS_SAFE_TOP = 0.14;
+export const REELS_SAFE_SIDE = 0.06;
+
+export interface SafeArea {
+  /** px kept clear above the score */
+  top: number;
+  /** px kept clear left and right of the score */
+  side: number;
+}
+
+export function safeArea(frame: RecordFrame, width: number, height: number): SafeArea {
+  if (frame !== "9:16") return { top: 0, side: 0 };
+  return { top: Math.round(height * REELS_SAFE_TOP), side: Math.round(width * REELS_SAFE_SIDE) };
+}
+
 /** Smallest lane that still reads on video. */
 export const MIN_RECORD_LANE = 24;
 
 /**
  * Split a recording frame: the key area is a 16:9 strip as wide as the frame,
- * and the score gets every pixel above it, shared by the ruler and the lanes.
+ * and the score gets every pixel above it (less the safe area's top), shared by the
+ * ruler and the lanes.
  */
-export function recordLayout(frameWidth: number, frameHeight: number, rulerPx: number, lanes: number) {
+export function recordLayout(frameWidth: number, frameHeight: number, rulerPx: number, lanes: number, safe: SafeArea = { top: 0, side: 0 }) {
   const keyHeight = Math.round(frameWidth / KEY_ASPECT);
-  const scoreHeight = Math.max(0, frameHeight - keyHeight);
+  const scoreHeight = Math.max(0, frameHeight - keyHeight - safe.top);
   const laneHeight = Math.max(MIN_RECORD_LANE, Math.floor((scoreHeight - rulerPx) / lanes));
   return { keyHeight, scoreHeight, laneHeight };
 }
