@@ -17,6 +17,7 @@ import {
   OVERLAY_COLORS,
   RECORD_FPS,
   RECORD_FRAMES,
+  TAKE_FADE_SECONDS,
   TAKE_PRESETS,
   advanceTake,
   clampTakeSeconds,
@@ -166,13 +167,21 @@ export function RecordFrame() {
   const loop = useStudioStore((s) => s.settings.loop);
   const take = useRef(startTake(0));
   const progress = useRef(0);
+  const fading = useRef(false);
   useEffect(() => {
-    if (playing) take.current = startTake(audioEngine.getPosition());
+    if (!playing) return;
+    take.current = startTake(audioEngine.getPosition());
+    fading.current = false;
   }, [playing]);
   usePlaybackPosition((pos) => {
     if (playing) advanceTake(take.current, pos, project.durationSeconds);
     const now = takeProgress(take.current, overlay.length, pos, { ...project, loop });
     progress.current = now.progress;
+    // the recording's sound fades over the last half second (a no-op when not recording)
+    if (playing && !fading.current && now.remaining <= TAKE_FADE_SECONDS) {
+      fading.current = true;
+      audioEngine.fadeOutCapture(Math.max(0.05, now.remaining));
+    }
     if (now.done && playing) pause();
   });
 

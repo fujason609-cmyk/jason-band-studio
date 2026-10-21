@@ -9,7 +9,7 @@ import { clampBpm, secondsToTicks } from "@/lib/time";
 import type { InstrumentId, InstrumentLoadState, TransportStatus } from "@/types/audio";
 import type { NoteEvent } from "@/types/midi";
 import type { StudioProject } from "@/types/project";
-import { LOOK_AHEAD, PPQ, ROOM_BUS } from "./audioConfig";
+import { LOOK_AHEAD, PPQ, RECORD_CEILING_DB, RECORD_GAIN_DB, ROOM_BUS } from "./audioConfig";
 import { AudioTrack } from "./AudioTrack";
 import { Metronome } from "./Metronome";
 import { SampleManager } from "./SampleManager";
@@ -53,7 +53,7 @@ export class AudioEngine {
   private vocals: VocalSwitches = DEFAULT_VOCALS;
   private vocalSounds: VocalSounds = DEFAULT_VOCAL_SOUNDS;
   private band: { sources: readonly (readonly NoteEvent[])[]; key: string; value: BandContext } | null = null;
-  private capture: MediaStreamAudioDestinationNode | null = null;
+  private capture: { destination: MediaStreamAudioDestinationNode; nodes: Tone.ToneAudioNode[]; fade: Tone.Gain } | null = null;
 
   setEvents(events: EngineEvents) {
     this.events = events;
@@ -299,13 +299,37 @@ export class AudioEngine {
    */
   captureAudio(): MediaStream | null {
     if (!this.master) return null;
-    this.capture ??= Tone.getContext().createMediaStreamDestination();
-    this.master.connect(this.capture);
-    return this.capture.stream;
+    if (!this.capture) {
+      // Reels loudness: the band comes out around -17.5 LUFS (measured, EBU R128), quieter
+      // than the -14 most Reels are mastered to, and Instagram turns loud videos down but
+      // not quiet ones up. Brought up by RECORD_GAIN_DB, peaks held under -1 dB; only the
+      // recording, never what plays in the room.
+      const destination = Tone.getContext().createMediaStreamDestination();
+      const makeup = new Tone.Gain(Tone.dbToGain(RECORD_GAIN_DB));
+      // a soft clipper, not Tone.Limiter: the browser's compressor behind it has a 30 dB knee
+      // and its own makeup gain, so peaks went past the ceiling (measured +0.2 dBFS)
+      const ceiling = Tone.dbToGain(RECORD_CEILING_DB);
+      const knee = ceiling * 0.7;
+      const limiter = new Tone.WaveShaper((x) => {
+        const a = Math.abs(x);
+        return a <= knee ? x : Math.sign(x) * (knee + (ceiling - knee) * Math.tanh((a - knee) / (ceiling - knee)));
+      }, 4096);
+      limiter.oversample = "4x";
+      const fade = new Tone.Gain(1);
+      this.master.connect(makeup);
+      makeup.chain(limiter, fade);
+      fade.connect(destination);
+      this.capture = { destination, nodes: [makeup, limiter, fade], fade };
+    }
+    return this.capture.destination.stream;
+  }
+  /** Fade the recording's sound out over `seconds` (the end of a take of a set length). */
+  fadeOutCapture(seconds: number) {
+    this.capture?.fade.gain.rampTo(0, seconds);
   }
   stopAudioCapture() {
     if (!this.capture) return;
-    this.master?.disconnect(this.capture);
+    this.capture.nodes.forEach((n) => n.dispose());
     this.capture = null;
   }
 

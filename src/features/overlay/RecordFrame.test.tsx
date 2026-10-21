@@ -15,6 +15,7 @@ import {
   sanitizeOverlay,
   startTake,
   takeProgress,
+  takeSpan,
 } from "./overlay";
 import { RecordFrame } from "./RecordFrame";
 
@@ -196,26 +197,36 @@ describe("recording frame maths and settings", () => {
   });
 
   it("fills the progress bar over the chosen take length and says when the take is over", () => {
-    const song = { durationSeconds: 200, baseBpm: 120, bpm: 120, loop: false };
+    const song = { durationSeconds: 200, baseBpm: 120, bpm: 120, beatsPerBar: 4, loop: false };
     const clock = startTake(30);
     advanceTake(clock, 60, 200); // 30 s played of a 60 s take
-    expect(takeProgress(clock, 60, 60, song)).toEqual({ progress: 0.5, done: false });
+    expect(takeProgress(clock, 60, 60, song)).toMatchObject({ progress: 0.5, done: false, remaining: 30 });
     advanceTake(clock, 90, 200);
-    expect(takeProgress(clock, 60, 90, song)).toEqual({ progress: 1, done: true });
+    expect(takeProgress(clock, 60, 90, song)).toMatchObject({ progress: 1, done: true, remaining: 0 });
     // the whole song: the position in the song
     expect(takeProgress(clock, "song", 50, song).progress).toBe(0.25);
   });
 
+  it("ends a take on the nearest bar line, so it loops cleanly on Reels", () => {
+    const song = { durationSeconds: 200, baseBpm: 120, bpm: 120, beatsPerBar: 4, loop: false }; // 2 s bars
+    expect(takeSpan(31, 16, song)).toBe(17); // 31 + 16 = 47 → the bar line at 48
+    expect(takeSpan(30, 15, song)).toBe(16); // 45 → 46 (rounds to the nearer bar)
+    expect(takeSpan(31, 0.4, song)).toBe(1); // never less than to the next bar line
+    expect(takeSpan(190, 60, song)).toBe(10); // the song ends first (on a bar line)
+    // at half speed a bar takes 4 real seconds: 30 real s = 15 song s → 16
+    expect(takeSpan(0, 30, { ...song, bpm: 60 })).toBe(16);
+  });
+
   it("counts real seconds: slower playback takes longer, a count-in doesn't count", () => {
-    const half = { durationSeconds: 200, baseBpm: 120, bpm: 60, loop: false };
+    const half = { durationSeconds: 200, baseBpm: 120, bpm: 60, beatsPerBar: 4, loop: false };
     const clock = startTake(0);
     advanceTake(clock, 0, 200); // counting in: the position doesn't move
     advanceTake(clock, 15, 200); // 15 song seconds at half speed: 30 real seconds
-    expect(takeProgress(clock, 60, 15, half)).toEqual({ progress: 0.5, done: false });
+    expect(takeProgress(clock, 60, 15, half)).toMatchObject({ progress: 0.5, done: false, remaining: 30 });
   });
 
   it("fills by the song's end when that comes first, and keeps counting through a loop", () => {
-    const song = { durationSeconds: 100, baseBpm: 120, bpm: 120, loop: false };
+    const song = { durationSeconds: 100, baseBpm: 120, bpm: 120, beatsPerBar: 4, loop: false };
     const near = startTake(80);
     advanceTake(near, 90, 100);
     expect(takeProgress(near, 60, 90, song).progress).toBeCloseTo(0.5); // 20 s left of the song

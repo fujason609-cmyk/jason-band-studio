@@ -95,21 +95,43 @@ export interface TakeSong {
   durationSeconds: number;
   baseBpm: number;
   bpm: number;
+  beatsPerBar: number;
   loop: boolean;
 }
 
+/** How long the end of a take of a set length fades out (real seconds). */
+export const TAKE_FADE_SECONDS = 0.5;
+
 /**
- * The progress bar (0–1) and whether the take is over. The whole song: the position in
- * the song. A length: real seconds played over the length, or over what's left of the
- * song when that's shorter (it stops at its end without Loop), so the bar always fills.
+ * Song seconds a take of `length` real seconds plays from `from`: it ends on the bar line
+ * nearest to that length (Reels loops the video, and a take cut mid-bar jars when it starts
+ * over), at least one bar on; without Loop, at the song's end if that comes first.
+ */
+export function takeSpan(from: number, length: number, song: TakeSong): number {
+  const bar = (60 / song.baseBpm) * song.beatsPerBar;
+  const wanted = (length * song.bpm) / song.baseBpm;
+  let end = Math.round((from + wanted) / bar) * bar;
+  if (end <= from + 1e-6) end = (Math.floor(from / bar + 1e-6) + 1) * bar;
+  const span = end - from;
+  return song.loop ? span : Math.min(span, Math.max(0, song.durationSeconds - from));
+}
+
+/**
+ * The progress bar (0–1), whether the take is over, and the real seconds left. The whole
+ * song: the position in the song (nothing to count down). A length: what's been played of
+ * `takeSpan`, so the bar fills exactly as the take ends.
  */
 export function takeProgress(clock: TakeClock, length: TakeLength, position: number, song: TakeSong) {
-  if (length === "song") return { progress: Math.min(1, Math.max(0, position / Math.max(0.001, song.durationSeconds))), done: false };
-  const toReal = song.baseBpm / song.bpm;
-  const played = clock.played * toReal;
-  const left = song.loop ? Infinity : Math.max(0, song.durationSeconds - clock.from) * toReal;
-  const span = Math.min(length, left);
-  return { progress: span > 0 ? Math.min(1, played / span) : 1, done: played >= length };
+  if (length === "song") {
+    return { progress: Math.min(1, Math.max(0, position / Math.max(0.001, song.durationSeconds))), done: false, remaining: Infinity };
+  }
+  const span = takeSpan(clock.from, length, song);
+  const left = Math.max(0, span - clock.played);
+  return {
+    progress: span > 0 ? Math.min(1, clock.played / span) : 1,
+    done: left <= 1e-3,
+    remaining: (left * song.baseBpm) / song.bpm,
+  };
 }
 
 /**
