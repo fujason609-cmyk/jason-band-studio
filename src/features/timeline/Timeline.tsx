@@ -9,6 +9,7 @@ import { usePlayedSong } from "@/stores/playedSong";
 import { useStudioStore } from "@/stores/useStudioStore";
 import { drawTimeline } from "./drawTimeline";
 import { cameraLeft, followStep } from "./camera";
+import { energyAt } from "@/features/overlay/energy";
 import { buildLanes, readPalette, type TimelinePalette } from "./lanes";
 import { LANE_HEIGHT, RULER_HEIGHT, TIMELINE_GUTTER } from "./layout";
 import { Playhead } from "./Playhead";
@@ -89,7 +90,9 @@ export function Timeline({ laneHeight = LANE_HEIGHT, labels, forceFollow = false
       position: position.current,
       ripples: playing && !reducedMotion,
       lanes: buildLanes(project, colours, t.memberName, selectedMember, vocals, spots),
-      showcase,
+      showcase: showcase
+        ? { energy: energyAt(project.tracks.map((tr) => tr.notes), (60 / project.baseBpm) * project.beatsPerBar, position.current) }
+        : undefined,
     });
   }, [project, spots, zoom, viewport, height, showLabels, laneHeight, selectedMember, vocals, t, playing, reducedMotion, showcase]);
 

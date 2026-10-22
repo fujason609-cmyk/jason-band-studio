@@ -219,27 +219,28 @@ select {
   place-items: center;
   flex: none;
   border-radius: 50%;
-  color: var(--on-member);
-  font-weight: 800;
-  line-height: 1;
   width: 38px;
   height: 38px;
-  font-size: 18px;
-  // a round name sticker: white rim and a little lift
+  overflow: hidden;
+  // a round sticker: a wash of the member's colour behind her pixel instrument (drawn in
+  // the full colour), her colour as the rim, a white edge and a little lift
+  background: color-mix(in srgb, var(--member) 20%, var(--surface));
   box-shadow:
+    inset 0 0 0 2px var(--member),
     0 0 0 2px var(--surface),
     0 3px 0 2px rgba(0, 0, 0, 0.1);
-  text-shadow: 0 1px 0 rgba(0, 0, 0, 0.15);
+  canvas {
+    display: block;
+    image-rendering: pixelated;
+  }
 
   &--sm {
     width: 28px;
     height: 28px;
-    font-size: 14px;
   }
   &--lg {
     width: 52px;
     height: 52px;
-    font-size: 26px;
   }
 }
 
@@ -1267,6 +1268,12 @@ select {
   &[aria-checked="true"] {
     box-shadow: 0 0 0 2px var(--surface), 0 0 0 4px var(--ink);
   }
+  // "no key strip": an empty circle crossed through
+  &--none {
+    background:
+      linear-gradient(135deg, transparent calc(50% - 1px), var(--ink-soft) calc(50% - 1px), var(--ink-soft) calc(50% + 1px), transparent calc(50% + 1px)),
+      var(--surface);
+  }
 }
 
 // ---------- Instagram recording frame ----------
@@ -1288,6 +1295,7 @@ select {
 }
 
 .record-frame {
+  position: relative; // holds the tea corner
   flex: none;
   display: flex;
   flex-direction: column;
@@ -1299,6 +1307,7 @@ select {
   // the score takes every pixel above the key strip
   &__score {
     position: relative; // holds the countdown
+    transform-origin: 50% 50%;
     flex: 1 1 auto;
     min-height: 0;
     // the score sits right on the key strip (pixels left over by whole-pixel lanes go on top)
@@ -1314,6 +1323,29 @@ select {
     flex: none;
     // Reels: narrower than the frame (width set from recordLayout), centred on the background
     align-self: center;
+  }
+}
+
+// Reels: the tea table and turtle over the top band (the score box's top padding)
+.tea-corner {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 1;
+  pointer-events: none;
+  canvas {
+    display: block;
+    image-rendering: pixelated;
+  }
+}
+
+// the falling-notes view fills the score box (drawHighway draws into it)
+.highway {
+  flex: 1 1 auto;
+  min-height: 0;
+  canvas {
+    display: block;
   }
 }
 

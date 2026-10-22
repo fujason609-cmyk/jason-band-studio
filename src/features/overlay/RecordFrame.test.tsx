@@ -30,6 +30,8 @@ vi.mock("@/audio/AudioEngine", () => ({
   },
 }));
 // the canvas timeline needs a real browser; its sizing is checked through laneHeight
+vi.mock("./Highway", () => ({ Highway: () => <div data-testid="highway" /> }));
+
 vi.mock("@/features/timeline/Timeline", () => ({
   Timeline: ({ laneHeight }: { laneHeight: number }) => <div data-testid="timeline" data-lane={laneHeight} />,
 }));
@@ -108,6 +110,33 @@ describe("Instagram recording frame", () => {
     expect(useStudioStore.getState().settings.overlay.color).toBe("magenta");
   });
 
+  it("can leave the key strip out, and bring it back with a colour", async () => {
+    const user = userEvent.setup();
+    render(<RecordFrame />);
+    await user.click(screen.getByRole("radio", { name: "No key strip" }));
+    expect(useStudioStore.getState().settings.overlay.keyStrip).toBe(false);
+    expect(screen.queryByTestId("record-key")).not.toBeInTheDocument();
+    expect(screen.getByRole("radio", { name: "No key strip" })).toHaveAttribute("aria-checked", "true");
+    expect(screen.getByRole("radio", { name: "Green" })).toHaveAttribute("aria-checked", "false");
+    await user.click(screen.getByRole("radio", { name: "Blue" }));
+    expect(useStudioStore.getState().settings.overlay).toMatchObject({ keyStrip: true, color: "blue" });
+    expect(screen.getByTestId("record-key")).toHaveStyle({ background: "#0000ff" });
+  });
+
+  it("switches to falling notes and back", async () => {
+    const user = userEvent.setup();
+    render(<RecordFrame />);
+    expect(screen.getByTestId("timeline")).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: /Switch to falling notes/ }));
+    expect(useStudioStore.getState().settings.overlay.view).toBe("fall");
+    expect(screen.getByTestId("highway")).toBeInTheDocument();
+    expect(screen.queryByTestId("timeline")).not.toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: /Switch to the scrolling score/ }));
+    expect(useStudioStore.getState().settings.overlay.view).toBe("scroll");
+    expect(sanitizeOverlay({ view: "fall" }).view).toBe("fall");
+    expect(sanitizeOverlay({ view: "sideways" }).view).toBe("scroll");
+  });
+
   it("switches the frame shape", async () => {
     const user = userEvent.setup();
     render(<RecordFrame />);
@@ -146,12 +175,23 @@ describe("recording frame maths and settings", () => {
 
   it("keeps a Reels score clear of Instagram's top bar and the sides cut on tall phones", () => {
     const safe = safeArea("9:16", 390, 693);
-    expect(safe).toEqual({ top: 97, side: 23, keySide: 16 }); // 14%, 6% and 4%
+    expect(safe).toEqual({ top: 97, side: 23, keySide: 16, bottom: 0 }); // 14%, 6% and 4%
     // the key strip: 92% wide (358px), still 16:9, so the score gets a little more height
     expect(recordLayout(390, 693, 40, 5, safe)).toEqual({ keyWidth: 358, keyHeight: 201, scoreHeight: 395, laneHeight: 71 });
     // feed posts show whole: no safe area
-    expect(safeArea("4:5", 390, 488)).toEqual({ top: 0, side: 0, keySide: 0 });
-    expect(safeArea("1:1", 390, 390)).toEqual({ top: 0, side: 0, keySide: 0 });
+    expect(safeArea("4:5", 390, 488)).toEqual({ top: 0, side: 0, keySide: 0, bottom: 0 });
+    expect(safeArea("1:1", 390, 390)).toEqual({ top: 0, side: 0, keySide: 0, bottom: 0 });
+  });
+
+  it("without the key strip gives the score the whole frame, clear of the Reels caption", () => {
+    const safe = safeArea("9:16", 390, 693, false);
+    expect(safe.bottom).toBe(83); // 12%
+    // 693 - 97 top - 83 bottom = 513 for the score: lanes (513 - 40) / 5 = 94, up from 71
+    expect(recordLayout(390, 693, 40, 5, safe, false)).toEqual({ keyWidth: 0, keyHeight: 0, scoreHeight: 513, laneHeight: 94 });
+    // a feed post shows whole: the score fills all of it
+    expect(recordLayout(390, 488, 40, 5, safeArea("4:5", 390, 488, false), false).scoreHeight).toBe(488);
+    expect(sanitizeOverlay({}).keyStrip).toBe(true);
+    expect(sanitizeOverlay({ keyStrip: false }).keyStrip).toBe(false);
   });
 
   it("never shrinks lanes below the readable minimum", () => {

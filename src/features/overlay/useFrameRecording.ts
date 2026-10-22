@@ -37,6 +37,8 @@ export interface FrameLayout {
   safeTop: number;
   safeSide: number;
   keySide: number;
+  safeBottom: number;
+  fallRightInset: number;
 }
 
 interface Session {
@@ -135,6 +137,7 @@ export function useFrameRecording(armed: boolean, rolling: boolean, layout: Fram
         palette,
         keyColor: OVERLAY_COLORS[settings.overlay.color],
         ripples: ripples && audioEngine.status === "playing",
+        view: settings.overlay.view,
       });
       s.frame = requestAnimationFrame(paint);
     };

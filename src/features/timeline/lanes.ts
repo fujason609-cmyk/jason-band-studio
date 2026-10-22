@@ -1,4 +1,5 @@
 import { MEMBERS } from "@/features/band/members";
+import { gearFor } from "@/features/band/pixelInstruments";
 import type { MemberId } from "@/features/band/types";
 import { vocalRoleOf, type VocalSwitches } from "@/features/band/vocals";
 import { audibleMap } from "@/lib/mix";
@@ -46,6 +47,9 @@ export function buildLanes(
       selected: m.id === selectedMember,
       ...(track.vocal?.length ? { vocal: { notes: track.vocal, on: vocals[vocalRoleOf(m.id) ?? "lead"] } } : {}),
       solos: spots.filter((s) => s.member === m.id),
+      instrument: track.instrument,
+      leftHanded: m.leftHanded === true,
+      gear: gearFor(m.id, track.instrument),
     };
   });
 }

@@ -1,4 +1,6 @@
 import { drumVoiceFor, type DrumVoice } from "@/lib/drums";
+import { drawPixelInstrument, poseAt, type Gear } from "@/features/band/pixelInstruments";
+import type { InstrumentId } from "@/types/audio";
 import type { NoteEvent } from "@/types/midi";
 import { LANE_HEIGHT, RULER_HEIGHT, TIMELINE_GUTTER } from "./layout";
 
@@ -13,6 +15,12 @@ export interface LaneInput {
   vocal?: { notes: readonly NoteEvent[]; on: boolean };
   /** this member's turns in the solo round (song seconds): the lane is lit and tagged SOLO */
   solos?: readonly { start: number; end: number }[];
+  /** what the member plays, for the recording frame's pixel instrument beside the name */
+  instrument?: InstrumentId;
+  /** draw that instrument the other way round (Mio) */
+  leftHanded?: boolean;
+  /** her real instrument's finish, when she plays it (pixelInstruments MEMBER_GEAR) */
+  gear?: Gear;
 }
 
 export interface Palette {
@@ -45,24 +53,32 @@ export interface DrawInput {
   /** draw the note-start ripples (only while playing, and not with reduced motion) */
   ripples?: boolean;
   /**
-   * The recording frame's extras: a dot grid; while `ripples` are on, also sparkles from
-   * notes as they're hit and the playhead pulsing on the drums' accents. Off on the main page.
+   * The recording frame's extras: a dot grid that brightens and twinkles with the music's
+   * `energy` (0–1, energy.ts); while `ripples` are on, also a lane flash and sparkles as
+   * notes are hit, and the playhead pulsing on the drums' accents. Off on the main page.
    */
-  showcase?: boolean;
+  showcase?: Showcase;
 }
 
-const DRUM_ROWS: DrumVoice[] = ["crash", "ride", "open-hat", "closed-hat", "tom", "snare", "clap", "kick"];
+export interface Showcase {
+  /** how busy the music is now, 0–1 */
+  energy: number;
+}
+
+export const DRUM_ROWS: DrumVoice[] = ["crash", "ride", "open-hat", "closed-hat", "tom", "snare", "clap", "kick"];
 /** How long a drum hit counts as "sounding" for the glow. */
 const DRUM_GLOW_SECONDS = 0.14;
 /** How long a note-start ripple takes to fade out. */
 const RIPPLE_SECONDS = 0.4;
 /** Showcase: how long a hit's sparkles fly, and how long the playhead pulses on a drum accent. */
-const SPARKLE_SECONDS = 0.45;
+export const SPARKLE_SECONDS = 0.45;
 const PULSE_SECONDS = 0.18;
+/** Showcase: how long a lane flashes when its member hits a note. */
+export const FLASH_SECONDS = 0.22;
 /** Drum sounds that make the playhead pulse and throw sparkles (not the hi-hats: they never stop). */
-const ACCENTS = new Set<DrumVoice>(["kick", "snare", "crash"]);
+export const ACCENTS = new Set<DrumVoice>(["kick", "snare", "crash"]);
 const DOT_STEP = 16;
-const FONT = "'M PLUS Rounded 1c', system-ui, sans-serif";
+export const FONT = "'M PLUS Rounded 1c', system-ui, sans-serif";
 
 export type NoteState = "past" | "active" | "upcoming";
 
@@ -144,7 +160,7 @@ export function summarise(notes: readonly NoteEvent[]): PartSummary {
 }
 
 /** Index of the first note that could be visible, assuming notes are sorted by start. */
-function firstVisible(notes: readonly NoteEvent[], fromSeconds: number): number {
+export function firstVisible(notes: readonly NoteEvent[], fromSeconds: number): number {
   let lo = 0;
   let hi = notes.length;
   // back by the part's longest note, so one held from before the view is still drawn
@@ -158,7 +174,7 @@ function firstVisible(notes: readonly NoteEvent[], fromSeconds: number): number 
 }
 
 /** How hard the playhead pulses (0 to 1): the latest kick, snare or crash, fading out. */
-function drumAccent(notes: readonly NoteEvent[], position: number): number {
+export function drumAccent(notes: readonly NoteEvent[], position: number): number {
   let strength = 0;
   for (let k = firstVisible(notes, position - PULSE_SECONDS); k < notes.length; k++) {
     const n = notes[k]!;
@@ -169,32 +185,100 @@ function drumAccent(notes: readonly NoteEvent[], position: number): number {
   return strength;
 }
 
-/** A hit's sparkles: four little stars in the member's colour flying out and fading. Same every frame for the same note. */
-function sparkle(ctx: CanvasRenderingContext2D, x: number, y: number, age: number, seed: number, color: string) {
+/**
+ * A hit's sparkles: little stars in the member's colour flying out and fading, with a
+ * bright core for the first instant. Same every frame for the same note. `size` scales the
+ * burst (the falling-notes view throws bigger ones).
+ */
+export function sparkle(ctx: CanvasRenderingContext2D, x: number, y: number, age: number, seed: number, color: string, size = 1) {
   const p = age / SPARKLE_SECONDS;
   ctx.fillStyle = color;
-  for (let i = 0; i < 4; i++) {
-    const turn = (((seed * 0.618) % 1) + i / 4) * Math.PI * 2;
-    const reach = 6 + p * (16 + ((seed >> i) % 7));
+  if (p < 0.35) {
+    ctx.save();
+    ctx.globalAlpha = (1 - p / 0.35) * 0.8;
+    ctx.shadowColor = color;
+    ctx.shadowBlur = 12 * size;
+    ctx.beginPath();
+    ctx.arc(x, y, (4 + p * 10) * size, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+  }
+  for (let i = 0; i < 6; i++) {
+    const turn = (((seed * 0.618) % 1) + i / 6) * Math.PI * 2;
+    const reach = (7 + p * (22 + ((seed >> i) % 9))) * size;
     ctx.globalAlpha = (1 - p) * 0.9;
-    star(ctx, x + Math.cos(turn) * reach, y + Math.sin(turn) * reach, 1.2 + (1 - p) * 2.4);
+    star(ctx, x + Math.cos(turn) * reach, y + Math.sin(turn) * reach, (1.4 + (1 - p) * 2.8) * size);
   }
   ctx.globalAlpha = 1;
 }
 
-function roundRect(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, r = Math.min(h / 2, w / 2)) {
+/** How bright a lane flashes now (0–1): its latest hit, fading over FLASH_SECONDS (drums: accents only). */
+export function laneFlash(notes: readonly NoteEvent[], position: number, isDrums: boolean): number {
+  let flash = 0;
+  for (let k = firstVisible(notes, position - FLASH_SECONDS); k < notes.length; k++) {
+    const n = notes[k]!;
+    if (n.start > position) break;
+    const age = position - n.start;
+    if (age < FLASH_SECONDS && (!isDrums || ACCENTS.has(drumVoiceFor(n.pitch)))) {
+      flash = Math.max(flash, (0.5 + 0.5 * n.velocity) * (1 - age / FLASH_SECONDS));
+    }
+  }
+  return flash;
+}
+
+/**
+ * The notebook's dot grid over `x, y, w, h`. Dots sit on a grid fixed to the score
+ * (`worldX`, `worldY`: where the box's corner is in it), so they move with it. With more
+ * `energy` they get brighter and some twinkle in the accent colour, changing a few times
+ * a second (`time`).
+ */
+export function dotGrid(
+  ctx: CanvasRenderingContext2D,
+  box: { x: number; y: number; w: number; h: number },
+  worldX: number,
+  worldY: number,
+  energy: number,
+  time: number,
+  palette: Palette,
+) {
+  const i0 = Math.floor(worldX / DOT_STEP);
+  const j0 = Math.floor(worldY / DOT_STEP);
+  const tick = Math.floor(time * 5);
+  for (let j = j0; (j - j0) * DOT_STEP < box.h + DOT_STEP; j++) {
+    const y = box.y + j * DOT_STEP - worldY + DOT_STEP / 2;
+    if (y < box.y || y > box.y + box.h) continue;
+    for (let i = i0; (i - i0) * DOT_STEP < box.w + DOT_STEP; i++) {
+      const x = box.x + i * DOT_STEP - worldX + DOT_STEP / 2;
+      if (x < box.x || x > box.x + box.w) continue;
+      // a cheap hash per dot and tick: which dots twinkle right now
+      const h = ((i * 73856093) ^ (j * 19349663) ^ (tick * 83492791)) >>> 0;
+      if (energy > 0.15 && h % 1000 < energy * 70) {
+        ctx.fillStyle = palette.accent;
+        ctx.globalAlpha = 0.35 + 0.5 * energy;
+        ctx.fillRect(x - 1.5, y - 1.5, 3, 3);
+      } else {
+        ctx.fillStyle = palette.ruleStrong;
+        ctx.globalAlpha = 0.3 + 0.4 * energy;
+        ctx.fillRect(x - 0.75, y - 0.75, 1.5, 1.5);
+      }
+    }
+  }
+  ctx.globalAlpha = 1;
+}
+
+export function roundRect(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, r = Math.min(h / 2, w / 2)) {
   ctx.beginPath();
   if (typeof ctx.roundRect === "function") ctx.roundRect(x, y, w, h, r);
   else ctx.rect(x, y, w, h);
 }
 
-function pill(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number) {
+export function pill(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number) {
   roundRect(ctx, x, y, w, h);
   ctx.fill();
 }
 
 /** A melodic note as a slim candy sticker: faint drop shadow, colour body, glossy top line. */
-function candy(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, color: string) {
+export function candy(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, color: string) {
   ctx.fillStyle = "rgba(0, 0, 0, 0.12)";
   pill(ctx, x, y + 1, w, h);
   ctx.fillStyle = color;
@@ -205,7 +289,7 @@ function candy(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h
   }
 }
 
-function star(ctx: CanvasRenderingContext2D, cx: number, cy: number, r: number) {
+export function star(ctx: CanvasRenderingContext2D, cx: number, cy: number, r: number) {
   ctx.beginPath();
   for (let i = 0; i < 10; i++) {
     const a = -Math.PI / 2 + (i * Math.PI) / 5;
@@ -217,7 +301,7 @@ function star(ctx: CanvasRenderingContext2D, cx: number, cy: number, r: number) 
 }
 
 /** Each drum sound gets its own mark so a beat reads at a glance. */
-function drumGlyph(ctx: CanvasRenderingContext2D, voice: DrumVoice, cx: number, cy: number, s: number, color: string) {
+export function drumGlyph(ctx: CanvasRenderingContext2D, voice: DrumVoice, cx: number, cy: number, s: number, color: string) {
   ctx.fillStyle = color;
   ctx.strokeStyle = color;
   ctx.lineWidth = Math.max(1.5, s * 0.4);
@@ -290,8 +374,10 @@ export function drawTimeline(input: DrawInput) {
   // short lanes get tighter padding; notes stay slim (about 5px) so fast runs and
   // chords read as separate notes instead of one block
   const pad = laneH < 60 ? 6 : 12;
-  const noteH = Math.max(3.5, Math.min(6, laneH / 16));
-  const glyph = laneH < 60 ? 3.2 : 4.2;
+  // the recording frame (showcase) lets notes grow with taller lanes, for phone screens;
+  // the main page keeps them slim
+  const noteH = Math.max(3.5, Math.min(input.showcase ? 10 : 6, laneH / 16));
+  const glyph = input.showcase ? Math.min(7, Math.max(laneH < 60 ? 3.2 : 4.2, laneH / 24)) : laneH < 60 ? 3.2 : 4.2;
   const staffGap = Math.min(8, (laneH - 12) / 4);
   const xOf = (t: number) => TIMELINE_GUTTER + t * zoom - scrollLeft;
   const tStart = Math.max(0, (scrollLeft - TIMELINE_GUTTER) / zoom);
@@ -329,16 +415,11 @@ export function drawTimeline(input: DrawInput) {
     ctx.stroke();
   });
 
-  // showcase: the notebook's dot grid, moving with the score
+  // showcase: the notebook's dot grid, moving with the score, lit by the music's energy
   if (input.showcase) {
-    ctx.fillStyle = palette.ruleStrong;
-    ctx.globalAlpha = 0.45;
-    const offset = -(scrollLeft % DOT_STEP);
     const bottom = Math.min(height, RULER_HEIGHT + lanes.length * laneH);
-    for (let y = RULER_HEIGHT + DOT_STEP / 2; y < bottom; y += DOT_STEP) {
-      for (let x = offset; x < width; x += DOT_STEP) ctx.fillRect(x - 0.75, y - 0.75, 1.5, 1.5);
-    }
-    ctx.globalAlpha = 1;
+    const energy = input.ripples ? input.showcase.energy : 0;
+    dotGrid(ctx, { x: 0, y: RULER_HEIGHT, w: width, h: bottom - RULER_HEIGHT }, scrollLeft, 0, energy, position ?? 0, palette);
   }
 
   // Bar lines (solid) and beat lines (dotted), plus the ruler with bar tags
@@ -438,6 +519,17 @@ export function drawTimeline(input: DrawInput) {
   lanes.forEach((lane, i) => {
     const top = RULER_HEIGHT + i * laneH;
     const inner = laneH - pad * 2 - noteH;
+
+    // showcase: the lane flashes its member's colour on each hit
+    if (live !== undefined && lane.audible) {
+      const flash = laneFlash(lane.notes, live, lane.isDrums);
+      if (flash > 0) {
+        ctx.fillStyle = lane.color;
+        ctx.globalAlpha = 0.18 * flash;
+        ctx.fillRect(0, top, width, laneH);
+        ctx.globalAlpha = 1;
+      }
+    }
 
     // the member's solo-round turn: their lane lit up, tagged SOLO at its start
     for (const solo of lane.solos ?? []) {
@@ -555,12 +647,25 @@ export function drawTimeline(input: DrawInput) {
       ctx.font = `800 12px ${FONT}`;
       const textW = ctx.measureText(lane.label).width;
       const tagH = laneH < 40 ? 16 : 20;
+      // showcase: the member's pixel instrument, playing along, before the name
+      const sprite = input.showcase && lane.instrument && laneH >= 44 ? 28 : 0;
+      if (sprite > 0) {
+        // on a light tile of her colour, as the page's badges, so the ink outline shows on dark
+        ctx.fillStyle = lane.color;
+      ctx.globalAlpha = (lane.audible ? 1 : 0.4) * 0.28;
+      roundRect(ctx, 6 - 3, top + 3 - 3, sprite + 6, sprite + 6, 8);
+      ctx.fill();
+      ctx.globalAlpha = lane.audible ? 1 : 0.4;
+        const pose = position === undefined ? poseAt([], 0, lane.instrument!) : poseAt(lane.notes, position, lane.instrument!);
+        drawPixelInstrument(ctx, lane.instrument!, pose, 6, top + 3, sprite, lane.color, lane.leftHanded, lane.gear);
+      }
+      const tagX = sprite > 0 ? 6 + sprite + 8 : 8;
       ctx.fillStyle = lane.color;
       ctx.globalAlpha = lane.audible ? 0.95 : 0.4;
-      pill(ctx, 8, top + 5, textW + 16, tagH);
+      pill(ctx, tagX, top + 5, textW + 16, tagH);
       ctx.globalAlpha = 1;
       ctx.fillStyle = "#fff";
-      ctx.fillText(lane.label, 16, top + 5 + tagH / 2 + 0.5);
+      ctx.fillText(lane.label, tagX + 8, top + 5 + tagH / 2 + 0.5);
     }
   });
 }

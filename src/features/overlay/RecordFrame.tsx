@@ -1,15 +1,19 @@
 import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties } from "react";
-import { Pause, Play, SkipBack, Square, Video, X, ZoomIn, ZoomOut } from "lucide-react";
+import { Columns3, Pause, Play, Rows3, SkipBack, Square, Video, X, ZoomIn, ZoomOut } from "lucide-react";
 import { IconButton } from "@/components/common/IconButton";
 import { MEMBERS } from "@/features/band/members";
 import { MAX_ZOOM, MIN_ZOOM, RULER_HEIGHT } from "@/features/timeline/layout";
 import { Timeline } from "@/features/timeline/Timeline";
 import { ensureAudio } from "@/hooks/useAudioEngine";
-import { useSoundsLoading, useSpacebarToggle, useTransport } from "@/hooks/useTransport";
+import { usePlaybackPosition, useSoundsLoading, useSpacebarToggle, useTransport } from "@/hooks/useTransport";
 import { useT } from "@/i18n/useT";
+import { usePlayedSong } from "@/stores/playedSong";
 import { useStudioStore } from "@/stores/useStudioStore";
+import { BREATH_SCALE, breathAt, energyAt } from "./energy";
 import { canRecordVideo } from "./frameRecorder";
-import { OVERLAY_COLORS, RECORD_FPS, RECORD_FRAMES, recordLayout, safeArea, type OverlayColor, type RecordFrame as Frame } from "./overlay";
+import { OVERLAY_COLORS, RECORD_FPS, RECORD_FRAMES, fallRightInset, recordLayout, safeArea, type OverlayColor, type RecordFrame as Frame } from "./overlay";
+import { Highway } from "./Highway";
+import { TeaCorner } from "./TeaCorner";
 import { SaveVideoDialog } from "./SaveVideoDialog";
 import { useFrameRecording } from "./useFrameRecording";
 
@@ -57,9 +61,26 @@ export function RecordFrame() {
   const setZoom = (next: number) => updateSettings({ zoom: Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, next)) });
   const [rw, rh] = overlay.frame.split(":").map(Number) as [number, number];
   // Reels: the score keeps clear of Instagram's top bar and the sides cut off on tall phones
-  const safe = safeArea(overlay.frame, size.width, size.height);
-  const { keyWidth, keyHeight, laneHeight } = recordLayout(size.width, size.height, RULER_HEIGHT, MEMBERS.length, safe);
+  const safe = safeArea(overlay.frame, size.width, size.height, overlay.keyStrip);
+  const { keyWidth, keyHeight, laneHeight } = recordLayout(size.width, size.height, RULER_HEIGHT, MEMBERS.length, safe, overlay.keyStrip);
   const playing = status === "playing";
+  const rightInset = fallRightInset(overlay.frame, size.width, overlay.keyStrip);
+
+  // the score swells a little on a crash or a busy bar's downbeat, as the video does
+  const { project } = usePlayedSong();
+  const scoreRef = useRef<HTMLDivElement>(null);
+  const [reducedMotion] = useState(() => matchMedia("(prefers-reduced-motion: reduce)").matches);
+  usePlaybackPosition((pos) => {
+    const score = scoreRef.current;
+    if (!score) return;
+    let breath = 0;
+    const drums = project.tracks.find((tr) => tr.instrument === "drums");
+    if (playing && !reducedMotion && drums) {
+      const bar = (60 / project.baseBpm) * project.beatsPerBar;
+      breath = breathAt(drums.notes, bar, pos, energyAt(project.tracks.map((tr) => tr.notes), bar, pos));
+    }
+    score.style.transform = breath > 0 ? `scale(${1 + breath * BREATH_SCALE})` : "";
+  });
 
   // video recording: armed by default where the browser can do it; Play starts a take
   const [supported] = useState(canRecordVideo);
@@ -75,6 +96,8 @@ export function RecordFrame() {
     safeTop: safe.top,
     safeSide: safe.side,
     keySide: safe.keySide,
+    safeBottom: safe.bottom,
+    fallRightInset: rightInset,
   });
   saving.current = result !== null;
   const loading = useSoundsLoading();
@@ -132,19 +155,22 @@ export function RecordFrame() {
         data-testid="record-frame"
         style={{ "--rw": rw, "--rh": rh } as CSSProperties}
       >
-        <div className="record-frame__score" style={{ paddingTop: safe.top, paddingInline: safe.side }}>
-          {size.height > 0 && <Timeline laneHeight={laneHeight} labels forceFollow showcase />}
+        {safe.top > 0 && size.width > 0 && <TeaCorner height={safe.top} />}
+        <div ref={scoreRef} className="record-frame__score" style={{ paddingTop: safe.top, paddingInline: safe.side, paddingBottom: safe.bottom }}>
+          {size.height > 0 && (overlay.view === "fall" ? <Highway rightInset={rightInset} /> : <Timeline laneHeight={laneHeight} labels forceFollow showcase />)}
           {countdown !== null && countdown > 0 && (
             <div className="record-countdown" role="status" aria-label={t.countdown(countdown)}>
               <span key={countdown}>{countdown}</span>
             </div>
           )}
         </div>
-        <div
-          className="record-frame__key"
-          data-testid="record-key"
-          style={{ background: OVERLAY_COLORS[overlay.color], height: keyHeight, width: keyWidth }}
-        />
+        {overlay.keyStrip && (
+          <div
+            className="record-frame__key"
+            data-testid="record-key"
+            style={{ background: OVERLAY_COLORS[overlay.color], height: keyHeight, width: keyWidth }}
+          />
+        )}
       </div>
 
       <div className="record-controls">
@@ -176,10 +202,20 @@ export function RecordFrame() {
           <IconButton label={t.zoomIn} variant="quiet" onClick={() => setZoom(zoom * ZOOM_STEP)} disabled={zoom >= MAX_ZOOM}>
             <ZoomIn size={16} />
           </IconButton>
+          <IconButton
+            label={overlay.view === "fall" ? t.fallViewOn : t.fallViewOff}
+            variant="quiet"
+            className="record-controls__exit"
+            pressed={overlay.view === "fall"}
+            disabled={recording}
+            onClick={() => set({ view: overlay.view === "fall" ? "scroll" : "fall" })}
+          >
+            {overlay.view === "fall" ? <Columns3 size={18} /> : <Rows3 size={18} />}
+          </IconButton>
           {supported && (
             <IconButton
               label={recording ? t.recordingNow : armed ? t.recordVideoOn : t.recordVideoOff}
-              className={`rec-btn record-controls__exit ${recording ? "is-recording" : ""}`}
+              className={`rec-btn ${recording ? "is-recording" : ""}`}
               pressed={armed}
               disabled={recording}
               onClick={() => setArmed((a) => !a)}
@@ -187,24 +223,34 @@ export function RecordFrame() {
               <Video size={18} />
             </IconButton>
           )}
-          <IconButton label={t.exitRecord} className={supported ? "" : "record-controls__exit"} onClick={() => setRecordMode(false)}>
+          <IconButton label={t.exitRecord} onClick={() => setRecordMode(false)}>
             <X size={18} />
           </IconButton>
         </div>
         <div className="record-controls__row">
           <div className="swatches" role="radiogroup" aria-label={t.overlayColor}>
+            <button
+              type="button"
+              role="radio"
+              aria-checked={!overlay.keyStrip}
+              aria-label={t.noKeyStrip}
+              title={t.noKeyStripHint}
+              className="swatch swatch--none"
+              disabled={recording}
+              onClick={() => set({ keyStrip: false })}
+            />
             {(Object.keys(OVERLAY_COLORS) as OverlayColor[]).map((c) => (
               <button
                 key={c}
                 type="button"
                 role="radio"
-                aria-checked={overlay.color === c}
+                aria-checked={overlay.keyStrip && overlay.color === c}
                 aria-label={t.overlayColors[c]}
                 title={t.overlayColors[c]}
                 className="swatch"
                 style={{ "--swatch": OVERLAY_COLORS[c] } as CSSProperties}
                 disabled={recording}
-                onClick={() => set({ color: c })}
+                onClick={() => set({ color: c, keyStrip: true })}
               />
             ))}
           </div>
