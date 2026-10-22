@@ -32,6 +32,8 @@ export interface RecordScene {
   view: RecordView;
   /** falling notes: px kept clear on the right (Reels' icons) */
   fallRightInset: number;
+  /** a looping take (the highlight), song seconds: the tea corner's turtle keeps to it */
+  loop?: { start: number; length: number; at: number };
 }
 
 // the same guitar pick the page's playhead uses (Playhead.tsx), 20 × 22
@@ -139,7 +141,7 @@ export function drawRecordFrame(ctx: CanvasRenderingContext2D, s: RecordScene) {
 /** Reels: the club room's tea table and turtle in the top band (nothing else is there). */
 function paintTeaCorner(ctx: CanvasRenderingContext2D, s: RecordScene) {
   if (s.safeTop <= 0) return;
-  drawTeaCorner({ ctx, x: 0, y: 0, width: s.width, height: s.safeTop, lanes: s.lanes, position: s.position, live: s.ripples, ink: s.palette.ink });
+  drawTeaCorner({ ctx, x: 0, y: 0, width: s.width, height: s.safeTop, lanes: s.lanes, position: s.position, live: s.ripples, ink: s.palette.ink, loop: s.loop });
 }
 
 /** The key colour: one flat rectangle, nothing drawn over it. */

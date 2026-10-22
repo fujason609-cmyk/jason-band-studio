@@ -40,4 +40,14 @@ describe("tea corner", () => {
     expect(at(13)).toBeGreaterThan(start + 50); // halfway across
     expect(Math.abs(at(52) - start)).toBeLessThan(2); // and back again
   });
+
+  it("in a looping take goes there and back once per loop, so the last frame meets the first", () => {
+    const at = (position: number) => {
+      const { ctx, shell } = fakeCanvas();
+      drawTeaCorner({ ctx, x: 0, y: 0, width: 390, height: 97, lanes, position, live: false, ink: "#f4efe6", loop: { start: 20, length: 12.8 } });
+      return Math.min(...shell);
+    };
+    expect(Math.abs(at(20.5 + 12.8) - at(20.5))).toBeLessThan(1); // a loop later: the same place
+    expect(at(26.4)).toBeGreaterThan(at(20) + 50); // the far side halfway through
+  });
 });

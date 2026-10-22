@@ -6,6 +6,7 @@ import { getPlayedSong } from "@/stores/playedSong";
 import { useStudioStore } from "@/stores/useStudioStore";
 import { drawRecordFrame } from "./drawRecordFrame";
 import { FrameRecorder, type Recording } from "./frameRecorder";
+import { clipSeconds, loopNotes, type Highlight } from "./highlight";
 import { OVERLAY_COLORS } from "./overlay";
 
 /** Video width in pixels; the height follows the frame shape (1080 × 1920 for 9:16). */
@@ -20,6 +21,26 @@ const TAIL_MS = 800;
 const PICTURE_DELAY_SECONDS = 0.04;
 /** A take ends by itself after this long (with Loop on a forgotten one would fill the memory). */
 export const MAX_TAKE_MINUTES = 20;
+
+/**
+ * Gets the engine ready for a highlight take: loop just the clip, and start a bar before
+ * its end, so the first loop the recorder hears already has the last bar ringing into it.
+ */
+export function cueHighlight(clip: Highlight) {
+  audioEngine.setLoopRange({ start: clip.start, end: clip.end });
+  audioEngine.seek(Math.max(clip.start, clip.end - (clip.end - clip.start) / clip.bars));
+}
+
+/**
+ * The tea corner's turtle in a highlight take: there and back once per clip. A clip that
+ * plays its stretch twice spans two loops, so it counts the loops as they come round.
+ */
+function clipLoop(s: { lastPos: number; wraps: number; loopPos: number }, clip: Highlight) {
+  const length = clip.end - clip.start;
+  if (s.lastPos < s.loopPos - length / 2) s.wraps += 1;
+  s.loopPos = s.lastPos;
+  return { start: clip.start, length: length * clip.repeats, at: s.lastPos + (s.wraps % clip.repeats) * length };
+}
 
 /** Stop playing the way the Pause button does, which ends the take; tell the user why. */
 function pauseTake(text: string) {
@@ -43,6 +64,16 @@ export interface FrameLayout {
 
 interface Session {
   recorder: FrameRecorder;
+  /** a highlight take: the recorder waits for the loop to come round, then records one loop */
+  clip: Highlight | null;
+  /** highlight: the recorder is running (it starts at the loop point, not at once) */
+  rolling: boolean;
+  /** highlight: where the sound was when the take began (NaN until the first frame), to see it move */
+  cuedAt: number;
+  /** highlight: times the loop has come round, and the position on the last frame (for the turtle) */
+  wraps: number;
+  loopPos: number;
+  timers: number[];
   canvas: HTMLCanvasElement;
   frame: number;
   /** set once playback stops: the picture holds here for the tail */
@@ -62,15 +93,77 @@ interface Session {
  * Starts when `rolling` turns on (if `armed`): that's playback, or the countdown before
  * it. Stops when it turns off, and hands back the finished video as `result` for the
  * save dialog; `discard` throws the current take away instead.
+ *
+ * With a `clip` (the highlight take) the caller loops that stretch and starts playing a
+ * little before its end; the recorder starts when the loop comes round to its start and
+ * stops exactly one loop later, so the video's end runs straight into its start (sound
+ * still ringing from the last bar is in the first, as it is when Instagram loops it). The
+ * picture draws the clip's notes looped too. `cueing` is true until the recorder starts.
  */
-export function useFrameRecording(armed: boolean, rolling: boolean, layout: FrameLayout) {
+export function useFrameRecording(armed: boolean, rolling: boolean, layout: FrameLayout, clip: Highlight | null = null) {
   const [recording, setRecording] = useState(false);
+  const [cueing, setCueing] = useState(false);
+  const latestClip = useRef(clip);
+  latestClip.current = clip;
   const [result, setResult] = useState<Recording | null>(null);
   const session = useRef<Session | null>(null);
+  const discardSession = useCallback((s: Session) => {
+    cancelAnimationFrame(s.frame);
+    s.timers.forEach((id) => clearTimeout(id));
+    s.unlisten();
+    void s.recorder.stop().then((v) => URL.revokeObjectURL(v.url));
+    audioEngine.stopAudioCapture();
+    if (s.clip) audioEngine.setLoopRange(null);
+    s.canvas.remove();
+    session.current = null;
+    setRecording(false);
+    setCueing(false);
+  }, []);
   const latestLayout = useRef(layout);
   latestLayout.current = layout;
   const wants = useRef({ armed, rolling });
   wants.current = { armed, rolling };
+
+  /** Highlight: one loop recorded; stop the music, put the song back and hand over the video. */
+  const endClip = useCallback(async (s: Session) => {
+    if (session.current !== s) return;
+    s.frozenAt = s.lastPos;
+    s.unlisten();
+    const video = await s.recorder.stop();
+    cancelAnimationFrame(s.frame);
+    audioEngine.stopAudioCapture();
+    s.canvas.remove();
+    session.current = null;
+    setRecording(false);
+    setResult(video);
+    audioEngine.pause();
+    audioEngine.setLoopRange(null);
+    audioEngine.seek(s.clip!.start);
+    useStudioStore.getState().setTransport("paused");
+  }, []);
+
+  /**
+   * Highlight: start the recorder at the loop point, `waitMs` from now, and stop it one loop
+   * later. Timed from the audio clock, not from frames: a slow frame noticed the loop come
+   * round late (0.7 s in headless Chrome).
+   */
+  const startClip = useCallback((s: Session, waitMs: number) => {
+    const clip = s.clip!;
+    s.rolling = true;
+    // the sound reaches the recorder ~50 ms after the clock says it plays: starting that much
+    // later puts the downbeat at the start of the file. The length is what has to be exact
+    // (the loop's), and both ends share the same delay.
+    const { baseBpm, bpm } = getPlayedSong().project;
+    const loopMs = clipSeconds(clip, baseBpm, bpm) * 1000;
+    s.timers.push(
+      window.setTimeout(() => {
+        if (session.current !== s) return;
+        s.recorder.start();
+        setCueing(false);
+        s.timers.push(window.setTimeout(() => void endClip(s), loopMs));
+      }, waitMs + PICTURE_DELAY_SECONDS * 1000),
+    );
+  }, [endClip]);
 
   const begin = useCallback(() => {
     if (session.current || latestLayout.current.width === 0) return;
@@ -92,10 +185,11 @@ export function useFrameRecording(armed: boolean, rolling: boolean, layout: Fram
     const palette = readPalette();
     const ripples = !matchMedia("(prefers-reduced-motion: reduce)").matches;
 
+    const clip = latestClip.current;
     let recorder: FrameRecorder;
     try {
       recorder = new FrameRecorder(canvas, audio, useStudioStore.getState().settings.overlay.fps);
-      recorder.start();
+      if (!clip) recorder.start();
     } catch {
       // the browser said it could record this type, then couldn't: no take, and say so
       canvas.remove();
@@ -111,6 +205,12 @@ export function useFrameRecording(armed: boolean, rolling: boolean, layout: Fram
     document.addEventListener("visibilitychange", onVisibility);
     const s: Session = {
       recorder,
+      clip,
+      rolling: clip === null,
+      cuedAt: NaN,
+      wraps: 0,
+      loopPos: 0,
+      timers: [],
       canvas,
       frame: 0,
       frozenAt: null,
@@ -120,11 +220,23 @@ export function useFrameRecording(armed: boolean, rolling: boolean, layout: Fram
     };
     const paint = () => {
       if (audioEngine.status === "playing") s.lastPos = Math.max(0, audioEngine.getAudiblePosition() - PICTURE_DELAY_SECONDS);
+      if (s.clip && !s.rolling && audioEngine.status === "playing") {
+        const heard = audioEngine.getAudiblePosition();
+        const { baseBpm, bpm } = getPlayedSong().project;
+        if (Number.isNaN(s.cuedAt)) s.cuedAt = heard;
+        // once the sound is moving (after a count-in, if any): the loop point is this far off
+        else if (heard < s.cuedAt - 0.01) startClip(s, 0); // already came round
+        else if (heard > s.cuedAt + 0.01) startClip(s, (((s.clip.end - heard) * baseBpm) / Math.max(1, bpm)) * 1000);
+      }
       if (s.frozenAt === null && performance.now() - s.startedAt > MAX_TAKE_MINUTES * 60_000 && audioEngine.status === "playing") {
         pauseTake(getT().recordingTooLong(MAX_TAKE_MINUTES));
       }
       const { project, spots } = getPlayedSong();
       const { settings } = useStudioStore.getState();
+      const lanes = buildLanes(project, palette, getT().memberName, settings.selectedMember, settings.vocals, s.clip ? [] : spots);
+      const shown = s.clip
+        ? lanes.map((lane) => ({ ...lane, notes: loopNotes(lane.notes, s.clip!), vocal: lane.vocal && { ...lane.vocal, notes: loopNotes(lane.vocal.notes, s.clip!) } }))
+        : lanes;
       ctx.setTransform(scale, 0, 0, scale, 0, 0);
       drawRecordFrame(ctx, {
         ...l,
@@ -133,7 +245,8 @@ export function useFrameRecording(armed: boolean, rolling: boolean, layout: Fram
         durationSeconds: project.durationSeconds,
         baseBpm: project.baseBpm,
         beatsPerBar: project.beatsPerBar,
-        lanes: buildLanes(project, palette, getT().memberName, settings.selectedMember, settings.vocals, spots),
+        lanes: shown,
+        loop: s.clip ? clipLoop(s, s.clip) : undefined,
         palette,
         keyColor: OVERLAY_COLORS[settings.overlay.color],
         ripples: ripples && audioEngine.status === "playing",
@@ -144,11 +257,18 @@ export function useFrameRecording(armed: boolean, rolling: boolean, layout: Fram
     session.current = s;
     paint();
     setRecording(true);
-  }, []);
+    setCueing(clip !== null);
+  }, [startClip]);
 
   const finish = useCallback(async () => {
     const s = session.current;
     if (!s || s.frozenAt !== null) return;
+    if (s.clip) {
+      // stopped before the loop was recorded whole: a part of a loop doesn't loop
+      discardSession(s);
+      useStudioStore.getState().notify({ kind: "info", text: getT().highlightCut });
+      return;
+    }
     // where the picture last was while playing: after Stop or the song's end the clock
     // already reads 0, and the video would end on the first bar
     s.frozenAt = s.lastPos;
@@ -166,7 +286,7 @@ export function useFrameRecording(armed: boolean, rolling: boolean, layout: Fram
     setResult(video);
     // Play pressed again during the tail: that's the next take
     if (wants.current.armed && wants.current.rolling) begin();
-  }, [begin]);
+  }, [begin, discardSession]);
 
   useEffect(() => {
     if (rolling && armed) begin();
@@ -175,15 +295,8 @@ export function useFrameRecording(armed: boolean, rolling: boolean, layout: Fram
 
   const discard = useCallback(() => {
     const s = session.current;
-    if (!s) return;
-    cancelAnimationFrame(s.frame);
-    s.unlisten();
-    void s.recorder.stop().then((v) => URL.revokeObjectURL(v.url));
-    audioEngine.stopAudioCapture();
-    s.canvas.remove();
-    session.current = null;
-    setRecording(false);
-  }, []);
+    if (s) discardSession(s);
+  }, [discardSession]);
 
   // leaving the recording frame mid-take throws the take away
   useEffect(() => discard, [discard]);
@@ -197,5 +310,5 @@ export function useFrameRecording(armed: boolean, rolling: boolean, layout: Fram
     });
   }, []);
 
-  return { recording, result, dismiss, discard };
+  return { recording, cueing, result, dismiss, discard };
 }

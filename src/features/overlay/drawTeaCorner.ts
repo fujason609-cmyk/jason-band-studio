@@ -104,9 +104,14 @@ export interface TeaCornerInput {
   live: boolean;
   /** the outline colour: the theme's ink, so it shows on either background */
   ink: string;
+  /**
+   * a looping take (the highlight): the turtle goes there and back once per clip, by `at`
+   * (song seconds counted on across the clip's loops), so the end meets the start
+   */
+  loop?: { start: number; length: number; at?: number };
 }
 
-export function drawTeaCorner({ ctx, x, y, width, height, lanes, position, live, ink }: TeaCornerInput) {
+export function drawTeaCorner({ ctx, x, y, width, height, lanes, position, live, ink, loop }: TeaCornerInput) {
   // Instagram's back and camera buttons sit at the band's top corners: keep to the middle
   // 64% and the lower part of the band
   const usable = width * 0.64;
@@ -120,7 +125,7 @@ export function drawTeaCorner({ ctx, x, y, width, height, lanes, position, live,
 
   // the turtle, under the table: paddling back and forth along the bottom of the band
   const span = Math.max(1, usable - 16 * u);
-  const phase = (position / TURTLE_CROSSING) % 2;
+  const phase = loop ? (((((loop.at ?? position) - loop.start) / loop.length) * 2) % 2 + 2) % 2 : (position / TURTLE_CROSSING) % 2;
   const goingRight = phase < 1;
   const tx = x + (width - usable) / 2 + (goingRight ? phase : 2 - phase) * span;
   const paddle = live ? Math.floor(position * 3) % 2 : 0;

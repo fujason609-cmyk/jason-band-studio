@@ -1,5 +1,5 @@
-import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties } from "react";
-import { Columns3, Pause, Play, Rows3, SkipBack, Square, Video, X, ZoomIn, ZoomOut } from "lucide-react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties } from "react";
+import { Columns3, Pause, Play, Rows3, Shuffle, SkipBack, Square, Video, X, ZoomIn, ZoomOut } from "lucide-react";
 import { IconButton } from "@/components/common/IconButton";
 import { MEMBERS } from "@/features/band/members";
 import { MAX_ZOOM, MIN_ZOOM, RULER_HEIGHT } from "@/features/timeline/layout";
@@ -11,11 +11,12 @@ import { usePlayedSong } from "@/stores/playedSong";
 import { useStudioStore } from "@/stores/useStudioStore";
 import { BREATH_SCALE, breathAt, energyAt } from "./energy";
 import { canRecordVideo } from "./frameRecorder";
-import { OVERLAY_COLORS, RECORD_FPS, RECORD_FRAMES, fallRightInset, recordLayout, safeArea, type OverlayColor, type RecordFrame as Frame } from "./overlay";
+import { clipSeconds, findHighlight, highlightChoices } from "./highlight";
+import { OVERLAY_COLORS, RECORD_CLIPS, RECORD_FPS, RECORD_FRAMES, fallRightInset, recordLayout, safeArea, type OverlayColor, type RecordClip, type RecordFrame as Frame } from "./overlay";
 import { Highway } from "./Highway";
 import { TeaCorner } from "./TeaCorner";
 import { SaveVideoDialog } from "./SaveVideoDialog";
-import { useFrameRecording } from "./useFrameRecording";
+import { cueHighlight, useFrameRecording } from "./useFrameRecording";
 
 const ZOOM_STEP = 1.4;
 /** Seconds counted down on screen before a take's playback starts (the video already runs). */
@@ -67,7 +68,16 @@ export function RecordFrame() {
   const rightInset = fallRightInset(overlay.frame, size.width, overlay.keyStrip);
 
   // the score swells a little on a crash or a busy bar's downbeat, as the video does
-  const { project } = usePlayedSong();
+  const { project, songEnd } = usePlayedSong();
+  // the highlight take's stretch of the song (the solo round after it doesn't count)
+  // "next section" walks through the other good ones; a new song starts from the best again
+  const [choice, setChoice] = useState({ song: project.name, index: 0 });
+  const index = choice.song === project.name ? choice.index : 0;
+  const highlight = useMemo(
+    () => (overlay.clip === "highlight" ? findHighlight(project, songEnd, index) : null),
+    [overlay.clip, project, songEnd, index],
+  );
+  const choices = overlay.clip === "highlight" ? highlightChoices(project, songEnd).length : 0;
   const scoreRef = useRef<HTMLDivElement>(null);
   const [reducedMotion] = useState(() => matchMedia("(prefers-reduced-motion: reduce)").matches);
   usePlaybackPosition((pos) => {
@@ -82,13 +92,24 @@ export function RecordFrame() {
     score.style.transform = breath > 0 ? `scale(${1 + breath * BREATH_SCALE})` : "";
   });
 
+  const clipHint = highlight
+    ? t.recordClipHint(
+        highlight.firstBar + 1,
+        highlight.firstBar + highlight.bars,
+        Math.round(clipSeconds(highlight, project.baseBpm, project.bpm) * 10) / 10,
+        highlight.repeats,
+        (index % Math.max(1, choices)) + 1,
+        choices,
+      )
+    : "";
+
   // video recording: armed by default where the browser can do it; Play starts a take
   const [supported] = useState(canRecordVideo);
   const [armed, setArmed] = useState(supported);
   // a take starts with a 3-2-1 on screen: the video is already recording the still frame,
   // so it doesn't open on the first note
   const [countdown, setCountdown] = useState<number | null>(null);
-  const { recording, result, dismiss, discard } = useFrameRecording(armed && supported, playing || countdown !== null, {
+  const { recording, cueing, result, dismiss, discard } = useFrameRecording(armed && supported, playing || countdown !== null, {
     width: size.width,
     height: size.height,
     keyHeight,
@@ -98,7 +119,7 @@ export function RecordFrame() {
     keySide: safe.keySide,
     safeBottom: safe.bottom,
     fallRightInset: rightInset,
-  });
+  }, highlight);
   saving.current = result !== null;
   const loading = useSoundsLoading();
   // the 800 ms tail after a take: the picture is frozen and the video still being written
@@ -136,6 +157,12 @@ export function RecordFrame() {
     if (!armed || !supported || recording) return void (fromTop ? restart() : play());
     // unlock audio now, inside the tap: the countdown's timer isn't a user gesture
     if (!(await ensureAudio())) return;
+    if (overlay.clip === "highlight") {
+      // no countdown: the video opens on the highlight's first beat, and loops back to it
+      if (!highlight) return useStudioStore.getState().notify({ kind: "info", text: t.highlightTooShort });
+      cueHighlight(highlight);
+      return void play();
+    }
     if (fromTop) stop();
     setCountdown(COUNTDOWN_SECONDS);
   };
@@ -158,6 +185,11 @@ export function RecordFrame() {
         {safe.top > 0 && size.width > 0 && <TeaCorner height={safe.top} />}
         <div ref={scoreRef} className="record-frame__score" style={{ paddingTop: safe.top, paddingInline: safe.side, paddingBottom: safe.bottom }}>
           {size.height > 0 && (overlay.view === "fall" ? <Highway rightInset={rightInset} /> : <Timeline laneHeight={laneHeight} labels forceFollow showcase />)}
+          {cueing && (
+            <div className="record-cue" role="status">
+              {t.highlightCueing}
+            </div>
+          )}
           {countdown !== null && countdown > 0 && (
             <div className="record-countdown" role="status" aria-label={t.countdown(countdown)}>
               <span key={countdown}>{countdown}</span>
@@ -281,9 +313,37 @@ export function RecordFrame() {
               ))}
             </select>
           )}
+          {supported && (
+            <select
+              aria-label={t.recordClip}
+              title={highlight ? clipHint : t.recordClip}
+              value={overlay.clip}
+              disabled={recording}
+              onChange={(e) => set({ clip: e.currentTarget.value as RecordClip })}
+            >
+              {RECORD_CLIPS.map((c) => (
+                <option key={c} value={c}>
+                  {t.recordClips[c]}
+                </option>
+              ))}
+            </select>
+          )}
+          {supported && choices > 1 && (
+            <IconButton
+              label={t.highlightNext}
+              title={clipHint}
+              variant="quiet"
+              disabled={recording}
+              onClick={() => setChoice({ song: project.name, index: index + 1 })}
+            >
+              <Shuffle size={16} />
+            </IconButton>
+          )}
         </div>
         {supported ? (
-          <p className="record-controls__hint">{t.recordHint}</p>
+          <p className="record-controls__hint">
+            {highlight ? clipHint : t.recordHint}
+          </p>
         ) : (
           <p className="record-controls__warn">{t.recordingUnsupported}</p>
         )}

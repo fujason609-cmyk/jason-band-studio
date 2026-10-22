@@ -12,6 +12,8 @@ export class TransportController {
   private baseBpm = 120;
   private durationSeconds = 0;
   private loop = false;
+  /** a stretch looped instead of the whole song (the highlight take), song seconds */
+  private range: { start: number; end: number } | null = null;
   private endEventId: number | null = null;
   /** audio-clock time a counted-in start is waiting for */
   private startsAt: number | null = null;
@@ -43,7 +45,7 @@ export class TransportController {
 
     if (this.endEventId !== null) this.transport.clear(this.endEventId);
     this.endEventId = this.transport.schedule((time) => {
-      if (this.loop) return;
+      if (this.loop || this.range) return;
       // Stop on the audio clock itself; tell the UI with a timer rather than
       // Tone.Draw, whose callbacks are dropped when the tab is in the background.
       this.transport.stop(time);
@@ -54,15 +56,29 @@ export class TransportController {
       }, delayMs);
     }, `${endTicks}i`);
 
-    this.transport.loopStart = 0;
-    this.transport.loopEnd = `${endTicks}i`;
-    this.transport.loop = this.loop;
+    this.applyLoop();
     this.seek(Math.min(position, durationSeconds));
   }
 
   setLoop(loop: boolean) {
     this.loop = loop;
-    this.transport.loop = loop;
+    this.applyLoop();
+  }
+
+  /**
+   * Loop only `range` (song seconds), or the whole song again (null). Notes still ringing
+   * at the loop point carry on into the next time round, as they would in the song.
+   */
+  setLoopRange(range: { start: number; end: number } | null) {
+    this.range = range;
+    this.applyLoop();
+  }
+
+  private applyLoop() {
+    const ticks = (s: number) => `${secondsToTicks(s, this.baseBpm, PPQ)}i`;
+    this.transport.loopStart = this.range ? ticks(this.range.start) : 0;
+    this.transport.loopEnd = ticks(this.range ? this.range.end : this.durationSeconds);
+    this.transport.loop = this.loop || this.range !== null;
   }
 
   setBpm(bpm: number) {

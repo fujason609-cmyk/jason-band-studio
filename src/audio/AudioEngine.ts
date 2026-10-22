@@ -285,6 +285,10 @@ export class AudioEngine {
   setLoop(loop: boolean) {
     this.transport?.setLoop(loop);
   }
+  /** Loop just this stretch (song seconds), or the whole song again with null. */
+  setLoopRange(range: { start: number; end: number } | null) {
+    this.transport?.setLoopRange(range);
+  }
   getPosition(): number {
     return this.transport?.getPosition() ?? 0;
   }
