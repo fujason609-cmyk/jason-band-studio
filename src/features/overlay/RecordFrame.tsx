@@ -1,6 +1,7 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { Columns3, Pause, Play, Rows3, Shuffle, SkipBack, Square, Video, X, ZoomIn, ZoomOut } from "lucide-react";
 import { IconButton } from "@/components/common/IconButton";
+import { NoticeBar } from "@/components/layout/NoticeBar";
 import { MEMBERS } from "@/features/band/members";
 import { MAX_ZOOM, MIN_ZOOM, RULER_HEIGHT } from "@/features/timeline/layout";
 import { Timeline } from "@/features/timeline/Timeline";
@@ -11,7 +12,7 @@ import { usePlayedSong } from "@/stores/playedSong";
 import { useStudioStore } from "@/stores/useStudioStore";
 import { BREATH_SCALE, breathAt, energyAt } from "./energy";
 import { canRecordVideo } from "./frameRecorder";
-import { clipSeconds, findHighlight, highlightChoices } from "./highlight";
+import { clipSeconds, findHighlight, highlightChoices, type Highlight } from "./highlight";
 import { OVERLAY_COLORS, RECORD_CLIPS, RECORD_FPS, RECORD_FRAMES, fallRightInset, recordLayout, safeArea, type OverlayColor, type RecordClip, type RecordFrame as Frame } from "./overlay";
 import { Highway } from "./Highway";
 import { TeaCorner } from "./TeaCorner";
@@ -19,6 +20,8 @@ import { SaveVideoDialog } from "./SaveVideoDialog";
 import { cueHighlight, useFrameRecording } from "./useFrameRecording";
 
 const ZOOM_STEP = 1.4;
+/** An info notice (a new highlight picked) goes after this long; errors stay until closed. */
+const NOTICE_MS = 4000;
 /** Seconds counted down on screen before a take's playback starts (the video already runs). */
 const COUNTDOWN_SECONDS = 3;
 
@@ -92,16 +95,33 @@ export function RecordFrame() {
     score.style.transform = breath > 0 ? `scale(${1 + breath * BREATH_SCALE})` : "";
   });
 
-  const clipHint = highlight
-    ? t.recordClipHint(
-        highlight.firstBar + 1,
-        highlight.firstBar + highlight.bars,
-        Math.round(clipSeconds(highlight, project.baseBpm, project.bpm) * 10) / 10,
-        highlight.repeats,
-        (index % Math.max(1, choices)) + 1,
-        choices,
-      )
-    : "";
+  const hintFor = (h: Highlight, at: number) =>
+    t.recordClipHint(
+      h.firstBar + 1,
+      h.firstBar + h.bars,
+      Math.round(clipSeconds(h, project.baseBpm, project.bpm) * 10) / 10,
+      h.repeats,
+      (at % Math.max(1, choices)) + 1,
+      choices,
+    );
+  const clipHint = highlight ? hintFor(highlight, index) : "";
+  /** the shuffle button: the next good stretch, said out loud (phones hide the hint line) */
+  const nextHighlight = () => {
+    const next = index + 1;
+    setChoice({ song: project.name, index: next });
+    const h = findHighlight(project, songEnd, next);
+    if (h) useStudioStore.getState().notify({ kind: "info", text: hintFor(h, next) });
+  };
+
+  // notices show here too (the main page's bar isn't on screen), and info ones go by themselves
+  const notice = useStudioStore((s) => s.notice);
+  useEffect(() => {
+    if (notice?.kind !== "info") return;
+    const id = setTimeout(() => {
+      if (useStudioStore.getState().notice === notice) useStudioStore.getState().notify(null);
+    }, NOTICE_MS);
+    return () => clearTimeout(id);
+  }, [notice]);
 
   // video recording: armed by default where the browser can do it; Play starts a take
   const [supported] = useState(canRecordVideo);
@@ -176,6 +196,9 @@ export function RecordFrame() {
 
   return (
     <div className="record-view" role="region" aria-label={t.recordMode}>
+      <div className="record-notice">
+        <NoticeBar />
+      </div>
       <div
         ref={frameRef}
         className="record-frame"
@@ -333,10 +356,14 @@ export function RecordFrame() {
               label={t.highlightNext}
               title={clipHint}
               variant="quiet"
+              className="record-controls__shuffle"
               disabled={recording}
-              onClick={() => setChoice({ song: project.name, index: index + 1 })}
+              onClick={nextHighlight}
             >
               <Shuffle size={16} />
+              <span className="record-controls__choice">
+                {(index % choices) + 1}/{choices}
+              </span>
             </IconButton>
           )}
         </div>
