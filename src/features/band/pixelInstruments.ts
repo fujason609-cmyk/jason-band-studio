@@ -269,6 +269,7 @@ export function drawPixelInstrument(
   const lift = pose.frame !== "idle" && instrument !== "keys" && instrument !== "drums" ? px * Math.min(1, pose.amount * 2) : 0;
   const cells = spriteCells(instrument, pose);
   const shades = gear ? bodyShades(cells) : null;
+  const grid = pixelGrid(ctx);
   for (const [cx, cy, c] of cells) {
     if (c === "m") {
       const depth = shades?.get(`${cx},${cy}`) ?? 0;
@@ -277,8 +278,22 @@ export function drawPixelInstrument(
     else if (c === "s" && gear?.metal) ctx.fillStyle = gear.metal;
     else ctx.fillStyle = COLORS[c]!;
     const col = flip ? 15 - cx : cx;
-    const left = Math.round(x + col * px);
-    const top = Math.round(y + cy * px - lift);
-    ctx.fillRect(left, top, Math.round(x + (col + 1) * px) - left, Math.round(y + (cy + 1) * px - lift) - top);
+    const left = grid.x(x + col * px);
+    const top = grid.y(y + cy * px - lift);
+    ctx.fillRect(left, top, grid.x(x + (col + 1) * px) - left, grid.y(y + (cy + 1) * px - lift) - top);
   }
+}
+
+/**
+ * Rounds canvas coordinates to whole *device* pixels under the current transform, so
+ * pixel art stays sharp: the video canvas is drawn at about 2.77 × the CSS size, where
+ * cells rounded to whole CSS pixels got blurred edges.
+ */
+export function pixelGrid(ctx: CanvasRenderingContext2D) {
+  const m = typeof ctx.getTransform === "function" ? ctx.getTransform() : null;
+  const a = m?.a || 1;
+  const d = m?.d || 1;
+  const e = m?.e ?? 0;
+  const f = m?.f ?? 0;
+  return { x: (v: number) => (Math.round(v * a + e) - e) / a, y: (v: number) => (Math.round(v * d + f) - f) / d };
 }

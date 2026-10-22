@@ -1,4 +1,4 @@
-import { noteState, summarise } from "./drawTimeline";
+import { burstKind, laneActivity, noteState, summarise } from "./drawTimeline";
 
 describe("note state against the playhead", () => {
   const note = { pitch: 60, start: 2, duration: 1, velocity: 0.8 };
@@ -25,5 +25,31 @@ describe("part summary", () => {
     const s = summarise(notes);
     expect(s).toEqual({ lo: 48, hi: 72, longest: 12 });
     expect(summarise(notes)).toBe(s); // cached: no rescan on the next frame
+  });
+});
+
+describe("lane activity", () => {
+  const part = [{ pitch: 60, start: 1, duration: 1, velocity: 0.8 }];
+
+  it("is full while a note sounds and fades out after it", () => {
+    expect(laneActivity(part, 0.5, false)).toBe(0);
+    expect(laneActivity(part, 1.5, false)).toBe(1);
+    expect(laneActivity(part, 2.4, false)).toBeCloseTo(0.5);
+    expect(laneActivity(part, 3, false)).toBe(0);
+  });
+
+  it("counts a drum hit only for a moment", () => {
+    expect(laneActivity(part, 1.1, true)).toBe(1);
+    expect(laneActivity(part, 1.95, true)).toBe(0);
+  });
+});
+
+describe("hit bursts", () => {
+  it("differ by instrument: stars for guitars and snare, a ring for bass and kick, bubbles for keys", () => {
+    expect(burstKind("lead-guitar")).toBe("stars");
+    expect(burstKind("bass")).toBe("ring");
+    expect(burstKind("keys")).toBe("bubbles");
+    expect(burstKind("drums", "kick")).toBe("ring");
+    expect(burstKind("drums", "snare")).toBe("stars");
   });
 });

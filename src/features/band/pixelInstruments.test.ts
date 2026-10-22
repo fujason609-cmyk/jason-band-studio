@@ -1,5 +1,5 @@
 import type { InstrumentId } from "@/types/audio";
-import { IDLE_POSE, bodyShades, gearFor, poseAt, poseKey, spriteCells } from "./pixelInstruments";
+import { IDLE_POSE, bodyShades, gearFor, pixelGrid, poseAt, poseKey, spriteCells } from "./pixelInstruments";
 
 const INSTRUMENTS: InstrumentId[] = ["lead-guitar", "rhythm-guitar", "bass", "drums", "keys"];
 const note = (start: number, pitch = 60, duration = 0.5) => ({ pitch, start, duration, velocity: 0.8 });
@@ -55,5 +55,18 @@ describe("pixel instruments", () => {
     expect(held.frame).toBe("idle"); // no fresh hit
     expect(held.keys).toHaveLength(2); // but two keys down
     expect(poseKey(held)).not.toBe(poseKey(IDLE_POSE));
+  });
+});
+
+describe("pixel grid", () => {
+  it("rounds to whole device pixels under a scaled, shifted canvas", () => {
+    const ctx = { getTransform: () => ({ a: 2.77, d: 2.77, e: 23.4 * 2.77, f: 0 }) } as unknown as CanvasRenderingContext2D;
+    const grid = pixelGrid(ctx);
+    const whole = (n: number) => Math.abs(n - Math.round(n));
+    for (const v of [0.1, 5.33, 17.9]) {
+      expect(whole(grid.x(v) * 2.77 + 23.4 * 2.77)).toBeLessThan(1e-9);
+      expect(Math.abs(grid.x(v) - v)).toBeLessThanOrEqual(0.5 / 2.77 + 1e-9);
+      expect(whole(grid.y(v) * 2.77)).toBeLessThan(1e-9);
+    }
   });
 });

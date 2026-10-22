@@ -226,6 +226,78 @@ export function laneFlash(notes: readonly NoteEvent[], position: number, isDrums
   return flash;
 }
 
+/** How long a lane stays lit after its last note ends. */
+export const IDLE_FADE_SECONDS = 0.8;
+
+/**
+ * How much a lane is playing now (0–1): 1 while one of its notes sounds (a drum hit counts
+ * for a moment), fading out over IDLE_FADE_SECONDS after. The frame lights playing lanes
+ * and dims quiet ones, so the eye goes to whoever plays.
+ */
+export function laneActivity(notes: readonly NoteEvent[], position: number, isDrums: boolean): number {
+  let last = -Infinity;
+  for (let k = firstVisible(notes, position - IDLE_FADE_SECONDS); k < notes.length; k++) {
+    const n = notes[k]!;
+    if (n.start > position) break;
+    last = Math.max(last, n.start + (isDrums ? 0.15 : n.duration));
+  }
+  if (last >= position) return 1;
+  return Math.max(0, 1 - (position - last) / IDLE_FADE_SECONDS);
+}
+
+/** A hit's burst differs by instrument: guitars throw stars, bass and kick a ring, keys bubbles. */
+export type BurstKind = "stars" | "ring" | "bubbles";
+
+export function burstKind(instrument: InstrumentId | undefined, voice?: DrumVoice): BurstKind {
+  if (voice) return voice === "kick" ? "ring" : "stars";
+  if (instrument === "bass") return "ring";
+  if (instrument === "keys") return "bubbles";
+  return "stars";
+}
+
+/** A hit's burst (`burstKind`), the same every frame for the same note. */
+export function hitBurst(ctx: CanvasRenderingContext2D, kind: BurstKind, x: number, y: number, age: number, seed: number, color: string, size = 1) {
+  if (kind === "stars") return sparkle(ctx, x, y, age, seed, color, size);
+  const p = age / SPARKLE_SECONDS;
+  ctx.save();
+  if (p < 0.35) {
+    ctx.globalAlpha = (1 - p / 0.35) * 0.7;
+    ctx.shadowColor = color;
+    ctx.shadowBlur = 12 * size;
+    ctx.fillStyle = color;
+    ctx.beginPath();
+    ctx.arc(x, y, (4 + p * 8) * size, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.shadowBlur = 0;
+  }
+  if (kind === "ring") {
+    // a low thump: two rings spreading wide and flat
+    ctx.strokeStyle = color;
+    for (const [reach, width] of [
+      [34, 3],
+      [20, 2],
+    ] as const) {
+      ctx.globalAlpha = (1 - p) * 0.8;
+      ctx.lineWidth = Math.max(0.5, width * (1 - p) * size);
+      ctx.beginPath();
+      ctx.ellipse(x, y, (5 + p * reach) * size, (3 + p * reach * 0.45) * size, 0, 0, Math.PI * 2);
+      ctx.stroke();
+    }
+  } else {
+    // bubbles floating up and drifting, like a chord ringing out
+    ctx.fillStyle = color;
+    for (let i = 0; i < 5; i++) {
+      const drift = Math.sin(seed * 0.37 + i * 1.9) * (6 + p * 8) * size;
+      const rise = (6 + p * (22 + ((seed >> i) % 7) * 2)) * size;
+      ctx.globalAlpha = (1 - p) * 0.85;
+      ctx.beginPath();
+      ctx.arc(x + drift, y - rise, (1.2 + (1 - p) * 2.2 + (i % 2)) * size, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  }
+  ctx.restore();
+}
+
 /**
  * The notebook's dot grid over `x, y, w, h`. Dots sit on a grid fixed to the score
  * (`worldX`, `worldY`: where the box's corner is in it), so they move with it. With more
@@ -258,7 +330,7 @@ export function dotGrid(
         ctx.fillRect(x - 1.5, y - 1.5, 3, 3);
       } else {
         ctx.fillStyle = palette.ruleStrong;
-        ctx.globalAlpha = 0.3 + 0.4 * energy;
+        ctx.globalAlpha = 0.16 + 0.3 * energy;
         ctx.fillRect(x - 0.75, y - 0.75, 1.5, 1.5);
       }
     }
@@ -391,7 +463,8 @@ export function drawTimeline(input: DrawInput) {
     ctx.fillStyle = palette.surface;
     ctx.fillRect(0, top, width, laneH);
     ctx.fillStyle = lane.color;
-    ctx.globalAlpha = lane.selected ? 0.13 : 0.05;
+    const playing = input.showcase && input.ripples && position !== undefined && lane.audible ? laneActivity(lane.notes, position, lane.isDrums) : 0;
+    ctx.globalAlpha = input.showcase ? 0.035 + 0.1 * playing : lane.selected ? 0.13 : 0.05;
     ctx.fillRect(0, top, width, laneH);
     ctx.globalAlpha = lane.selected ? 1 : 0.55;
     ctx.fillRect(0, top + 4, 3, laneH - 8);
@@ -563,7 +636,7 @@ export function drawTimeline(input: DrawInput) {
     }
 
     const glowing: { x: number; y: number; w: number; pitch: number }[] = [];
-    const sparks: { x: number; y: number; age: number; seed: number }[] = [];
+    const sparks: { x: number; y: number; age: number; seed: number; kind: BurstKind }[] = [];
     let lastSpark = -1;
     for (let k = firstVisible(lane.notes, tStart); k < lane.notes.length; k++) {
       const n = lane.notes[k]!;
@@ -593,7 +666,8 @@ export function drawTimeline(input: DrawInput) {
         const age = live - n.start;
         if (age >= 0 && age < SPARKLE_SECONDS && (!lane.isDrums || ACCENTS.has(drumVoiceFor(n.pitch)))) {
           lastSpark = n.start;
-          sparks.push({ x, y: y + noteH / 2, age, seed: Math.round(n.start * 997) + n.pitch * 31 });
+          const kind = burstKind(lane.instrument, lane.isDrums ? drumVoiceFor(n.pitch) : undefined);
+          sparks.push({ x, y: y + noteH / 2, age, seed: Math.round(n.start * 997) + n.pitch * 31, kind });
         }
       }
       if (state === "active" && lane.audible) {
@@ -601,6 +675,7 @@ export function drawTimeline(input: DrawInput) {
         continue; // drawn last, on top
       }
       ctx.globalAlpha = (lane.audible ? 1 : 0.22) * (0.6 + 0.4 * n.velocity) * (state === "past" ? 0.5 : 1);
+      if (lane.isDrums && input.showcase && !ACCENTS.has(drumVoiceFor(n.pitch))) ctx.globalAlpha *= 0.6;
       if (lane.isDrums) drumGlyph(ctx, drumVoiceFor(n.pitch), x, y + noteH / 2, glyph, lane.color);
       else candy(ctx, x, y, w, noteH, lane.color);
     }
@@ -626,7 +701,7 @@ export function drawTimeline(input: DrawInput) {
       ctx.restore();
     }
     ctx.globalAlpha = 1;
-    for (const sp of sparks) sparkle(ctx, sp.x, sp.y, sp.age, sp.seed, lane.color);
+    for (const sp of sparks) hitBurst(ctx, sp.kind, sp.x, sp.y, sp.age, sp.seed, lane.color);
 
     if (lane.vocal && lane.vocal.notes.length > 0) {
       drawVocal(ctx, lane.vocal.notes, lane.color, lane.audible && lane.vocal.on, {
