@@ -6,16 +6,10 @@ import { useStudioStore } from "@/stores/useStudioStore";
 import { audioEngine } from "@/audio/AudioEngine";
 import {
   DEFAULT_OVERLAY,
-  MAX_TAKE_SECONDS,
   MIN_RECORD_LANE,
-  MIN_TAKE_SECONDS,
-  advanceTake,
   recordLayout,
   safeArea,
   sanitizeOverlay,
-  startTake,
-  takeProgress,
-  takeSpan,
 } from "./overlay";
 import { RecordFrame } from "./RecordFrame";
 
@@ -129,23 +123,6 @@ describe("Instagram recording frame", () => {
     expect(screen.getByText(/can't record video/)).toBeInTheDocument();
   });
 
-  it("offers preset lengths and a custom one typed in seconds", async () => {
-    const user = userEvent.setup();
-    render(<RecordFrame />);
-    const pick = screen.getByRole("combobox", { name: "Take length" });
-    await user.selectOptions(pick, "30");
-    expect(useStudioStore.getState().settings.overlay.length).toBe(30);
-    await user.selectOptions(pick, "custom");
-    const seconds = screen.getByRole("spinbutton", { name: "Take length in seconds" });
-    await user.clear(seconds);
-    await user.type(seconds, "45");
-    await user.tab();
-    expect(useStudioStore.getState().settings.overlay.length).toBe(45);
-    await user.selectOptions(pick, "song");
-    expect(useStudioStore.getState().settings.overlay.length).toBe("song");
-    expect(screen.queryByRole("spinbutton", { name: "Take length in seconds" })).not.toBeInTheDocument();
-  });
-
   it("closes with the button or Escape", async () => {
     const user = userEvent.setup();
     useStudioStore.setState({ recordMode: true });
@@ -189,50 +166,8 @@ describe("recording frame maths and settings", () => {
     expect(sanitizeOverlay(null)).toEqual(DEFAULT_OVERLAY);
     expect(sanitizeOverlay({ fps: 60 }).fps).toBe(60);
     expect(sanitizeOverlay({ fps: 24 }).fps).toBe(30);
-    expect(sanitizeOverlay({}).length).toBe("song");
-    expect(sanitizeOverlay({ length: 45 }).length).toBe(45);
-    expect(sanitizeOverlay({ length: 1 }).length).toBe(MIN_TAKE_SECONDS);
-    expect(sanitizeOverlay({ length: 99999 }).length).toBe(MAX_TAKE_SECONDS);
-    expect(sanitizeOverlay({ length: "long" }).length).toBe("song");
+    // the take length setting was removed: an old stored one is dropped
+    expect(sanitizeOverlay({ length: 45 })).toEqual(DEFAULT_OVERLAY);
   });
 
-  it("fills the progress bar over the chosen take length and says when the take is over", () => {
-    const song = { durationSeconds: 200, baseBpm: 120, bpm: 120, beatsPerBar: 4, loop: false };
-    const clock = startTake(30);
-    advanceTake(clock, 60, 200); // 30 s played of a 60 s take
-    expect(takeProgress(clock, 60, 60, song)).toMatchObject({ progress: 0.5, done: false, remaining: 30 });
-    advanceTake(clock, 90, 200);
-    expect(takeProgress(clock, 60, 90, song)).toMatchObject({ progress: 1, done: true, remaining: 0 });
-    // the whole song: the position in the song
-    expect(takeProgress(clock, "song", 50, song).progress).toBe(0.25);
-  });
-
-  it("ends a take on the nearest bar line, so it loops cleanly on Reels", () => {
-    const song = { durationSeconds: 200, baseBpm: 120, bpm: 120, beatsPerBar: 4, loop: false }; // 2 s bars
-    expect(takeSpan(31, 16, song)).toBe(17); // 31 + 16 = 47 → the bar line at 48
-    expect(takeSpan(30, 15, song)).toBe(16); // 45 → 46 (rounds to the nearer bar)
-    expect(takeSpan(31, 0.4, song)).toBe(1); // never less than to the next bar line
-    expect(takeSpan(190, 60, song)).toBe(10); // the song ends first (on a bar line)
-    // at half speed a bar takes 4 real seconds: 30 real s = 15 song s → 16
-    expect(takeSpan(0, 30, { ...song, bpm: 60 })).toBe(16);
-  });
-
-  it("counts real seconds: slower playback takes longer, a count-in doesn't count", () => {
-    const half = { durationSeconds: 200, baseBpm: 120, bpm: 60, beatsPerBar: 4, loop: false };
-    const clock = startTake(0);
-    advanceTake(clock, 0, 200); // counting in: the position doesn't move
-    advanceTake(clock, 15, 200); // 15 song seconds at half speed: 30 real seconds
-    expect(takeProgress(clock, 60, 15, half)).toMatchObject({ progress: 0.5, done: false, remaining: 30 });
-  });
-
-  it("fills by the song's end when that comes first, and keeps counting through a loop", () => {
-    const song = { durationSeconds: 100, baseBpm: 120, bpm: 120, beatsPerBar: 4, loop: false };
-    const near = startTake(80);
-    advanceTake(near, 90, 100);
-    expect(takeProgress(near, 60, 90, song).progress).toBeCloseTo(0.5); // 20 s left of the song
-    const looping = startTake(80);
-    advanceTake(looping, 99, 100);
-    advanceTake(looping, 4, 100); // back to the top: 19 + 1 + 4 played
-    expect(takeProgress(looping, 60, 4, { ...song, loop: true }).progress).toBeCloseTo(24 / 60);
-  });
 });

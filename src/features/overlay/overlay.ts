@@ -16,28 +16,13 @@ export type RecordFrame = "9:16" | "4:5" | "1:1";
 export type RecordFps = 30 | 60;
 export const RECORD_FPS: RecordFps[] = [30, 60];
 
-/**
- * How long a take runs: the whole song, or a number of seconds of playing (real seconds,
- * whatever the tempo), after which it stops by itself. The banner's progress bar fills
- * over exactly that.
- */
-export type TakeLength = "song" | number;
-export const TAKE_PRESETS = [15, 30, 60, 90] as const;
-export const MIN_TAKE_SECONDS = 5;
-export const MAX_TAKE_SECONDS = 900;
-
-export function clampTakeSeconds(seconds: number): number {
-  return Math.round(Math.min(MAX_TAKE_SECONDS, Math.max(MIN_TAKE_SECONDS, seconds)));
-}
-
 export interface OverlaySettings {
   color: OverlayColor;
   frame: RecordFrame;
   fps: RecordFps;
-  length: TakeLength;
 }
 
-export const DEFAULT_OVERLAY: OverlaySettings = { color: "green", frame: "9:16", fps: 30, length: "song" };
+export const DEFAULT_OVERLAY: OverlaySettings = { color: "green", frame: "9:16", fps: 30 };
 
 /** Exact key colours. Fixed, never themed, so the editor's keyer sees one flat value. */
 export const OVERLAY_COLORS: Record<OverlayColor, string> = {
@@ -62,75 +47,6 @@ export function sanitizeOverlay(raw: unknown): OverlaySettings {
     color: pick(r.color, Object.keys(OVERLAY_COLORS) as OverlayColor[], DEFAULT_OVERLAY.color),
     frame: pick(r.frame, RECORD_FRAMES, DEFAULT_OVERLAY.frame),
     fps: r.fps === 60 ? 60 : DEFAULT_OVERLAY.fps,
-    length: typeof r.length === "number" && Number.isFinite(r.length) ? clampTakeSeconds(r.length) : "song",
-  };
-}
-
-/**
- * How much of a take has been played, followed frame by frame from the playback position
- * (song seconds): it counts what was played, so a count-in (position still) doesn't count,
- * a loop back to the start doesn't reset it, and a slower tempo makes it take longer.
- */
-export interface TakeClock {
-  /** where the take started */
-  from: number;
-  last: number;
-  /** song seconds played so far */
-  played: number;
-}
-
-export function startTake(position: number): TakeClock {
-  return { from: position, last: position, played: 0 };
-}
-
-/** Move the clock to `position`; a jump back (the loop) counts as playing on from the start. */
-export function advanceTake(clock: TakeClock, position: number, durationSeconds: number) {
-  let step = position - clock.last;
-  if (step < -0.5) step = position + Math.max(0, durationSeconds - clock.last);
-  clock.played += Math.max(0, step);
-  clock.last = position;
-}
-
-export interface TakeSong {
-  durationSeconds: number;
-  baseBpm: number;
-  bpm: number;
-  beatsPerBar: number;
-  loop: boolean;
-}
-
-/** How long the end of a take of a set length fades out (real seconds). */
-export const TAKE_FADE_SECONDS = 0.5;
-
-/**
- * Song seconds a take of `length` real seconds plays from `from`: it ends on the bar line
- * nearest to that length (Reels loops the video, and a take cut mid-bar jars when it starts
- * over), at least one bar on; without Loop, at the song's end if that comes first.
- */
-export function takeSpan(from: number, length: number, song: TakeSong): number {
-  const bar = (60 / song.baseBpm) * song.beatsPerBar;
-  const wanted = (length * song.bpm) / song.baseBpm;
-  let end = Math.round((from + wanted) / bar) * bar;
-  if (end <= from + 1e-6) end = (Math.floor(from / bar + 1e-6) + 1) * bar;
-  const span = end - from;
-  return song.loop ? span : Math.min(span, Math.max(0, song.durationSeconds - from));
-}
-
-/**
- * The progress bar (0–1), whether the take is over, and the real seconds left. The whole
- * song: the position in the song (nothing to count down). A length: what's been played of
- * `takeSpan`, so the bar fills exactly as the take ends.
- */
-export function takeProgress(clock: TakeClock, length: TakeLength, position: number, song: TakeSong) {
-  if (length === "song") {
-    return { progress: Math.min(1, Math.max(0, position / Math.max(0.001, song.durationSeconds))), done: false, remaining: Infinity };
-  }
-  const span = takeSpan(clock.from, length, song);
-  const left = Math.max(0, span - clock.played);
-  return {
-    progress: span > 0 ? Math.min(1, clock.played / span) : 1,
-    done: left <= 1e-3,
-    remaining: (left * song.baseBpm) / song.bpm,
   };
 }
 

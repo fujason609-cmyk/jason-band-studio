@@ -53,7 +53,7 @@ export class AudioEngine {
   private vocals: VocalSwitches = DEFAULT_VOCALS;
   private vocalSounds: VocalSounds = DEFAULT_VOCAL_SOUNDS;
   private band: { sources: readonly (readonly NoteEvent[])[]; key: string; value: BandContext } | null = null;
-  private capture: { destination: MediaStreamAudioDestinationNode; nodes: Tone.ToneAudioNode[]; fade: Tone.Gain } | null = null;
+  private capture: { destination: MediaStreamAudioDestinationNode; nodes: Tone.ToneAudioNode[] } | null = null;
 
   setEvents(events: EngineEvents) {
     this.events = events;
@@ -315,17 +315,12 @@ export class AudioEngine {
         return a <= knee ? x : Math.sign(x) * (knee + (ceiling - knee) * Math.tanh((a - knee) / (ceiling - knee)));
       }, 4096);
       limiter.oversample = "4x";
-      const fade = new Tone.Gain(1);
       this.master.connect(makeup);
-      makeup.chain(limiter, fade);
-      fade.connect(destination);
-      this.capture = { destination, nodes: [makeup, limiter, fade], fade };
+      makeup.connect(limiter);
+      limiter.connect(destination);
+      this.capture = { destination, nodes: [makeup, limiter] };
     }
     return this.capture.destination.stream;
-  }
-  /** Fade the recording's sound out over `seconds` (the end of a take of a set length). */
-  fadeOutCapture(seconds: number) {
-    this.capture?.fade.gain.rampTo(0, seconds);
   }
   stopAudioCapture() {
     if (!this.capture) return;
