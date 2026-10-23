@@ -8,14 +8,20 @@ import { SYNTH_TRIM_DB, VOCAL_TRIM_DB } from "./audioConfig";
 import { MUGI_PIANO, renderFmPiano } from "./fmPiano";
 import { renderPluck, type PluckPatch } from "./karplus";
 import { MIO_VOICE, YUI_VOICE, renderBreath, renderSungNote, type SingerPatch } from "./singer";
+import type { BendPoint } from "@/types/midi";
 
 /** A playable sound source. Every instrument, synthesized or sampled, looks like this. */
 export interface Voice {
   readonly output: Tone.ToneAudioNode;
   attack(pitch: number, time: number, velocity: number): void;
   release(pitch: number, time: number): void;
-  /** `duration` may be seconds or a Tone time string such as "96i" */
-  attackRelease(pitch: number, duration: Tone.Unit.Time, time: number, velocity: number): void;
+  /**
+   * `duration` may be seconds or a Tone time string such as "96i"; `bend` (seconds at the
+   * playing tempo) moves the pitch while it sounds, where the voice can (recorded samples)
+   */
+  attackRelease(pitch: number, duration: Tone.Unit.Time, time: number, velocity: number, bend?: readonly BendPoint[]): void;
+  /** it can play a bend (recorded or rendered samples; a PolySynth can't) */
+  readonly bends?: boolean;
   releaseAll(time?: number): void;
   dispose(): void;
 }
@@ -33,12 +39,13 @@ type SamplerInternals = { _activeSources: Map<number, Tone.ToneBufferSource[]> }
 class SampledNotes {
   private readonly sounding = new Set<Tone.ToneBufferSource>();
 
-  play(sampler: Tone.Sampler, pitch: number, duration: Tone.Unit.Time, time: number, velocity: number) {
+  play(sampler: Tone.Sampler, pitch: number, duration: Tone.Unit.Time, time: number, velocity: number, bend?: readonly BendPoint[]) {
     sampler.triggerAttack(hz(pitch), time, velocity);
     const list = (sampler as unknown as SamplerInternals)._activeSources.get(Math.round(pitch));
     const source = list?.pop(); // the one just started; released below, as triggerAttackRelease would
     if (!source) return;
     source.stop(time + sampler.toSeconds(duration));
+    if (bend?.length) bendSource(source, bend, time);
     this.sounding.add(source);
     const ended = source.onended;
     source.onended = (s) => {
@@ -52,6 +59,17 @@ class SampledNotes {
     this.sounding.forEach((s) => s.stop(time));
     this.sounding.clear();
   }
+}
+
+/**
+ * Bend a playing sample: its playback rate follows the bend (a semitone is 2^(1/12) faster),
+ * gliding between the points (alphaTab already writes a bend or a vibrato as small steps).
+ */
+function bendSource(source: Tone.ToneBufferSource, bend: readonly BendPoint[], time: number) {
+  const base = source.playbackRate.value;
+  const rate = (semitones: number) => base * Math.pow(2, semitones / 12);
+  source.playbackRate.setValueAtTime(rate(bend[0]!.semitones), time + bend[0]!.at);
+  for (let i = 1; i < bend.length; i++) source.playbackRate.linearRampToValueAtTime(rate(bend[i]!.semitones), time + bend[i]!.at);
 }
 
 /** Polyphonic melodic voice built around a PolySynth (or Sampler) plus an effects chain. */
@@ -76,6 +94,10 @@ class MelodicVoice implements Voice {
     this.nodes = [source, ...chain, this.output];
   }
 
+  get bends() {
+    return this.source instanceof Tone.Sampler;
+  }
+
   /**
    * A PolySynth at its voice cap would drop the note anyway, but with a console warning
    * per note; in a dense part that's hundreds a second, which itself slows the page.
@@ -91,9 +113,9 @@ class MelodicVoice implements Voice {
   release(pitch: number, time: number) {
     this.source.triggerRelease(hz(pitch), time);
   }
-  attackRelease(pitch: number, duration: Tone.Unit.Time, time: number, velocity: number) {
+  attackRelease(pitch: number, duration: Tone.Unit.Time, time: number, velocity: number, bend?: readonly BendPoint[]) {
     const source = this.source;
-    if (source instanceof Tone.Sampler) return this.sampled.play(source, pitch, duration, time, velocity);
+    if (source instanceof Tone.Sampler) return this.sampled.play(source, pitch, duration, time, velocity, bend);
     if (this.full()) return;
     // Tone's PolySynth would wait for the release on a timer that survives releaseAll: after a
     // seek back it would cut the same note played again. A stale release is dropped instead.
@@ -261,8 +283,19 @@ class LayeredVoice implements Voice {
   release(pitch: number, time: number) {
     this.layers.forEach((l) => l.release(pitch, time));
   }
-  attackRelease(pitch: number, duration: Tone.Unit.Time, time: number, velocity: number) {
-    this.layers.forEach((l) => l.attackRelease(pitch, duration, time, velocity));
+  get bends() {
+    return this.layers.some((l) => l.bends);
+  }
+  /**
+   * A bent note plays on the layers that can bend only: one that can't (a PolySynth body
+   * under a rendered pluck, the string pad under the piano) would hold the written pitch
+   * against them, up to a whole tone out.
+   */
+  attackRelease(pitch: number, duration: Tone.Unit.Time, time: number, velocity: number, bend?: readonly BendPoint[]) {
+    const bending = bend && this.bends;
+    this.layers.forEach((l) => {
+      if (!bending || l.bends) l.attackRelease(pitch, duration, time, velocity, bend);
+    });
   }
   releaseAll(time?: number) {
     this.layers.forEach((l) => l.releaseAll(time));
@@ -320,8 +353,11 @@ class HeldNotesOnly implements Voice {
   release() {
     /* nothing was started live */
   }
-  attackRelease(pitch: number, duration: Tone.Unit.Time, time: number, velocity: number) {
-    if (Tone.Time(duration).toSeconds() >= this.minSeconds) this.voice.attackRelease(pitch, duration, time, velocity);
+  get bends() {
+    return this.voice.bends;
+  }
+  attackRelease(pitch: number, duration: Tone.Unit.Time, time: number, velocity: number, bend?: readonly BendPoint[]) {
+    if (Tone.Time(duration).toSeconds() >= this.minSeconds) this.voice.attackRelease(pitch, duration, time, velocity, bend);
   }
   releaseAll(time?: number) {
     this.voice.releaseAll(time);
@@ -543,8 +579,9 @@ class VocalVoice implements SingingVoice {
   release(pitch: number, time: number) {
     this.sampler.triggerRelease(hz(pitch), time);
   }
-  attackRelease(pitch: number, duration: Tone.Unit.Time, time: number, velocity: number) {
-    this.sampled.play(this.sampler, pitch, duration, time, velocity);
+  readonly bends = true;
+  attackRelease(pitch: number, duration: Tone.Unit.Time, time: number, velocity: number, bend?: readonly BendPoint[]) {
+    this.sampled.play(this.sampler, pitch, duration, time, velocity, bend);
   }
   releaseAll(time?: number) {
     this.sampled.cut(time);
@@ -682,8 +719,9 @@ class VelocityLayers implements Voice {
     this.hard.triggerRelease(hz(pitch), time);
     this.soft.triggerRelease(hz(pitch), time);
   }
-  attackRelease(pitch: number, duration: Tone.Unit.Time, time: number, velocity: number) {
-    this.sampled.play(this.layer(velocity), pitch, duration, time, velocity);
+  readonly bends = true;
+  attackRelease(pitch: number, duration: Tone.Unit.Time, time: number, velocity: number, bend?: readonly BendPoint[]) {
+    this.sampled.play(this.layer(velocity), pitch, duration, time, velocity, bend);
   }
   releaseAll(time?: number) {
     this.sampled.cut(time);

@@ -92,6 +92,10 @@ describe("playing styles", () => {
     expect(arp.every((n) => n.ticks + n.durationTicks === 768)).toBe(true);
     // a quick chord is still strummed together
     expect(arpeggiate([note(0, 96, 60), note(0, 96, 64), note(0, 96, 67)], PPQ).every((n) => n.ticks === 0)).toBe(true);
+    // a whammy dip on the held chord: only the string still picked at its start keeps it
+    const bend = [{ at: 0, semitones: 0 }, { at: 0.1, semitones: -1 }];
+    const dipped = arpeggiate([60, 64, 67].map((p) => ({ ...note(0, 768, p), bend })), PPQ);
+    expect(dipped.map((n) => [n.ticks, n.bend !== undefined])).toEqual([[0, true], [96, false], [192, false]]);
   });
 
   it("finds the bars the band plays in, held notes included", () => {

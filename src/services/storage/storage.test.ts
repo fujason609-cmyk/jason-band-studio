@@ -33,6 +33,22 @@ describe("project validation", () => {
     expect(project.tracks[0]!.notes).toEqual([{ pitch: 60, start: 1, duration: 0.5, velocity: 1 }]);
   });
 
+  it("keeps a note's bend when it is sound, and drops a broken one", () => {
+    const raw = createDemoProject() as unknown as Record<string, unknown>;
+    const tracks = (raw.tracks as Array<Record<string, unknown>>).map((t) => ({ ...t }));
+    const bend = [
+      { at: 0, semitones: 0 },
+      { at: 0.2, semitones: 2 },
+    ];
+    tracks[0]!.notes = [
+      { pitch: 60, start: 0, duration: 1, velocity: 1, bend },
+      { pitch: 62, start: 1, duration: 1, velocity: 1, bend: [{ at: NaN, semitones: 1 }] },
+    ];
+    const notes = validateProject({ ...raw, tracks })!.tracks[0]!.notes;
+    expect(notes[0]!.bend).toEqual(bend);
+    expect(notes[1]).toEqual({ pitch: 62, start: 1, duration: 1, velocity: 1 });
+  });
+
   it("keeps the singers' vocal parts, and opens projects saved before vocals existed", () => {
     const raw = createDemoProject() as unknown as Record<string, unknown>;
     const tracks = (raw.tracks as Array<Record<string, unknown>>).map((t) => ({ ...t }));

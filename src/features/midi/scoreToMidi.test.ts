@@ -50,6 +50,35 @@ describe("score files → MIDI", () => {
     expect(meta.tempos.map((t) => Math.round(t.bpm))).toEqual(expect.arrayContaining([120, 60]));
   });
 
+  it("carries a Guitar Pro bend and vibrato through to the notes", () => {
+    const settings = new alphaTab.Settings();
+    const tex = new alphaTab.importer.AlphaTexImporter();
+    // a full bend (four quarter tones) on a half note, a plain note, then a quarter with vibrato
+    tex.initFromString(":2 7.3 {b (0 4)} 7.3 :4 7.3 {v} r", settings);
+    const gp = new alphaTab.exporter.Gp7Exporter().export(tex.readScore(), settings);
+    const [bent, plain, shaking] = parseMidi(scoreToMidi(gp).midi, "bend.gp").tracks[0]!.notes;
+    const most = (n: typeof bent) => Math.max(...(n?.bend ?? []).map((p) => p.semitones));
+    const least = (n: typeof bent) => Math.min(...(n?.bend ?? []).map((p) => p.semitones));
+    expect(bent!.bend![0]).toEqual({ at: 0, semitones: 0 });
+    expect(most(bent)).toBeGreaterThan(1.7); // up to a whole tone by the note's end
+    expect(plain!.bend).toBeUndefined();
+    expect(most(shaking)).toBeGreaterThan(0.1);
+    expect(least(shaking)).toBeLessThan(-0.1);
+  });
+
+  it("bends only the bent string of a double stop, not the note held with it", () => {
+    const settings = new alphaTab.Settings();
+    const tex = new alphaTab.importer.AlphaTexImporter();
+    // a unison bend: string 3 bent a whole tone up to the held note on string 2
+    tex.initFromString(":1 (7.3 {b (0 4)} 5.2)", settings);
+    const gp = new alphaTab.exporter.Gp7Exporter().export(tex.readScore(), settings);
+    const notes = parseMidi(scoreToMidi(gp).midi, "unison.gp").tracks[0]!.notes;
+    const bent = notes.find((n) => n.pitch === 62)!;
+    const held = notes.find((n) => n.pitch === 64)!;
+    expect(Math.max(...bent.bend!.map((p) => p.semitones))).toBeGreaterThan(1.7);
+    expect(held.bend).toBeUndefined();
+  });
+
   it("keeps every part apart with its own name, even when the file gives them all one channel", () => {
     const score = alphaTab.importer.ScoreLoader.loadScoreFromBytes(bytes(MUSICXML), new alphaTab.Settings());
     // like Songsterr's GP5 converter: every part on the same (out of range) channel and program
@@ -66,7 +95,7 @@ describe("score files → MIDI", () => {
     expect(parsed.tracks.find((t) => t.name === "小提琴")!.notes.map((n) => n.pitch)).toEqual([60, 62, 64, 65]);
   });
 
-  it("gives each part one channel from 0 to 15, drums on 9", () => {
+  it("gives each part two channels from 0 to 15 (the second for its bends), drums on 9", () => {
     const score = alphaTab.importer.ScoreLoader.loadScoreFromBytes(bytes(MUSICXML), new alphaTab.Settings());
     // the GP5 reader can hand several parts one shared playback object
     score.tracks[0]!.playbackInfo.program = 60;
@@ -78,8 +107,8 @@ describe("score files → MIDI", () => {
     firstBeat.automations.push(change);
     assignChannels(score);
     expect(score.tracks.map((t) => [t.playbackInfo.primaryChannel, t.playbackInfo.secondaryChannel])).toEqual([
-      [0, 0],
-      [1, 1],
+      [0, 1],
+      [2, 3],
     ]);
     // one instrument for every part is a guess: left to the part names
     expect(score.tracks.map((t) => t.playbackInfo.program)).toEqual([0, 0]);

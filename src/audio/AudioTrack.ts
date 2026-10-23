@@ -7,7 +7,7 @@ import { breathTimes, fitToVoice, type VocalRole, type VocalSound } from "@/feat
 import { NO_BAND, arrange, arrangeVocal, type BandContext, type PlayStyle, type StyledNote } from "@/lib/playStyle";
 import { secondsToTicks } from "@/lib/time";
 import type { InstrumentId } from "@/types/audio";
-import type { NoteEvent } from "@/types/midi";
+import type { BendPoint, NoteEvent } from "@/types/midi";
 import { PPQ, ROOM_BUS, ROOM_SEND_DB } from "./audioConfig";
 import type { SampleManager } from "./SampleManager";
 import { createSinger } from "./vocalSounds";
@@ -23,6 +23,7 @@ interface ScheduledNote {
   strumIndex: number;
   /** a singer's in-breath before a phrase, not a note */
   breath?: boolean;
+  bend?: readonly BendPoint[];
 }
 
 /**
@@ -38,12 +39,22 @@ function notBefore(time: number): number {
 
 /** Notes in song seconds → Transport ticks, ready to arrange. */
 function toTicks(notes: readonly NoteEvent[], baseBpm: number): StyledNote[] {
-  return notes.map((n) => ({
-    ticks: secondsToTicks(n.start, baseBpm, PPQ),
-    durationTicks: Math.max(1, secondsToTicks(n.duration, baseBpm, PPQ)),
-    pitch: n.pitch,
-    velocity: n.velocity,
-  }));
+  return notes.map((n) => {
+    const note: StyledNote = {
+      ticks: secondsToTicks(n.start, baseBpm, PPQ),
+      durationTicks: Math.max(1, secondsToTicks(n.duration, baseBpm, PPQ)),
+      pitch: n.pitch,
+      velocity: n.velocity,
+    };
+    return n.bend ? { ...note, bend: n.bend } : note;
+  });
+}
+
+/** A bend's times at the playing tempo (they are song seconds, like the notes). */
+function bendNow(bend: readonly BendPoint[] | undefined, baseBpm: number): BendPoint[] | undefined {
+  if (!bend) return undefined;
+  const scale = baseBpm / Tone.getTransport().bpm.value;
+  return bend.map((p) => ({ at: p.at * scale, semitones: p.semitones }));
 }
 
 /**
@@ -217,7 +228,7 @@ export class AudioTrack {
       if (!this.audible || !this.singing || !this.vocalVoice) return;
       const { offset, velocity } = humanize(this.feel, ev, PPQ, Math.random, this.beatsPerBar);
       if (ev.breath) return this.vocalVoice.breathe(notBefore(time + offset), velocity);
-      this.vocalVoice.attackRelease(ev.pitch, `${ev.durationTicks}i`, notBefore(time + offset), velocity);
+      this.vocalVoice.attackRelease(ev.pitch, `${ev.durationTicks}i`, notBefore(time + offset), velocity, bendNow(ev.bend, this.baseBpm));
     }, events);
     this.vocalPart.start(0);
   }
@@ -251,7 +262,7 @@ export class AudioTrack {
       const strumIndex = this.instrument === "drums" ? 0 : ev.strumIndex * faster;
       const { offset, velocity } = humanize(this.feel, { ...ev, strumIndex }, PPQ, Math.random, this.beatsPerBar);
       // Duration in ticks so it stretches with the transport tempo.
-      this.voice.attackRelease(ev.pitch, `${ev.durationTicks}i`, notBefore(time + offset), velocity);
+      this.voice.attackRelease(ev.pitch, `${ev.durationTicks}i`, notBefore(time + offset), velocity, bendNow(ev.bend, this.baseBpm));
     }, events);
     this.part.start(0);
   }

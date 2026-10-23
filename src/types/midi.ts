@@ -10,6 +10,17 @@ export interface NoteEvent {
   duration: number;
   /** 0..1 */
   velocity: number;
+  /**
+   * A bend, slide or vibrato from the score: the pitch, in semitones off the written note,
+   * at seconds after the note starts (song seconds; the first point at 0). Absent when the
+   * note doesn't move.
+   */
+  bend?: readonly BendPoint[];
+}
+
+export interface BendPoint {
+  at: number;
+  semitones: number;
 }
 
 export interface TempoPoint {

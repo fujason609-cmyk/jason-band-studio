@@ -3,7 +3,7 @@ import { vocalRoleOf } from "@/features/band/vocals";
 import { getT } from "@/i18n/useT";
 import { clampBpm, foldBpm } from "@/lib/time";
 import { songLength } from "@/stores/useProjectStore";
-import type { NoteEvent } from "@/types/midi";
+import type { BendPoint, NoteEvent } from "@/types/midi";
 import { PROJECT_VERSION, type StudioProject, type StudioTrack } from "@/types/project";
 
 const num = (v: unknown, fallback: number) => (typeof v === "number" && Number.isFinite(v) ? v : fallback);
@@ -27,11 +27,25 @@ function validNote(n: unknown): n is NoteEvent {
   );
 }
 
-/** Valid notes only, velocities clamped, sorted by start. */
+/** A note's bend, if it is a list of finite points within two octaves; anything else is dropped. */
+function cleanBend(raw: unknown): BendPoint[] | undefined {
+  if (!Array.isArray(raw) || raw.length === 0 || raw.length > 256) return undefined;
+  const points = raw.filter(
+    (p): p is BendPoint =>
+      !!p && typeof p === "object" && finite(p.at) && p.at >= 0 && finite(p.semitones) && Math.abs(p.semitones) <= 24,
+  );
+  return points.length === raw.length ? points.map((p) => ({ at: p.at, semitones: p.semitones })) : undefined;
+}
+
+/** Valid notes only, velocities clamped, sorted by start; a bend kept when it is sound. */
 function cleanNotes(raw: unknown[]): NoteEvent[] {
   return raw
     .filter(validNote)
-    .map((n) => ({ pitch: n.pitch, start: n.start, duration: n.duration, velocity: clamp01(n.velocity) }))
+    .map((n) => {
+      const note: NoteEvent = { pitch: n.pitch, start: n.start, duration: n.duration, velocity: clamp01(n.velocity) };
+      const bend = cleanBend(n.bend);
+      return bend ? { ...note, bend } : note;
+    })
     .sort((a, b) => a.start - b.start || a.pitch - b.pitch);
 }
 

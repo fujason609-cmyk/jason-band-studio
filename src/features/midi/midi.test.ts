@@ -1,6 +1,6 @@
 import { Midi } from "@tonejs/midi";
 import { buildTracksFromMapping, familyOf, isVocalName, memberFromName, quarterBeatsPerBar, suggestMapping } from "./midiMapper";
-import { MidiParseError, decodeMidiText, parseMidi } from "./midiParser";
+import { MidiParseError, attachBends, decodeMidiText, parseMidi } from "./midiParser";
 
 function makeMidi() {
   const midi = new Midi();
@@ -22,6 +22,23 @@ function makeMidi() {
   midi.addTrack(); // an empty track that should be dropped
   return midi.toArray();
 }
+
+/** A Standard MIDI File from raw track events (format 1, 96 ticks a beat). */
+function smf(...tracks: number[][]) {
+  const chunk = (events: number[]) => {
+    const n = events.length;
+    return [0x4d, 0x54, 0x72, 0x6b, (n >>> 24) & 255, (n >>> 16) & 255, (n >>> 8) & 255, n & 255, ...events];
+  };
+  return new Uint8Array([
+    ...[0x4d, 0x54, 0x68, 0x64, 0, 0, 0, 6, 0, 1, 0, tracks.length + 1, 0, 96],
+    ...chunk([0, 0xff, 0x2f, 0]),
+    ...tracks.flatMap((events) => chunk([...events, 0, 0xff, 0x2f, 0])),
+  ]);
+}
+const trackName = (name: string) => {
+  const bytes = [...new TextEncoder().encode(name)];
+  return [0, 0xff, 0x03, bytes.length, ...bytes];
+};
 
 describe("parseMidi", () => {
   it("turns tracks into note events in seconds and keeps timing metadata", () => {
@@ -49,6 +66,120 @@ describe("parseMidi", () => {
 
   it("rejects files that are not MIDI", () => {
     expect(() => parseMidi(new TextEncoder().encode("hello"), "notes.mid")).toThrow(MidiParseError);
+  });
+
+  it("gives each note its own pitch bend, in semitones after its start", () => {
+    const midi = new Midi();
+    const t = midi.addTrack();
+    t.name = "Lead";
+    t.channel = 0;
+    t.instrument.number = 29;
+    t.addNote({ midi: 64, time: 0, duration: 1, velocity: 0.8 });
+    t.addNote({ midi: 67, time: 1, duration: 1, velocity: 0.8 });
+    // the first note bends up a whole tone over half a second; the second starts unbent.
+    // (@tonejs/midi writes a bend's value as given, the raw -8192..8191, but reads it back
+    // divided by 8192)
+    t.addPitchBend({ time: 0, value: 0 });
+    t.addPitchBend({ time: 0.25, value: 4096 });
+    t.addPitchBend({ time: 0.5, value: 8191 });
+    t.addPitchBend({ time: 1, value: 0 });
+    const notes = parseMidi(midi.toArray(), "bend.mid").tracks[0]!.notes;
+    // no range set in the file: the General MIDI default, 2 semitones
+    expect(notes[0]!.bend).toEqual([
+      { at: 0, semitones: 0 },
+      { at: 0.25, semitones: 1 },
+      { at: 0.5, semitones: 2 },
+    ]);
+    expect(notes[1]!.bend).toBeUndefined();
+  });
+
+  it("reads the bend range a file sets (alphaTab sets 16 semitones), and leaves plain notes alone", () => {
+    const notes = [
+      { pitch: 60, start: 0, duration: 1, velocity: 0.8 },
+      { pitch: 62, start: 2, duration: 1, velocity: 0.8 },
+    ];
+    const bent = attachBends(notes, [{ time: 0, value: 0.125 }, { time: 2, value: 0 }], 16);
+    expect(bent[0]!.bend).toEqual([{ at: 0, semitones: 2 }]); // a pre-bend
+    expect(bent[1]).toBe(notes[1]);
+    expect(attachBends(notes, [], 16)).toEqual(notes);
+    // the file's first bend comes mid-note: unbent before it
+    expect(attachBends(notes.slice(0, 1), [{ time: 0.5, value: 0.5 }], 2)[0]!.bend).toEqual([
+      { at: 0, semitones: 0 },
+      { at: 0.5, semitones: 1 },
+    ]);
+  });
+
+  it("keeps a long vibrato's peaks and troughs when it thins it out", () => {
+    // 8 s of vibrato, 6 wobbles a second, a point every 5 ms: far over the limit
+    const wobble = (hz: number) =>
+      Array.from({ length: 1600 }, (_, i) => ({ time: i * 0.005, value: 0.125 * Math.sin(i * 0.005 * 2 * Math.PI * hz) }));
+    const note = [{ pitch: 60, start: 0, duration: 8, velocity: 0.8 }];
+    const bend = attachBends(note, wobble(6), 2)[0]!.bend!;
+    expect(bend.length).toBeLessThanOrEqual(8 * 16);
+    expect(bend.filter((p) => p.semitones > 0.2).length).toBe(48); // every peak
+    // a vibrato too fast to keep whole still keeps its depth
+    const fast = attachBends(note, wobble(12), 2)[0]!.bend!;
+    expect(fast.length).toBeLessThanOrEqual(8 * 16);
+    expect(Math.max(...fast.map((p) => p.semitones))).toBeGreaterThan(0.2);
+    expect(Math.min(...fast.map((p) => p.semitones))).toBeLessThan(-0.2);
+    expect(Math.max(...bend.map((p) => p.semitones))).toBeGreaterThan(0.2);
+    expect(Math.min(...bend.map((p) => p.semitones))).toBeLessThan(-0.2);
+  });
+
+  it("keeps a piano and drums in one MIDI track apart", () => {
+    const bytes = smf([
+      ...trackName("Band"),
+      ...[0, 0x90, 60, 100, 48, 0x80, 60, 0],
+      ...[0, 0x99, 36, 100, 48, 0x89, 36, 0],
+    ]);
+    const tracks = parseMidi(bytes, "band.mid").tracks;
+    expect(tracks.map((t) => t.isPercussion)).toEqual([false, true]);
+  });
+
+  it("follows running status over a marker, as the MIDI reader does, and still bends", () => {
+    const bytes = smf([
+      ...trackName("Lead"),
+      ...[0, 0x90, 60, 100],
+      ...[0, 0xe0, 0, 64], // unbent
+      ...[24, 0xff, 0x06, 1, 0x78], // a marker
+      ...[0, 0, 96], // running status: the pitch bend again, up half the range
+      ...[72, 0x80, 60, 0],
+    ]);
+    const [lead] = parseMidi(bytes, "marker.mid").tracks;
+    expect(lead!.notes[0]!.bend?.map((p) => p.semitones)).toEqual([0, 1]);
+  });
+
+  it("reads the bend range after an RPN reset", () => {
+    const bytes = smf([
+      ...trackName("Lead"),
+      ...[0, 0xb0, 101, 127, 0, 0xb0, 100, 127], // RPN null
+      ...[0, 0xb0, 101, 0, 0, 0xb0, 100, 0, 0, 0xb0, 6, 12], // bend range: 12 semitones
+      ...[0, 0x90, 60, 100, 0, 0xe0, 0x7f, 0x7f, 96, 0x80, 60, 0], // fully up
+    ]);
+    const semitones = parseMidi(bytes, "range.mid").tracks[0]!.notes[0]!.bend![0]!.semitones;
+    expect(semitones).toBeCloseTo(12, 1);
+  });
+
+  it("reads a part's instrument from its notes, not from a settings piece before them", () => {
+    // format 1: an empty first track, then "Drums" setting a volume on channel 0 before its
+    // notes on channel 9 (The Rumbling's drums came out as a piano, and Ritsu on keys)
+    const chunk = (events: number[]) => [0x4d, 0x54, 0x72, 0x6b, 0, 0, 0, events.length, ...events];
+    const name = [...new TextEncoder().encode("Drums")];
+    const bytes = new Uint8Array([
+      ...[0x4d, 0x54, 0x68, 0x64, 0, 0, 0, 6, 0, 1, 0, 2, 0, 96],
+      ...chunk([0, 0xff, 0x2f, 0]),
+      ...chunk([
+        ...[0, 0xff, 0x03, name.length, ...name],
+        ...[0, 0xb0, 7, 100],
+        ...[0, 0x99, 36, 100, 48, 0x89, 36, 0],
+        ...[0, 0x99, 38, 100, 48, 0x89, 38, 0],
+        ...[0, 0xff, 0x2f, 0],
+      ]),
+    ]);
+    const [drums, ...rest] = parseMidi(bytes, "drums.mid").tracks;
+    expect(rest).toHaveLength(0);
+    expect(drums).toMatchObject({ name: "Drums", channel: 9, isPercussion: true });
+    expect(drums!.notes.map((n) => n.pitch)).toEqual([36, 38]);
   });
 
   it("rejects MIDI files without notes", () => {

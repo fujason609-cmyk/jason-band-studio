@@ -3,6 +3,7 @@ import type { VocalRole, VocalSound } from "@/features/band/vocals";
 import { KEYS_PATCH_TRIM_DB, VOCAL_SOUND_GAIN_DB } from "./audioConfig";
 import type { SampleManager } from "./SampleManager";
 import { createKeysPatchVoice, createVocalVoice, type SingingVoice, type Voice } from "./voices";
+import type { BendPoint } from "@/types/midi";
 
 /**
  * An instrument playing a vocal line: the instrument's own voice, brought up (or down) to
@@ -29,8 +30,11 @@ class InstrumentSinger implements SingingVoice {
   release(pitch: number, time: number) {
     this.voice.release(pitch, time);
   }
-  attackRelease(pitch: number, duration: Tone.Unit.Time, time: number, velocity: number) {
-    this.voice.attackRelease(pitch, duration, time, velocity);
+  get bends() {
+    return this.voice.bends;
+  }
+  attackRelease(pitch: number, duration: Tone.Unit.Time, time: number, velocity: number, bend?: readonly BendPoint[]) {
+    this.voice.attackRelease(pitch, duration, time, velocity, bend);
   }
   releaseAll(time?: number) {
     this.voice.releaseAll(time);

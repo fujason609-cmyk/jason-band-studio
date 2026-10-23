@@ -46,13 +46,17 @@ export class TransportController {
     if (this.endEventId !== null) this.transport.clear(this.endEventId);
     this.endEventId = this.transport.schedule((time) => {
       if (this.loop || this.range) return;
-      // Stop on the audio clock itself; tell the UI with a timer rather than
-      // Tone.Draw, whose callbacks are dropped when the tab is in the background.
-      this.transport.stop(time);
+      // Stop once the sound gets there, from a timer, not here: stopping inside the
+      // transport's own callback set the ticks back to 0 while its clock was still counting
+      // this window, and the song's first notes played again at the end (measured: 2 takes
+      // in 3). A timer, not Tone.Draw, whose callbacks are dropped in a background tab.
       const delayMs = Math.max(0, (time - Tone.now()) * 1000);
-      // unless playback started again in the meantime (Space right at the end)
       setTimeout(() => {
-        if (this.transport.state !== "started" && !this.countingIn) this.onEnd();
+        // unless playback stopped, started again or moved back meanwhile (Space at the end)
+        if (this.transport.state !== "started" || this.countingIn) return;
+        if (this.getPosition() < this.durationSeconds - 0.01) return;
+        this.transport.stop();
+        this.onEnd();
       }, delayMs);
     }, `${endTicks}i`);
 

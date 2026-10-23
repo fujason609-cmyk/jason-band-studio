@@ -67,6 +67,12 @@ export function assignChannels(score: alphaTab.model.Score) {
   const users = new Map<alphaTab.model.PlaybackInformation, number>();
   for (const track of score.tracks) users.set(track.playbackInfo, (users.get(track.playbackInfo) ?? 0) + 1);
   let next = 0;
+  const melodic = () => {
+    let channel = next % 15;
+    if (channel >= DRUM_CHANNEL) channel += 1;
+    next += 1;
+    return channel;
+  };
   for (const track of score.tracks) {
     const shared = (users.get(track.playbackInfo) ?? 0) > 1;
     track.playbackInfo = Object.assign(new alphaTab.model.PlaybackInformation(), track.playbackInfo);
@@ -76,15 +82,13 @@ export function assignChannels(score: alphaTab.model.Score) {
         beat.automations = beat.automations.filter((a) => a.type !== alphaTab.model.AutomationType.Instrument);
       }
     }
-    let channel = DRUM_CHANNEL;
-    if (!track.staves.some((s) => s.isPercussion)) {
-      channel = next % 15;
-      if (channel >= DRUM_CHANNEL) channel += 1;
-      next += 1;
-    }
-    // bends would get a second channel; the studio plays notes only, so one is enough
-    track.playbackInfo.primaryChannel = channel;
-    track.playbackInfo.secondaryChannel = channel;
+    const drums = track.staves.some((s) => s.isPercussion);
+    // a note that bends (or a beat with vibrato or the whammy bar) plays on the part's second
+    // channel, where its pitch bend can't move the notes held with it (pitch bend is per
+    // channel): parseMidi gives each note the bends of its own channel. A channel may be
+    // reused by another part; each part is its own MIDI track, so they don't meet.
+    track.playbackInfo.primaryChannel = drums ? DRUM_CHANNEL : melodic();
+    track.playbackInfo.secondaryChannel = drums ? DRUM_CHANNEL : melodic();
   }
 }
 

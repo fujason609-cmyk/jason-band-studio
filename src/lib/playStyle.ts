@@ -1,4 +1,5 @@
 import type { InstrumentId } from "@/types/audio";
+import type { BendPoint } from "@/types/midi";
 
 /**
  * Playing style: the same score, played the way a band would play it in another genre.
@@ -30,6 +31,8 @@ export interface StyledNote {
   durationTicks: number;
   pitch: number;
   velocity: number;
+  /** the written note's bend (song seconds after its start); notes a style adds have none */
+  bend?: readonly BendPoint[];
 }
 
 const CRASHES = new Set([49, 57]);
@@ -164,7 +167,10 @@ export function arpeggiate(notes: readonly StyledNote[], ppq: number): StyledNot
       .sort((a, b) => a.pitch - b.pitch)
       .map((n, i) => {
         const ticks = start + Math.min(i, lastStep) * eighth;
-        return { ...n, ticks, durationTicks: Math.max(1, n.ticks + n.durationTicks - ticks) };
+        const moved = { ...n, ticks, durationTicks: Math.max(1, n.ticks + n.durationTicks - ticks) };
+        // a bend counts from the chord's start: a string picked later can't keep it
+        if (ticks !== n.ticks) delete moved.bend;
+        return moved;
       });
   });
 }

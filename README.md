@@ -106,12 +106,12 @@ Packs load lazily and are shared by every track that uses them. Each mixer strip
 
 ## Testing
 
-`pnpm test` runs 221 tests covering:
+`pnpm test` runs 231 tests covering:
 - mute and solo rules
 - tick and second conversions, and tempo scaling
 - the keyboard map
 - MIDI parsing and errors, track auto-mapping (by name and by program) and merging
-- Guitar Pro and MusicXML conversion (repeats played twice, tempo changes followed), and importing a score end to end
+- Guitar Pro and MusicXML conversion (repeats played twice, tempo changes followed, bends and vibrato kept per note), and importing a score end to end
 - project validation and repair
 - settings and IndexedDB round trips
 - the project store and the demo song's integrity
