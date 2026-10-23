@@ -170,6 +170,7 @@ const en = {
   importHint: "Load a MIDI, Guitar Pro (.gp, .gp3–.gp5, .gpx) or MusicXML (.musicxml, .mxl) file",
   readingScore: (f: string) => `Reading the score ${f}…`,
   whoPlaysWhat: "Who plays what?",
+  scoreTitle: (title: string) => `Score title: ${title}`,
   mappingIntro: (file: string, tracks: number) =>
     `${file} has ${plural(tracks, "track")}. Give each one to a member, or leave it out. Several tracks can go to the same member.`,
   trackInfo: (instrument: string, notes: number) => (instrument ? `${instrument}, ${plural(notes, "note")}` : plural(notes, "note")),
@@ -390,6 +391,7 @@ const zh: Strings = {
   importHint: "载入 MIDI、Guitar Pro（.gp、.gp3–.gp5、.gpx）或 MusicXML（.musicxml、.mxl）文件",
   readingScore: (f) => `正在读取乐谱 ${f}…`,
   whoPlaysWhat: "谁来演奏哪一轨？",
+  scoreTitle: (title: string) => `谱面标题：${title}`,
   mappingIntro: (file, tracks) =>
     `${file} 共有 ${tracks} 条音轨。把每条音轨分配给一位成员，或者不使用。多条音轨可以分给同一位成员。`,
   trackInfo: (instrument, notes) => (instrument ? `${instrument}，${notes} 个音符` : `${notes} 个音符`),

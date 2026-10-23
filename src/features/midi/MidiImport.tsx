@@ -72,6 +72,7 @@ export function MidiMappingDialog() {
         >
           <header className="mapping-dialog__head">
             <h2 id={titleId}>{t.whoPlaysWhat}</h2>
+            {pending.title && <p className="mapping-dialog__title">{t.scoreTitle(pending.title)}</p>}
             <p>{t.mappingIntro(pending.parsed.meta.fileName, pending.parsed.tracks.length)}</p>
           </header>
           <ul className="mapping-list">

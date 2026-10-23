@@ -362,7 +362,7 @@ export function drawIntro(
       ctx,
       m,
       lane.instrument,
-      { hop: a.hop, blink: a.blink, singing: a.singing },
+      { hop: a.hop, blink: a.blink, singing: a.singing, bob: 0 },
       IDLE_POSE,
       cx - w / 2,
       base - h,

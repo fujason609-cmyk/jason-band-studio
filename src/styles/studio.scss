@@ -1563,6 +1563,11 @@ select {
       color: var(--ink-soft);
       max-width: 60ch;
     }
+    // the score's own title, when it has one
+    p.mapping-dialog__title {
+      color: var(--ink);
+      font-weight: 700;
+    }
   }
   &__hint {
     padding: 0 22px;

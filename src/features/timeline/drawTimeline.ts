@@ -1,6 +1,8 @@
 import { drumVoiceFor, type DrumVoice } from "@/lib/drums";
 import { poseAt, type Gear } from "@/features/band/pixelInstruments";
 import { IDLE_MEMBER, drawMemberPlaying, memberPoseAt } from "@/features/band/pixelMembers";
+import { beatPhase } from "@/lib/time";
+import type { TempoPoint } from "@/types/midi";
 import type { MemberId } from "@/features/band/types";
 import type { InstrumentId } from "@/types/audio";
 import type { NoteEvent } from "@/types/midi";
@@ -47,6 +49,8 @@ export interface DrawInput {
   lanes: LaneInput[];
   baseBpm: number;
   beatsPerBar: number;
+  /** the song's tempo map (song seconds), so the band dips on its real beats */
+  tempos?: readonly TempoPoint[];
   durationSeconds: number;
   palette: Palette;
   showLabels: boolean;
@@ -738,7 +742,7 @@ export function drawTimeline(input: DrawInput) {
       ctx.globalAlpha = lane.audible ? 1 : 0.4;
         const pose = position === undefined ? poseAt([], 0, lane.instrument!) : poseAt(lane.notes, position, lane.instrument!);
         const moves = position !== undefined && input.ripples;
-        const member = moves ? memberPoseAt(lane.member!, lane.notes, lane.vocal?.on ? lane.vocal.notes : undefined, position, lane.isDrums) : IDLE_MEMBER;
+        const member = moves ? memberPoseAt(lane.member!, lane.notes, lane.vocal?.on ? lane.vocal.notes : undefined, position, lane.isDrums, { phase: beatPhase(position, input.tempos, baseBpm), seconds: 60 / baseBpm }) : IDLE_MEMBER;
         drawMemberPlaying(ctx, lane.member!, lane.instrument!, member, pose, 6, top + 2, sprite, lane.color, lane.leftHanded, lane.gear, palette.ink);
       }
       const tagX = sprite > 0 ? 6 + sprite + 6 : 8;

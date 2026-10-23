@@ -1,6 +1,6 @@
 import * as alphaTab from "@coderline/alphatab";
 import { Midi } from "@tonejs/midi";
-import { TWO_PART_MUSICXML as MUSICXML } from "@/test/scores";
+import { REPEAT_TEMPO_MUSICXML, TWO_PART_MUSICXML as MUSICXML } from "@/test/scores";
 import { parseMidi } from "./midiParser";
 import { assignChannels, padVoices, scoreToMidi } from "./scoreToMidi";
 
@@ -34,6 +34,20 @@ describe("score files → MIDI", () => {
       [60, 62, 64, 65],
       [36, 43],
     ]);
+  });
+
+  it("plays a Guitar Pro file's repeats twice and follows its tempo changes, in seconds", () => {
+    const score = alphaTab.importer.ScoreLoader.loadScoreFromBytes(bytes(REPEAT_TEMPO_MUSICXML), new alphaTab.Settings());
+    const gp = new alphaTab.exporter.Gp7Exporter().export(score, new alphaTab.Settings());
+    const { tracks, meta } = parseMidi(scoreToMidi(gp).midi, "repeat.gp");
+    const notes = tracks.flatMap((t) => t.notes);
+    const twice = [60, 62, 64, 65, 67, 69, 71, 72];
+    expect(notes.map((n) => n.pitch)).toEqual([...twice, ...twice, 72, 74, 76, 77]);
+    // four bars at 120 (half a second a beat), then a second a beat
+    expect(notes[8]!.start).toBeCloseTo(4, 2); // the repeat starts again at bar 3's time
+    expect(notes[16]!.start).toBeCloseTo(8, 2);
+    expect(notes[17]!.start).toBeCloseTo(9, 2);
+    expect(meta.tempos.map((t) => Math.round(t.bpm))).toEqual(expect.arrayContaining([120, 60]));
   });
 
   it("keeps every part apart with its own name, even when the file gives them all one channel", () => {

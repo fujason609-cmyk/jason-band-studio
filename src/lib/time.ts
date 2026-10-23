@@ -10,6 +10,8 @@
  * and the audio can't drift apart, and the current position survives a tempo change.
  */
 
+import type { TempoPoint } from "@/types/midi";
+
 export const MIN_BPM = 40;
 export const MAX_BPM = 300;
 
@@ -47,6 +49,26 @@ export function ticksToSeconds(ticks: number, baseBpm: number, ppq: number): num
 /** How long `songSeconds` of material takes to play at `bpm`. */
 export function songToRealSeconds(songSeconds: number, baseBpm: number, bpm: number): number {
   return songSeconds * (baseBpm / bpm);
+}
+
+/**
+ * How far into its beat (0 to 1) song second `t` is, by the song's own tempo map, so a
+ * tempo change moves the beats with it (`bpm` alone when the song has none). Quarter-note
+ * beats, as everywhere else. Bad entries (a stored project is only loosely checked) are skipped.
+ */
+export function beatPhase(t: number, tempos: readonly TempoPoint[] | undefined, bpm: number): number {
+  const points = (Array.isArray(tempos) ? tempos : []).filter((p) => Number.isFinite(p?.time) && p.bpm > 0);
+  let beats = 0;
+  let at = 0;
+  let rate = points[0]?.bpm ?? bpm;
+  for (const p of points) {
+    if (p.time > t) break;
+    beats += ((p.time - at) * rate) / 60;
+    at = p.time;
+    rate = p.bpm;
+  }
+  beats += ((t - at) * rate) / 60;
+  return ((beats % 1) + 1) % 1;
 }
 
 export function formatClock(seconds: number): string {

@@ -83,6 +83,7 @@ export function Timeline({ laneHeight = LANE_HEIGHT, labels, forceFollow = false
       zoom,
       baseBpm: project.baseBpm,
       beatsPerBar: project.beatsPerBar,
+      tempos: project.midiMeta?.tempos,
       durationSeconds: project.durationSeconds,
       palette: colours,
       showLabels,

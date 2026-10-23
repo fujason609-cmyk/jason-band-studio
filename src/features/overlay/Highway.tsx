@@ -62,6 +62,7 @@ export function Highway({
       zoom,
       baseBpm: project.baseBpm,
       beatsPerBar: project.beatsPerBar,
+      tempos: project.midiMeta?.tempos,
       durationSeconds: project.durationSeconds,
       palette: colours,
       ripples,

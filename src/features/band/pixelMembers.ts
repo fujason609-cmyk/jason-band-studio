@@ -388,9 +388,26 @@ export interface MemberPose {
   hop: number;
   blink: boolean;
   singing: boolean;
+  /** 1: she dips a cell (on the beat while she plays; a slow breath while she rests) */
+  bob: number;
 }
 
-export const IDLE_MEMBER: MemberPose = { hop: 0, blink: false, singing: false };
+export const IDLE_MEMBER: MemberPose = { hop: 0, blink: false, singing: false, bob: 0 };
+
+/** The beat at the moment: how far into it (0–1) and how long one is (song seconds). */
+export interface BeatNow {
+  phase: number;
+  seconds: number;
+}
+/** While she plays she dips on the first part of every beat. */
+const BOB_SHARE = 0.25;
+/** She counts as playing until this many beats after her last note ends. */
+const GROOVE_BEATS = 2;
+/** Resting, a breath (the dip, held) every BREATH_EVERY s, at her own time. */
+const BREATH_EVERY = 2.6;
+const BREATH_SECONDS = 0.9;
+/** The dip bends her knees: the rows above her legs move down a cell, over the legs' top. */
+const LEGS_ROW = 29;
 
 /** How long the hop after a note lasts. */
 const HOP_SECONDS = 0.16;
@@ -421,7 +438,10 @@ function lastStarted(notes: readonly NoteEvent[], t: number): number {
 
 /**
  * What the member is doing at `position` (song seconds): hopping on her notes (drummers on
- * kick, snare and crash only: the hi-hat would keep her bouncing), blinking, singing.
+ * kick, snare and crash only: the hi-hat would keep her bouncing), blinking, singing, and,
+ * given the `beat` (from the song's tempo map), dipping on the beat while she plays or
+ * breathing while she rests. All from the position, so a seek, pause, loop or tempo change
+ * shows the right pose straight away.
  */
 export function memberPoseAt(
   member: MemberId,
@@ -429,6 +449,7 @@ export function memberPoseAt(
   vocal: readonly NoteEvent[] | undefined,
   position: number,
   isDrums: boolean,
+  beat?: BeatNow,
 ): MemberPose {
   let hop = 0;
   for (let k = lastStarted(notes, position); k >= 0; k--) {
@@ -445,7 +466,14 @@ export function memberPoseAt(
     const v = vocal[lastStarted(vocal, position)];
     singing = v !== undefined && position < v.start + v.duration;
   }
-  return { hop, blink, singing };
+  let bob = 0;
+  if (beat && hop === 0) {
+    const last = notes[lastStarted(notes, position)];
+    const playing = last !== undefined && position < last.start + last.duration + GROOVE_BEATS * beat.seconds;
+    if (playing) bob = beat.phase < BOB_SHARE ? 1 : 0;
+    else bob = ((((position + BLINK_OFFSET[member]) % BREATH_EVERY) + BREATH_EVERY) % BREATH_EVERY) < BREATH_SECONDS ? 1 : 0;
+  }
+  return { hop, blink, singing, bob };
 }
 
 /**
@@ -474,7 +502,10 @@ export function drawMemberPlaying(
   const hair = HAIR[member];
   const flip = mirror && instrument !== "drums" && instrument !== "keys";
   const colOf = (c: number) => (flip ? FIGURE_COLS - 1 - c : c);
-  const paint = (r: number, c: number, cell: string) => {
+  // the dip: everything above her legs a cell lower (not while she hops)
+  const sink = pose.bob > 0 && lift === 0 ? px : 0;
+  const cut = LEGS_ROW + TOP_PAD;
+  const paint = (r: number, c: number, cell: string, dy = 0) => {
     ctx.fillStyle =
       cell === "h"
         ? hair.hair
@@ -493,11 +524,15 @@ export function drawMemberPlaying(
                     : COLORS[cell]!;
     const cc = colOf(c);
     const left = grid.x(x + cc * px);
-    const t = grid.y(top + r * px);
-    ctx.fillRect(left, t, grid.x(x + (cc + 1) * px) - left, grid.y(top + (r + 1) * px) - t);
+    const t = grid.y(top + dy + r * px);
+    ctx.fillRect(left, t, grid.x(x + (cc + 1) * px) - left, grid.y(top + dy + (r + 1) * px) - t);
   };
-  figureCells(member).forEach((row, r) =>
-    row.forEach((cell, c) => {
+  // legs first, then the rest, so a dipped body lands over the top of the legs
+  const rows = figureCells(member);
+  const order = [...rows.keys()].filter((r) => r >= cut).concat([...rows.keys()].filter((r) => r < cut));
+  order.forEach((r) =>
+    rows[r]!.forEach((cell, c) => {
+      const dy = r < cut ? sink : 0;
       if (cell === ".") return;
       if (
         pose.blink &&
@@ -507,16 +542,18 @@ export function drawMemberPlaying(
       )
         cell = r - TOP_PAD === EYES_SHUT_ROW ? "e" : "s";
       if (cell === "x" && pose.singing) cell = "o";
-      paint(r, c, cell);
+      paint(r, c, cell, dy);
       // an open mouth is taller
-      if (cell === "o") paint(r + 1, c, "o");
+      if (cell === "o") paint(r + 1, c, "o", dy);
     }),
   );
   const arms = ARMS[instrument];
   const [ac, ar, size] = arms.at;
   const left = flip ? FIGURE_COLS - ac - size : ac;
   const ix = x + left * px;
-  const iy = top + (ar + TOP_PAD) * px;
+  // a guitar or bass moves with her; the kit and the keyboard stand where they are
+  const carried = instrument !== "drums" && instrument !== "keys";
+  const iy = top + (carried ? sink : 0) + (ar + TOP_PAD) * px;
   ctx.save();
   if (instrument === "keys") {
     // she plays from behind it: the keys face her hands, the panel faces the audience
@@ -527,6 +564,6 @@ export function drawMemberPlaying(
   drawPixelInstrument(ctx, instrument, instrumentPose, ix, iy, size * px, color, flip, gear);
   ctx.restore();
   const down = instrumentPose.frame !== "idle" && instrumentPose.amount > 0.4 ? 1 : 0;
-  for (const [r, c] of arms.sleeves) paint(r + TOP_PAD, c, "n");
-  for (const [r, c] of arms.hands) paint(r + TOP_PAD + down, c, "s");
+  for (const [r, c] of arms.sleeves) paint(r + TOP_PAD, c, "n", sink);
+  for (const [r, c] of arms.hands) paint(r + TOP_PAD + down, c, "s", carried ? sink : 0);
 }

@@ -2,6 +2,7 @@ import { drawTimeline, type LaneInput, type Palette } from "@/features/timeline/
 import { drawHighway } from "./drawHighway";
 import { BREATH_SCALE, breathAt, energyAt } from "./energy";
 import { drawIntro, type IntroPlan } from "./introSkit";
+import type { TempoPoint } from "@/types/midi";
 import type { RecordView } from "./overlay";
 import { cameraLeft } from "@/features/timeline/camera";
 import { RULER_HEIGHT, TIMELINE_GUTTER } from "@/features/timeline/layout";
@@ -25,6 +26,8 @@ export interface RecordScene {
   durationSeconds: number;
   baseBpm: number;
   beatsPerBar: number;
+  /** the song's tempo map (song seconds), so the band dips on its real beats */
+  tempos?: readonly TempoPoint[];
   lanes: LaneInput[];
   palette: Palette;
   keyColor: string;
@@ -91,6 +94,7 @@ export function drawRecordFrame(ctx: CanvasRenderingContext2D, s: RecordScene) {
       zoom: s.zoom,
       baseBpm: s.baseBpm,
       beatsPerBar: s.beatsPerBar,
+      tempos: s.tempos,
       durationSeconds: s.durationSeconds,
       palette: s.palette,
       ripples: s.ripples,
@@ -118,6 +122,7 @@ export function drawRecordFrame(ctx: CanvasRenderingContext2D, s: RecordScene) {
     lanes: s.lanes,
     baseBpm: s.baseBpm,
     beatsPerBar: s.beatsPerBar,
+    tempos: s.tempos,
     durationSeconds: s.durationSeconds,
     palette: s.palette,
     showLabels: true,

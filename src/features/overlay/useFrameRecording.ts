@@ -329,6 +329,7 @@ export function useFrameRecording(
         durationSeconds: project.durationSeconds,
         baseBpm: project.baseBpm,
         beatsPerBar: project.beatsPerBar,
+        tempos: project.midiMeta?.tempos,
         lanes: shown,
         loop: s.clip && !isChorus(s.clip) ? clipLoop(s, s.clip) : undefined,
         intro: s.intro && heardAt < s.intro.introAt + introLength(s.intro.plan) ? { plan: s.intro.plan, t: Math.max(0, heardAt - s.intro.introAt) } : undefined,
