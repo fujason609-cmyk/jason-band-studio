@@ -1,5 +1,5 @@
 import { MEMBERS } from "./members";
-import { FIGURE_COLS, FIGURE_ROWS, figureCells, memberPoseAt } from "./pixelMembers";
+import { FIGURE_COLS, FIGURE_ROWS, cheerPoseAt, figureCells, memberPoseAt } from "./pixelMembers";
 
 const note = (start: number, pitch = 60, duration = 0.5) => ({ pitch, start, duration, velocity: 0.8 });
 
@@ -43,6 +43,19 @@ describe("pixel members", () => {
     expect(at(3.0)).toEqual(at(3.0));
     // without a beat (no clock running), no dip at all
     expect(memberPoseAt("mio", notes, undefined, 2.0, false).bob).toBe(0);
+  });
+
+  it("cheer on the beat when they have nothing to play: a jump, the lights waving, a shout", () => {
+    const at = (beats: number) => cheerPoseAt("tsumugi", beats * 0.5, { phase: beats % 1, index: Math.floor(beats), seconds: 0.5 });
+    expect(at(2.1)).toMatchObject({ hop: 1, singing: true, wave: 0 }); // on the beat
+    expect(at(2.5)).toMatchObject({ hop: 0, singing: false, wave: 0 }); // between beats
+    expect(at(3.1)).toMatchObject({ hop: 1, singing: false, wave: 1 }); // the next beat: lights the other way
+    // a pendulum sway: furthest one way on a beat, the other way on the next, upright between
+    expect(at(2).sway).toBeCloseTo(1);
+    expect(at(2.5).sway).toBeCloseTo(0);
+    expect(at(3).sway).toBeCloseTo(-1);
+    // stopped: standing, lights up
+    expect(cheerPoseAt("tsumugi", 3)).toMatchObject({ hop: 0, wave: 0 });
   });
 
   it("sing while a sung note sounds", () => {

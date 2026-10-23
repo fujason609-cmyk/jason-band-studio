@@ -1,4 +1,4 @@
-import { barBeat, beatPhase, clampBpm, formatClock, secondsToTicks, songToRealSeconds, ticksToSeconds } from "./time";
+import { barBeat, beatNow, beatPhase, clampBpm, formatClock, secondsToTicks, songToRealSeconds, ticksToSeconds } from "./time";
 
 describe("time model", () => {
   it("round-trips seconds and ticks at the base tempo", () => {
@@ -41,6 +41,8 @@ describe("time model", () => {
     expect(beatPhase(3.0, tempos, 120)).toBeCloseTo(0);
     // without the map, the first tempo carries on and the beats drift
     expect(beatPhase(2.5, undefined, 120)).toBeCloseTo(0);
+    // which beat, counting through the tempo change: 4 at 120, then a second each
+    expect(beatNow(3.5, tempos, 120)).toMatchObject({ index: 5, seconds: 1 });
     // broken stored entries are skipped
     expect(beatPhase(0.25, [{ ticks: 0, bpm: NaN, time: 0 }] as never, 120)).toBeCloseTo(0.5);
   });

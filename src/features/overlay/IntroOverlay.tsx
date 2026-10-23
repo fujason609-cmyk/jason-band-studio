@@ -3,6 +3,7 @@ import { audioEngine } from "@/audio/AudioEngine";
 import { buildLanes, readPalette } from "@/features/timeline/lanes";
 import { getT } from "@/i18n/useT";
 import { getPlayedSong } from "@/stores/playedSong";
+import { drumsGenerated } from "@/lib/playStyle";
 import { useStudioStore } from "@/stores/useStudioStore";
 import { drawIntro, introLength } from "./introSkit";
 import type { IntroTake } from "./useFrameRecording";
@@ -46,6 +47,8 @@ export function IntroOverlay({ take, width, height, safeTop, safeSide, safeBotto
         getT().memberName,
         settings.selectedMember,
         settings.vocals,
+        [],
+        drumsGenerated(settings.playStyle, settings.autoDrums),
       );
       drawIntro(ctx, area, take.plan, Math.max(0, elapsed), lanes, palette.ink);
       frame = requestAnimationFrame(paint);

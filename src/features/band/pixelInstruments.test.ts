@@ -69,4 +69,9 @@ describe("pixel grid", () => {
       expect(whole(grid.y(v) * 2.77)).toBeLessThan(1e-9);
     }
   });
+
+  it("leaves a turned canvas alone (a cheering member's sway)", () => {
+    const ctx = { getTransform: () => ({ a: 2.7, b: 0.19, c: -0.19, d: 2.7, e: 10, f: 4 }) } as unknown as CanvasRenderingContext2D;
+    expect(pixelGrid(ctx).x(5.33)).toBe(5.33);
+  });
 });

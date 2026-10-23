@@ -57,6 +57,14 @@ export function songToRealSeconds(songSeconds: number, baseBpm: number, bpm: num
  * beats, as everywhere else. Bad entries (a stored project is only loosely checked) are skipped.
  */
 export function beatPhase(t: number, tempos: readonly TempoPoint[] | undefined, bpm: number): number {
+  return beatNow(t, tempos, bpm).phase;
+}
+
+/**
+ * The beat at song second `t` by the tempo map: how far into it (0 to 1), which one (from 0
+ * at the song's start: the cheering band waves on every other one) and how long one is now.
+ */
+export function beatNow(t: number, tempos: readonly TempoPoint[] | undefined, bpm: number) {
   const points = (Array.isArray(tempos) ? tempos : []).filter((p) => Number.isFinite(p?.time) && p.bpm > 0);
   let beats = 0;
   let at = 0;
@@ -68,7 +76,7 @@ export function beatPhase(t: number, tempos: readonly TempoPoint[] | undefined, 
     rate = p.bpm;
   }
   beats += ((t - at) * rate) / 60;
-  return ((beats % 1) + 1) % 1;
+  return { phase: ((beats % 1) + 1) % 1, index: Math.floor(beats), seconds: 60 / rate };
 }
 
 export function formatClock(seconds: number): string {

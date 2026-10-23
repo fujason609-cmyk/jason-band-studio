@@ -3,6 +3,7 @@ import { buildLanes, readPalette, type TimelinePalette } from "@/features/timeli
 import { usePlaybackPosition } from "@/hooks/useTransport";
 import { useT } from "@/i18n/useT";
 import { usePlayedSong } from "@/stores/playedSong";
+import { drumsGenerated } from "@/lib/playStyle";
 import { useStudioStore } from "@/stores/useStudioStore";
 import { drawHighway } from "./drawHighway";
 import { energyAt } from "./energy";
@@ -21,6 +22,7 @@ export function Highway({
 }) {
   const { project, spots } = usePlayedSong();
   const { zoom, selectedMember, theme, vocals } = useStudioStore((s) => s.settings);
+  const generatedDrums = useStudioStore((s) => drumsGenerated(s.settings.playStyle, s.settings.autoDrums));
   const playing = useStudioStore((s) => s.transport === "playing");
   const t = useT();
   const boxRef = useRef<HTMLDivElement>(null);
@@ -57,7 +59,7 @@ export function Highway({
       ctx,
       width: size.width,
       height: size.height,
-      lanes: buildLanes(project, colours, t.memberName, selectedMember, vocals, spots),
+      lanes: buildLanes(project, colours, t.memberName, selectedMember, vocals, spots, generatedDrums),
       position: position.current,
       zoom,
       baseBpm: project.baseBpm,
@@ -72,7 +74,7 @@ export function Highway({
     });
     // the insets are rebuilt each render; their numbers are what matter
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [project, spots, zoom, size, selectedMember, vocals, t, playing, reducedMotion, rightInset, insets?.top, insets?.side, insets?.bottom]);
+  }, [project, spots, zoom, size, selectedMember, vocals, generatedDrums, t, playing, reducedMotion, rightInset, insets?.top, insets?.side, insets?.bottom]);
 
   useEffect(() => {
     palette.current = null;

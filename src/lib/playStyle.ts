@@ -205,6 +205,11 @@ export interface BandContext {
   songEndTicks?: number;
 }
 
+/** Whether a drums part with no notes plays the generated groove (`autoDrums`, rock and punk only). */
+export function drumsGenerated(style: PlayStyle, autoDrums: boolean): boolean {
+  return autoDrums && (style === "rock" || style === "punk");
+}
+
 export const NO_BAND: BandContext = { autoDrums: false, playedBars: [] };
 
 const KICK = 36;

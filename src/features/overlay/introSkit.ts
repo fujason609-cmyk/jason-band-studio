@@ -1,7 +1,7 @@
 import { IDLE_POSE, pixelGrid } from "@/features/band/pixelInstruments";
-import { FIGURE_COLS, FIGURE_ROWS, drawMemberPlaying } from "@/features/band/pixelMembers";
+import { FIGURE_COLS, FIGURE_ROWS, drawMemberCheering, drawMemberPlaying } from "@/features/band/pixelMembers";
 import type { MemberId } from "@/features/band/types";
-import { FONT, type LaneInput } from "@/features/timeline/drawTimeline";
+import { FONT, cheers, type LaneInput } from "@/features/timeline/drawTimeline";
 import { detectKey } from "@/lib/soloRound";
 import type { NoteEvent } from "@/types/midi";
 import type { StudioProject } from "@/types/project";
@@ -358,6 +358,14 @@ export function drawIntro(
     ctx.beginPath();
     ctx.ellipse(cx, p.feet - 2, w * 0.45, w * 0.08, 0, 0, Math.PI * 2);
     ctx.fill();
+    if (cheers(lane)) {
+      // she has nothing in this song: penlights up, waving every 0.3 s
+      const step = Math.floor(t / 0.3);
+      const pose = { hop: a.hop, blink: a.blink, singing: a.singing, bob: 0, wave: step % 2, sway: Math.cos((Math.PI * t) / 0.3) };
+      drawMemberCheering(ctx, m, pose, cx - w / 2, base - h, w, lane.color, ink);
+      if (a.bubble) drawBubble(ctx, cx, base - h - p.w * 0.05, p.w * 0.45, a.bubble, a.bubbleAge, ink);
+      return;
+    }
     drawMemberPlaying(
       ctx,
       m,

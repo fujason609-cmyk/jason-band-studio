@@ -3,6 +3,7 @@ import { audioEngine } from "@/audio/AudioEngine";
 import { buildLanes, readPalette } from "@/features/timeline/lanes";
 import { getT } from "@/i18n/useT";
 import { getPlayedSong } from "@/stores/playedSong";
+import { drumsGenerated } from "@/lib/playStyle";
 import { useStudioStore } from "@/stores/useStudioStore";
 import type { NoteEvent } from "@/types/midi";
 import { drawRecordFrame } from "./drawRecordFrame";
@@ -309,7 +310,7 @@ export function useFrameRecording(
       }
       const { project, spots } = getPlayedSong();
       const { settings } = useStudioStore.getState();
-      const lanes = buildLanes(project, palette, getT().memberName, settings.selectedMember, settings.vocals, s.clip ? [] : spots);
+      const lanes = buildLanes(project, palette, getT().memberName, settings.selectedMember, settings.vocals, s.clip ? [] : spots, drumsGenerated(settings.playStyle, settings.autoDrums));
       // a highlight's notes looped; a chorus's up to its end (after the skit, from its start:
       // nothing before it comes down in the count-in)
       const clip = s.clip;

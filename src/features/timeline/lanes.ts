@@ -34,6 +34,7 @@ export function buildLanes(
   selectedMember: MemberId,
   vocals: VocalSwitches,
   spots: readonly SoloSpot[] = [],
+  generatedDrums = false,
 ): LaneInput[] {
   const audible = audibleMap(project.tracks);
   return MEMBERS.map((m) => {
@@ -51,6 +52,7 @@ export function buildLanes(
       instrument: track.instrument,
       leftHanded: m.leftHanded === true,
       gear: gearFor(m.id, track.instrument),
+      ...(generatedDrums && track.instrument === "drums" && track.notes.length === 0 ? { autoDrums: true } : {}),
     };
   });
 }

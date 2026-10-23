@@ -1,7 +1,7 @@
 import { poseAt } from "@/features/band/pixelInstruments";
 import { drawCritters } from "./stageCritters";
-import { FIGURE_COLS, FIGURE_ROWS, IDLE_MEMBER, drawMemberPlaying, memberPoseAt } from "@/features/band/pixelMembers";
-import { beatPhase } from "@/lib/time";
+import { FIGURE_COLS, FIGURE_ROWS, IDLE_MEMBER, cheerPoseAt, drawMemberCheering, drawMemberPlaying, memberPoseAt } from "@/features/band/pixelMembers";
+import { beatNow } from "@/lib/time";
 import type { TempoPoint } from "@/types/midi";
 import { drumVoiceFor } from "@/lib/drums";
 import type { NoteEvent } from "@/types/midi";
@@ -12,6 +12,7 @@ import {
   SPARKLE_SECONDS,
   burstKind,
   dotGrid,
+  cheers,
   drumGlyph,
   firstVisible,
   hitBurst,
@@ -153,7 +154,7 @@ const farFade = (s: number) => Math.min(1, Math.max(0, (s - FAR_SCALE) / FAR_FAD
 
 export function drawHighway(input: HighwayInput) {
   const { ctx, width, height, position, palette } = input;
-  const beat = { phase: beatPhase(position, input.tempos, input.baseBpm), seconds: 60 / input.baseBpm };
+  const beat = beatNow(position, input.tempos, input.baseBpm);
   const place = (m: string | undefined) => (m ? (STAGE_ORDER as readonly string[]).indexOf(m) : -1);
   const lanes = [...input.lanes].sort((a, b) => place(a.member) - place(b.member));
   // the same margin on both sides, so the road (and its vanishing point) stays centred
@@ -293,21 +294,26 @@ export function drawHighway(input: HighwayInput) {
       ctx.scale(1 + 0.04 * flash, 1 + 0.04 * flash);
       ctx.translate(-cx, -feet);
       ctx.globalAlpha = lane.audible ? 1 : 0.4;
-      const member = live ? memberPoseAt(lane.member, lane.notes, lane.vocal?.on ? lane.vocal.notes : undefined, position, lane.isDrums, beat) : IDLE_MEMBER;
-      drawMemberPlaying(
-        ctx,
-        lane.member,
-        lane.instrument,
-        member,
-        poseAt(lane.notes, position, lane.instrument),
-        cx - w / 2,
-        feet - tall,
-        w,
-        lane.color,
-        lane.leftHanded,
-        lane.gear,
-        palette.ink,
-      );
+      if (cheers(lane)) {
+        // nothing to play: she cheers where she stands (no kit or keyboard)
+        drawMemberCheering(ctx, lane.member, cheerPoseAt(lane.member, position, live ? beat : undefined), cx - w / 2, feet - tall, w, lane.color, palette.ink);
+      } else {
+        const member = live ? memberPoseAt(lane.member, lane.notes, lane.vocal?.on ? lane.vocal.notes : undefined, position, lane.isDrums, beat) : IDLE_MEMBER;
+        drawMemberPlaying(
+          ctx,
+          lane.member,
+          lane.instrument,
+          member,
+          poseAt(lane.notes, position, lane.instrument),
+          cx - w / 2,
+          feet - tall,
+          w,
+          lane.color,
+          lane.leftHanded,
+          lane.gear,
+          palette.ink,
+        );
+      }
       ctx.restore();
     }
     if (soloing) {

@@ -1,4 +1,4 @@
-import { burstKind, laneActivity, noteState, summarise } from "./drawTimeline";
+import { burstKind, cheers, laneActivity, noteState, summarise, type LaneInput } from "./drawTimeline";
 
 describe("note state against the playhead", () => {
   const note = { pitch: 60, start: 2, duration: 1, velocity: 0.8 };
@@ -51,5 +51,29 @@ describe("hit bursts", () => {
     expect(burstKind("keys")).toBe("bubbles");
     expect(burstKind("drums", "kick")).toBe("ring");
     expect(burstKind("drums", "snare")).toBe("stars");
+  });
+});
+
+describe("the cheering squad", () => {
+  const lane = (patch: Partial<LaneInput>): LaneInput => ({
+    label: "Mugi",
+    color: "#c8a2ff",
+    notes: [],
+    audible: true,
+    isDrums: false,
+    selected: false,
+    member: "tsumugi",
+    ...patch,
+  });
+  const note = { pitch: 60, start: 0, duration: 1, velocity: 0.8 };
+
+  it("is whoever has nothing to play or sing here", () => {
+    expect(cheers(lane({}))).toBe(true);
+    expect(cheers(lane({ notes: [note] }))).toBe(false);
+    // Yui only singing still sings
+    expect(cheers(lane({ member: "yui", vocal: { notes: [note], on: true } }))).toBe(false);
+    // Ritsu with no written drums is drumming when the groove is generated
+    expect(cheers(lane({ member: "ritsu", isDrums: true, autoDrums: true }))).toBe(false);
+    expect(cheers(lane({ member: "ritsu", isDrums: true }))).toBe(true);
   });
 });

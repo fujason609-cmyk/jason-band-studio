@@ -291,6 +291,8 @@ export function drawPixelInstrument(
  */
 export function pixelGrid(ctx: CanvasRenderingContext2D) {
   const m = typeof ctx.getTransform === "function" ? ctx.getTransform() : null;
+  // turned (a cheering member's sway), there's no pixel grid to snap to
+  if (m && (m.b || m.c)) return { x: (v: number) => v, y: (v: number) => v };
   const a = m?.a || 1;
   const d = m?.d || 1;
   const e = m?.e ?? 0;

@@ -1,7 +1,7 @@
 import { drumVoiceFor, type DrumVoice } from "@/lib/drums";
 import { poseAt, type Gear } from "@/features/band/pixelInstruments";
-import { IDLE_MEMBER, drawMemberPlaying, memberPoseAt } from "@/features/band/pixelMembers";
-import { beatPhase } from "@/lib/time";
+import { IDLE_MEMBER, cheerPoseAt, drawMemberCheering, drawMemberPlaying, memberPoseAt } from "@/features/band/pixelMembers";
+import { beatNow } from "@/lib/time";
 import type { TempoPoint } from "@/types/midi";
 import type { MemberId } from "@/features/band/types";
 import type { InstrumentId } from "@/types/audio";
@@ -27,6 +27,17 @@ export interface LaneInput {
   leftHanded?: boolean;
   /** her real instrument's finish, when she plays it (pixelInstruments MEMBER_GEAR) */
   gear?: Gear;
+  /** a drums lane with no notes that plays the generated groove (it isn't idle) */
+  autoDrums?: boolean;
+}
+
+/**
+ * A member with nothing to play here (no notes, nothing sung, no generated drums) puts her
+ * instrument down and cheers the band on, penlights up. Lanes of a clip hold only the clip's
+ * notes, so a member silent through the chorus cheers in a chorus take.
+ */
+export function cheers(lane: LaneInput): boolean {
+  return lane.member !== undefined && !lane.autoDrums && lane.notes.length === 0 && !lane.vocal?.notes.length;
 }
 
 export interface Palette {
@@ -742,8 +753,13 @@ export function drawTimeline(input: DrawInput) {
       ctx.globalAlpha = lane.audible ? 1 : 0.4;
         const pose = position === undefined ? poseAt([], 0, lane.instrument!) : poseAt(lane.notes, position, lane.instrument!);
         const moves = position !== undefined && input.ripples;
-        const member = moves ? memberPoseAt(lane.member!, lane.notes, lane.vocal?.on ? lane.vocal.notes : undefined, position, lane.isDrums, { phase: beatPhase(position, input.tempos, baseBpm), seconds: 60 / baseBpm }) : IDLE_MEMBER;
-        drawMemberPlaying(ctx, lane.member!, lane.instrument!, member, pose, 6, top + 2, sprite, lane.color, lane.leftHanded, lane.gear, palette.ink);
+        const beat = moves ? beatNow(position, input.tempos, baseBpm) : undefined;
+        if (cheers(lane)) {
+          drawMemberCheering(ctx, lane.member!, cheerPoseAt(lane.member!, position ?? 0, beat), 6, top + 2, sprite, lane.color, palette.ink);
+        } else {
+          const member = moves ? memberPoseAt(lane.member!, lane.notes, lane.vocal?.on ? lane.vocal.notes : undefined, position, lane.isDrums, beat) : IDLE_MEMBER;
+          drawMemberPlaying(ctx, lane.member!, lane.instrument!, member, pose, 6, top + 2, sprite, lane.color, lane.leftHanded, lane.gear, palette.ink);
+        }
       }
       const tagX = sprite > 0 ? 6 + sprite + 6 : 8;
       ctx.fillStyle = lane.color;

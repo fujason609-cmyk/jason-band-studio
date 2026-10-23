@@ -6,6 +6,7 @@ import { usePlaybackPosition, useTransport } from "@/hooks/useTransport";
 import { useT } from "@/i18n/useT";
 import { barBeat } from "@/lib/time";
 import { usePlayedSong } from "@/stores/playedSong";
+import { drumsGenerated } from "@/lib/playStyle";
 import { useStudioStore } from "@/stores/useStudioStore";
 import { drawTimeline } from "./drawTimeline";
 import { cameraLeft, followStep } from "./camera";
@@ -33,6 +34,7 @@ const TAP_SLOP_PX = 8;
 export function Timeline({ laneHeight = LANE_HEIGHT, labels, forceFollow = false, showcase = false }: TimelineProps = {}) {
   const { project, spots } = usePlayedSong();
   const { zoom, followPlayhead: followSetting, selectedMember, theme, vocals } = useStudioStore((s) => s.settings);
+  const generatedDrums = useStudioStore((s) => drumsGenerated(s.settings.playStyle, s.settings.autoDrums));
   const followPlayhead = forceFollow || followSetting;
   const transport = useStudioStore((s) => s.transport);
   const { seek } = useTransport();
@@ -90,12 +92,12 @@ export function Timeline({ laneHeight = LANE_HEIGHT, labels, forceFollow = false
       laneHeight,
       position: position.current,
       ripples: playing && !reducedMotion,
-      lanes: buildLanes(project, colours, t.memberName, selectedMember, vocals, spots),
+      lanes: buildLanes(project, colours, t.memberName, selectedMember, vocals, spots, generatedDrums),
       showcase: showcase
         ? { energy: energyAt(project.tracks.map((tr) => tr.notes), (60 / project.baseBpm) * project.beatsPerBar, position.current) }
         : undefined,
     });
-  }, [project, spots, zoom, viewport, height, showLabels, laneHeight, selectedMember, vocals, t, playing, reducedMotion, showcase]);
+  }, [project, spots, zoom, viewport, height, showLabels, laneHeight, selectedMember, vocals, generatedDrums, t, playing, reducedMotion, showcase]);
 
   const requestDraw = useCallback(() => {
     cancelAnimationFrame(frame.current);

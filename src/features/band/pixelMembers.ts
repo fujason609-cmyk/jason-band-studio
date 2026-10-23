@@ -390,6 +390,8 @@ export interface MemberPose {
   singing: boolean;
   /** 1: she dips a cell (on the beat while she plays; a slow breath while she rests) */
   bob: number;
+  /** she leans from her feet, -1 (fully left) to 1 (fully right), by SWAY_DEGREES */
+  sway?: number;
 }
 
 export const IDLE_MEMBER: MemberPose = { hop: 0, blink: false, singing: false, bob: 0 };
@@ -477,35 +479,31 @@ export function memberPoseAt(
 }
 
 /**
- * The member playing, `width` px wide and FIGURE_ROWS / FIGURE_COLS × that tall, from y:
- * her figure, her instrument, then her arms and hands over it. Mirrored for a left-handed
- * player.
+ * Paints a member's figure (no instrument, no arms) `width` px wide from y: hopping a cell
+ * up, dipping a cell at the knees, blinking, singing. Returns a painter for more cells (in
+ * figure rows, TOP_PAD included) and where it put things, for her arms and instrument.
  */
-export function drawMemberPlaying(
+function paintFigure(
   ctx: CanvasRenderingContext2D,
   member: MemberId,
-  instrument: InstrumentId,
   pose: MemberPose,
-  instrumentPose: InstrumentPose,
   x: number,
   y: number,
   width: number,
   color: string,
-  mirror = false,
-  gear?: Gear,
-  outline = COLORS.d!,
+  flip: boolean,
+  outline: string,
 ) {
   const px = width / FIGURE_COLS;
   const lift = pose.hop > 0.5 ? px : 0;
   const top = y - lift;
   const grid = pixelGrid(ctx);
   const hair = HAIR[member];
-  const flip = mirror && instrument !== "drums" && instrument !== "keys";
   const colOf = (c: number) => (flip ? FIGURE_COLS - 1 - c : c);
   // the dip: everything above her legs a cell lower (not while she hops)
   const sink = pose.bob > 0 && lift === 0 ? px : 0;
   const cut = LEGS_ROW + TOP_PAD;
-  const paint = (r: number, c: number, cell: string, dy = 0) => {
+  const paint = (r: number, c: number, cell: string, dy = 0, dx = 0) => {
     ctx.fillStyle =
       cell === "h"
         ? hair.hair
@@ -523,9 +521,9 @@ export function drawMemberPlaying(
                     ? outline
                     : COLORS[cell]!;
     const cc = colOf(c);
-    const left = grid.x(x + cc * px);
+    const left = grid.x(x + dx + cc * px);
     const t = grid.y(top + dy + r * px);
-    ctx.fillRect(left, t, grid.x(x + (cc + 1) * px) - left, grid.y(top + dy + (r + 1) * px) - t);
+    ctx.fillRect(left, t, grid.x(x + dx + (cc + 1) * px) - left, grid.y(top + dy + (r + 1) * px) - t);
   };
   // legs first, then the rest, so a dipped body lands over the top of the legs
   const rows = figureCells(member);
@@ -547,6 +545,30 @@ export function drawMemberPlaying(
       if (cell === "o") paint(r + 1, c, "o", dy);
     }),
   );
+  return { paint, px, top, sink, colOf, grid };
+}
+
+/**
+ * The member playing, `width` px wide and FIGURE_ROWS / FIGURE_COLS × that tall, from y:
+ * her figure, her instrument, then her arms and hands over it. Mirrored for a left-handed
+ * player.
+ */
+export function drawMemberPlaying(
+  ctx: CanvasRenderingContext2D,
+  member: MemberId,
+  instrument: InstrumentId,
+  pose: MemberPose,
+  instrumentPose: InstrumentPose,
+  x: number,
+  y: number,
+  width: number,
+  color: string,
+  mirror = false,
+  gear?: Gear,
+  outline = COLORS.d!,
+) {
+  const flip = mirror && instrument !== "drums" && instrument !== "keys";
+  const { paint, px, top, sink } = paintFigure(ctx, member, pose, x, y, width, color, flip, outline);
   const arms = ARMS[instrument];
   const [ac, ar, size] = arms.at;
   const left = flip ? FIGURE_COLS - ac - size : ac;
@@ -566,4 +588,171 @@ export function drawMemberPlaying(
   const down = instrumentPose.frame !== "idle" && instrumentPose.amount > 0.4 ? 1 : 0;
   for (const [r, c] of arms.sleeves) paint(r + TOP_PAD, c, "n", sink);
   for (const [r, c] of arms.hands) paint(r + TOP_PAD + down, c, "s", carried ? sink : 0);
+}
+
+/**
+ * Cheering, the arms raised wide with a penlight in each hand, out past her hair (dark
+ * sleeves on long black hair vanished) (figure rows without TOP_PAD; the right arm is the
+ * left mirrored): sleeves from the shoulder, the hand, then the light,
+ * "L" in her colour with a white tip "T". Two frames: the lights leaning out, then upright,
+ * swapped on every beat, as a crowd waves them.
+ */
+const CHEER_ARM: readonly (readonly [number, number, string][])[] = [
+  [
+    [17, 7, "n"],
+    [16, 6, "n"],
+    [15, 5, "n"],
+    [14, 4, "n"],
+    [13, 3, "n"],
+    [12, 3, "s"],
+    [11, 3, "L"],
+    [10, 2, "L"],
+    [9, 2, "L"],
+    [8, 1, "L"],
+    [7, 1, "T"],
+  ],
+  [
+    [17, 7, "n"],
+    [16, 6, "n"],
+    [15, 5, "n"],
+    [14, 4, "n"],
+    [13, 3, "n"],
+    [12, 3, "s"],
+    [11, 3, "L"],
+    [10, 3, "L"],
+    [9, 3, "L"],
+    [8, 3, "L"],
+    [7, 3, "T"],
+  ],
+];
+
+/** What a member with nothing to play does: cheers on the beat. */
+export interface CheerPose extends MemberPose {
+  /** which way the penlights lean (CHEER_ARM frame) */
+  wave: number;
+}
+
+/**
+ * A member with nothing to play in the song cheers the band on (the owner's "气氛组"): she
+ * jumps on every beat, waves her penlights from side to side a beat at a time, sways like a
+ * pendulum from her feet (furthest right on one beat, left on the next, through the middle
+ * between them) and shouts on every other one, all from the position (and the song's beat), like the playing poses.
+ * Without a beat (stopped), she stands with her lights up.
+ */
+export function cheerPoseAt(member: MemberId, position: number, beat?: BeatNow & { index: number }): CheerPose {
+  const blink =
+    (((position + BLINK_OFFSET[member]) % BLINK_EVERY) + BLINK_EVERY) % BLINK_EVERY < BLINK_SECONDS;
+  if (!beat) return { hop: 0, blink, singing: false, bob: 0, wave: 0, sway: 0 };
+  const onBeat = beat.phase < 0.22;
+  return {
+    hop: onBeat ? 1 : 0,
+    blink,
+    singing: onBeat && beat.index % 2 === 0,
+    bob: 0,
+    wave: beat.index % 2,
+    sway: Math.cos(Math.PI * (beat.index + beat.phase)),
+  };
+}
+
+/** How far a cheering member leans at the end of her sway. */
+const SWAY_DEGREES = 4;
+
+/** A reused canvas a swaying figure is painted on upright, before it is turned. */
+let upright: HTMLCanvasElement | null = null;
+
+/**
+ * The member cheering (no instrument), drawn like drawMemberPlaying. Her sway turns the whole
+ * figure about her feet (shifting the body above the legs a cell instead looked like it came
+ * apart from them): she is painted upright on a canvas of her own, cells on whole device
+ * pixels, and that is drawn turned, without smoothing (turning each cell as it was painted
+ * left hairline seams between them, a grid over her).
+ */
+export function drawMemberCheering(
+  ctx: CanvasRenderingContext2D,
+  member: MemberId,
+  pose: CheerPose,
+  x: number,
+  y: number,
+  width: number,
+  color: string,
+  outline = COLORS.d!,
+) {
+  const angle = ((pose.sway ?? 0) * SWAY_DEGREES * Math.PI) / 180;
+  const m = typeof ctx.getTransform === "function" ? ctx.getTransform() : null;
+  if (angle === 0 || !m || typeof document === "undefined") return paintCheering(ctx, member, pose, x, y, width, color, outline);
+  const scale = Math.hypot(m.a, m.b) || 1;
+  const height = (width * FIGURE_ROWS) / FIGURE_COLS;
+  const pad = width * 0.3; // the lights' glow reaches past her
+  const w = Math.ceil((width + 2 * pad) * scale);
+  const h = Math.ceil((height + 2 * pad) * scale);
+  upright ??= document.createElement("canvas");
+  if (upright.width < w || upright.height < h) {
+    upright.width = Math.max(upright.width, w);
+    upright.height = Math.max(upright.height, h);
+  }
+  const off = upright.getContext("2d");
+  if (!off) return paintCheering(ctx, member, pose, x, y, width, color, outline);
+  off.setTransform(1, 0, 0, 1, 0, 0);
+  off.clearRect(0, 0, w, h);
+  off.setTransform(scale, 0, 0, scale, 0, 0);
+  paintCheering(off, member, pose, pad, pad, width, color, outline);
+  ctx.save();
+  const feetX = x + width / 2;
+  const feetY = y + height;
+  ctx.translate(feetX, feetY);
+  ctx.rotate(angle);
+  ctx.translate(-feetX, -feetY);
+  ctx.imageSmoothingEnabled = false;
+  ctx.drawImage(upright, 0, 0, w, h, x - pad, y - pad, w / scale, h / scale);
+  ctx.restore();
+}
+
+function paintCheering(
+  ctx: CanvasRenderingContext2D,
+  member: MemberId,
+  pose: CheerPose,
+  x: number,
+  y: number,
+  width: number,
+  color: string,
+  outline: string,
+) {
+  const { paint, px, top, colOf } = paintFigure(ctx, member, pose, x, y, width, color, false, outline);
+  const arm = CHEER_ARM[pose.wave % CHEER_ARM.length]!;
+  const both = [...arm, ...arm.map(([r, c, k]) => [r, FIGURE_COLS - 1 - c, k] as [number, number, string])];
+  // each light glows in her colour
+  ctx.save();
+  for (const [r, c, k] of both) {
+    if (k !== "T") continue;
+    const cx = x + (colOf(c) + 0.5) * px;
+    const cy = top + (r + TOP_PAD + 1) * px;
+    const reach = px * 4.5;
+    const glow = ctx.createRadialGradient(cx, cy, 0, cx, cy, reach);
+    glow.addColorStop(0, color);
+    glow.addColorStop(1, "rgba(255,255,255,0)");
+    ctx.globalAlpha *= 0.75;
+    ctx.fillStyle = glow;
+    ctx.fillRect(cx - reach, cy - reach, reach * 2, reach * 2);
+    ctx.globalAlpha /= 0.75;
+  }
+  ctx.restore();
+  // an outline round the arms where they reach past her, then the arms
+  const taken = new Set(both.map(([r, c]) => `${r},${c}`));
+  const body = figureCells(member);
+  for (const [r, c] of both) {
+    for (const [dr, dc] of [
+      [1, 0],
+      [-1, 0],
+      [0, 1],
+      [0, -1],
+    ] as const) {
+      const rr = r + dr;
+      const cc = c + dc;
+      if (cc < 0 || cc >= FIGURE_COLS || taken.has(`${rr},${cc}`)) continue;
+      if ((body[rr + TOP_PAD]?.[cc] ?? ".") !== ".") continue;
+      taken.add(`${rr},${cc}`);
+      paint(rr + TOP_PAD, cc, "d");
+    }
+  }
+  for (const [r, c, k] of both) paint(r + TOP_PAD, c, k === "L" ? "m" : k === "T" ? "w" : k);
 }
