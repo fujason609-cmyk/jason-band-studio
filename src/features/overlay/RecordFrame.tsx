@@ -12,7 +12,7 @@ import { usePlayedSong } from "@/stores/playedSong";
 import { useStudioStore } from "@/stores/useStudioStore";
 import { BREATH_SCALE, breathAt, energyAt } from "./energy";
 import { canRecordVideo } from "./frameRecorder";
-import { clipSeconds, findHighlight, highlightChoices, type Highlight } from "./highlight";
+import { chorusChoices, clipSeconds, highlightChoices, type Highlight } from "./highlight";
 import { OVERLAY_COLORS, RECORD_CLIPS, RECORD_FPS, RECORD_FRAMES, fallRightInset, recordLayout, safeArea, type OverlayColor, type RecordClip, type RecordFrame as Frame } from "./overlay";
 import { Highway } from "./Highway";
 import { FALL_TOP_SHARE } from "./drawRecordFrame";
@@ -74,15 +74,21 @@ export function RecordFrame() {
 
   // the score swells a little on a crash or a busy bar's downbeat, as the video does
   const { project, songEnd } = usePlayedSong();
-  // the highlight take's stretch of the song (the solo round after it doesn't count)
-  // "next section" walks through the other good ones; a new song starts from the best again
-  const [choice, setChoice] = useState({ song: project.name, index: 0 });
-  const index = choice.song === project.name ? choice.index : 0;
-  const highlight = useMemo(
-    () => (overlay.clip === "highlight" ? findHighlight(project, songEnd, index) : null),
-    [overlay.clip, project, songEnd, index],
+  // the highlight's or chorus's stretch of the song (the solo round after it doesn't count);
+  // "next" walks through the other good ones; a new song or mode starts from the best again
+  const [choice, setChoice] = useState({ song: project.name, clip: overlay.clip, index: 0 });
+  const index = choice.song === project.name && choice.clip === overlay.clip ? choice.index : 0;
+  const clipList = useMemo(
+    () =>
+      overlay.clip === "highlight"
+        ? highlightChoices(project, songEnd)
+        : overlay.clip === "chorus"
+          ? chorusChoices(project, songEnd)
+          : [],
+    [overlay.clip, project, songEnd],
   );
-  const choices = overlay.clip === "highlight" ? highlightChoices(project, songEnd).length : 0;
+  const choices = clipList.length;
+  const highlight: Highlight | null = choices ? clipList[index % choices]! : null;
   const scoreRef = useRef<HTMLDivElement>(null);
   const [reducedMotion] = useState(() => matchMedia("(prefers-reduced-motion: reduce)").matches);
   usePlaybackPosition((pos) => {
@@ -98,7 +104,7 @@ export function RecordFrame() {
   });
 
   const hintFor = (h: Highlight, at: number) =>
-    t.recordClipHint(
+    (overlay.clip === "chorus" ? t.chorusHint : t.recordClipHint)(
       h.firstBar + 1,
       h.firstBar + h.bars,
       Math.round(clipSeconds(h, project.baseBpm, project.bpm) * 10) / 10,
@@ -110,8 +116,8 @@ export function RecordFrame() {
   /** the shuffle button: the next good stretch, said out loud (phones hide the hint line) */
   const nextHighlight = () => {
     const next = index + 1;
-    setChoice({ song: project.name, index: next });
-    const h = findHighlight(project, songEnd, next);
+    setChoice({ song: project.name, clip: overlay.clip, index: next });
+    const h = clipList[next % choices];
     if (h) useStudioStore.getState().notify({ kind: "info", text: hintFor(h, next) });
   };
 
@@ -179,8 +185,8 @@ export function RecordFrame() {
     if (!armed || !supported || recording) return void (fromTop ? restart() : play());
     // unlock audio now, inside the tap: the countdown's timer isn't a user gesture
     if (!(await ensureAudio())) return;
-    if (overlay.clip === "highlight") {
-      // no countdown: the video opens on the highlight's first beat, and loops back to it
+    if (overlay.clip !== "full") {
+      // no countdown: the video opens on the clip's first beat (and a highlight loops back to it)
       if (!highlight) return useStudioStore.getState().notify({ kind: "info", text: t.highlightTooShort });
       cueHighlight(highlight);
       return void play();

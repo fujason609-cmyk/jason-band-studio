@@ -1,6 +1,6 @@
 import type { NoteEvent } from "@/types/midi";
 import type { StudioProject } from "@/types/project";
-import { GOOD_SEAM, clipLengths, findHighlight, loopNotes, rankHighlights } from "./highlight";
+import { GOOD_SEAM, clipLengths, findChorus, findHighlight, loopNotes, rankHighlights } from "./highlight";
 
 // 120 BPM in 4/4: a bar is 2 s, so a 15–20 s clip is 8 to 10 bars
 const BAR = 2;
@@ -78,5 +78,31 @@ describe("highlight clip", () => {
     const looped = loopNotes(notes, h);
     expect(looped.map((n) => n.start)).toEqual([0, 3.5, 4, 7.5, 8, 11.5]);
     expect(loopNotes(notes, h)).toBe(looped); // memoised: the same array every frame
+  });
+});
+
+describe("chorus", () => {
+  // verse (quiet, its own tune), chorus (busy, 12 bars of its own tune), verse, chorus, a
+  // bridge that never comes back, the last chorus
+  const verse = Array.from({ length: 8 }, (_, i): [number, number] => [4, 48 + (i % 4)]);
+  const chorus = Array.from({ length: 12 }, (_, i): [number, number] => [12, 60 + (i % 6) * 2]);
+  const bridge = Array.from({ length: 8 }, (_, i): [number, number] => [6, 70 - i]);
+  const bars = [...verse, ...chorus, ...verse, ...chorus, ...bridge, ...chorus, ...verse];
+
+  it("is a whole chorus, however long, where the song plays it again", () => {
+    const c = findChorus(song(bars, [8, 28, 48]))!;
+    expect([8, 28, 48]).toContain(c.firstBar);
+    expect(c.bars).toBe(12);
+    expect(c.repeats).toBe(1);
+  });
+
+  it("prefers the last chorus when they're all alike", () => {
+    expect(findChorus(song(bars, [8, 28, 48]))!.firstBar).toBe(48);
+  });
+
+  it("is null when nothing comes back", () => {
+    // every bar its own: a different number of notes and a different pitch
+    const once = Array.from({ length: 24 }, (_, i): [number, number] => [2 + (i % 7), 40 + i]);
+    expect(findChorus(song(once))).toBeNull();
   });
 });

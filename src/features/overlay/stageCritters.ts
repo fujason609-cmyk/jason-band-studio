@@ -8,7 +8,7 @@ import { pixelGrid } from "@/features/band/pixelInstruments";
  * the last frame meets the first.
  *
  * Cells: "d" outline (the theme's ink), "g" / "G" shell, "l" turtle skin, "k" eye,
- * "w" / "W" fur, "p" inner ear and nose.
+ * "w" / "W" fur, "p" inner ear and nose, "q" the eye's glint.
  */
 type Sprite = readonly string[];
 
@@ -31,29 +31,47 @@ const TURTLE: readonly Sprite[] = [
   ],
 ];
 
-/** sitting, and stretched out mid-hop */
+/**
+ * A rabbit seen from the side, facing right: two tall ears (pink inside), a round head with
+ * a big eye and a pink nose, a round body, a fluffy tail, and its feet sitting, then
+ * stretched out mid-hop.
+ */
 const RABBIT: readonly Sprite[] = [
   [
-    "........dd.dd.",
-    ".......dpd.dpd",
-    ".......dpd.dpd",
-    "..ddddddwddwd.",
-    ".dwwwwwwwwwkwd",
-    "dWwwwwwwwwwwpd",
-    "dWwwwwwwwwwwd.",
-    ".dwwWwwwwWwd..",
-    "..dd.dd.dd.dd.",
+    ".........dd.dd..",
+    "........dwpddwpd",
+    "........dwpddwpd",
+    "........dwpddwpd",
+    "........dwwddwwd",
+    ".........dwwwwd.",
+    "........dwwwwwwd",
+    "........dwwwqkwd",
+    "....ddddwwwwwwpd",
+    "...dwwwwwwwwwwd.",
+    ".ddwwwwwwwwwwwd.",
+    "dWWwwwwwwwwwwd..",
+    "dWWwwwwwwwwwd...",
+    ".dWWwwwWwwwwd...",
+    "..dwwwwwd.dwwd..",
+    "..ddddddd.dddd..",
   ],
   [
-    ".........dd.dd",
-    "........dpd.dp",
-    "........dpd.dp",
-    "...dddddddwddw",
-    ".ddwwwwwwwwwkw",
-    "dWwwwwwwwwwwwp",
-    ".dwwwwwwwwwwd.",
-    "..dd......ddd.",
-    "..............",
+    ".........dd.dd..",
+    "........dwpddwpd",
+    "........dwpddwpd",
+    "........dwpddwpd",
+    "........dwwddwwd",
+    ".........dwwwwd.",
+    "........dwwwwwwd",
+    "........dwwwqkwd",
+    "....ddddwwwwwwpd",
+    "...dwwwwwwwwwwd.",
+    ".ddwwwwwwwwwwwd.",
+    "dWWwwwwwwwwwwd..",
+    "dWWwwwwwwwwwd...",
+    ".dWWwwwWwwwwd...",
+    ".dwwwd.....dwwd.",
+    "dddd.......ddd..",
   ],
 ];
 
@@ -64,6 +82,7 @@ const COLORS: Record<string, string> = {
   k: "#15132a",
   w: "#fffdf8",
   W: "#e3dccf",
+  q: "#ffffff",
   p: "#f4a3b4",
 };
 

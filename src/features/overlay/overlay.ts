@@ -29,12 +29,12 @@ export interface OverlaySettings {
   /** the key-colour strip for footage; off, the score fills the frame */
   keyStrip: boolean;
   view: RecordView;
-  /** a take is the whole song, or the 15–20 s highlight that loops (highlight.ts) */
+  /** a take is the whole song, the 15–20 s highlight that loops, or the climactic chorus, whole (highlight.ts) */
   clip: RecordClip;
 }
 
 export const DEFAULT_OVERLAY: OverlaySettings = { color: "green", frame: "9:16", fps: 30, keyStrip: true, view: "scroll", clip: "full" };
-export const RECORD_CLIPS = ["full", "highlight"] as const;
+export const RECORD_CLIPS = ["full", "highlight", "chorus"] as const;
 export type RecordClip = (typeof RECORD_CLIPS)[number];
 
 /** Exact key colours. Fixed, never themed, so the editor's keyer sees one flat value. */
@@ -63,7 +63,7 @@ export function sanitizeOverlay(raw: unknown): OverlaySettings {
     keyStrip: r.keyStrip !== false,
     view: r.view === "fall" ? "fall" : "scroll",
     // "highlight20" was a separate 20 s take before the highlight's length went free (15–20 s)
-    clip: r.clip === "highlight" || r.clip === "highlight20" ? "highlight" : "full",
+    clip: r.clip === "highlight" || r.clip === "highlight20" ? "highlight" : r.clip === "chorus" ? "chorus" : "full",
   };
 }
 
