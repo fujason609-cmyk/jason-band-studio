@@ -45,6 +45,11 @@ export interface Highlight {
   bars: number;
   /** the stretch is played this many times in the clip (1, or 2 for a short section) */
   repeats: number;
+  /**
+   * A chorus (not a loop): song seconds that notes still sounding at its end ring on, which
+   * the take lets them do instead of cutting them at the bar line
+   */
+  ring?: number;
 }
 
 /** A clip's length in real seconds at the playing tempo. */
@@ -386,12 +391,71 @@ export function chorusChoices(
     return lastChorus.value;
   }
   const value: RankedHighlight[] = [];
-  for (const c of rankChoruses(project, songEnd)) {
+  for (const ranked of rankChoruses(project, songEnd)) {
+    const c = finishChorus(project, ranked, Math.min(project.durationSeconds, songEnd));
     if (!value.some((v) => Math.min(v.end, c.end) > Math.max(v.start, c.start))) value.push(c);
     if (value.length === CHORUS_CHOICES) break;
   }
   lastChorus = { key, sources, value };
   return value;
+}
+
+/** A chorus's last sung line can run over the bar line: the clip takes up to this many more bars to finish it. */
+const SING_THROUGH_BARS = 2;
+/** Notes held past a chorus's end ring on for this long at most (song seconds), and cymbals at least the shorter. */
+const RING_MAX = 2;
+const RING_MIN = 1;
+
+/**
+ * Ends a chorus where its music does: when the singer's last line carries on over the
+ * closing bar line (no breath of a beat or more before the next sung note), the clip runs
+ * on to the end of that bar (Don't say "lazy": the chorus's last line ends in the first bar
+ * of the next section, and the take cut it off); and a short call just after it, before
+ * the singer rests, is taken in too. Then `ring`: how long notes still sounding
+ * at the end ring on.
+ */
+function finishChorus(
+  project: StudioProject,
+  c: RankedHighlight,
+  songEnd: number,
+): RankedHighlight {
+  const barSeconds = (60 / project.baseBpm) * project.beatsPerBar;
+  const beat = barSeconds / project.beatsPerBar;
+  const sung = project.tracks.flatMap((t) => t.vocal ?? []).sort((a, b) => a.start - b.start);
+  let { end, bars } = c;
+  for (let k = 0; k < SING_THROUGH_BARS && end + barSeconds <= songEnd + 1e-6; k++) {
+    const after = sung.findIndex((n) => n.start >= end - 1e-6);
+    const next = sung[after];
+    const before = after > 0 ? sung[after - 1] : after < 0 ? sung[sung.length - 1] : undefined;
+    if (!next || !before || before.start < c.start || next.start >= end + barSeconds - 1e-6) break;
+    if (next.start - (before.start + before.duration) >= beat) break; // a breath: the line was over
+    end += barSeconds;
+    bars += 1;
+  }
+  // a closing call after the last line (The Rumbling: a bar's rest, then a short shout in the
+  // next, then the riff with no singing): sung notes within SING_THROUGH_BARS of the end,
+  // with the singer silent for that long after them, still belong to the chorus
+  const tail = sung.filter(
+    (n) => n.start >= end - 1e-6 && n.start < end + SING_THROUGH_BARS * barSeconds - 1e-6,
+  );
+  const last = tail[tail.length - 1];
+  if (last) {
+    const lastBar = Math.floor((last.start - end) / barSeconds + 1e-6) + 1;
+    const restUntil = end + lastBar * barSeconds + SING_THROUGH_BARS * barSeconds;
+    const quiet = !sung.some((n) => n.start > last.start + 1e-6 && n.start < restUntil - 1e-6);
+    if (quiet && end + lastBar * barSeconds <= songEnd + 1e-6) {
+      end += lastBar * barSeconds;
+      bars += lastBar;
+    }
+  }
+  let held = 0;
+  for (const t of project.tracks) {
+    for (const n of [...t.notes, ...(t.vocal ?? [])]) {
+      if (n.start < end - 1e-6 && n.start >= c.start - barSeconds)
+        held = Math.max(held, n.start + n.duration - end);
+    }
+  }
+  return { ...c, end, bars, ring: Math.min(RING_MAX, Math.max(RING_MIN, held)) };
 }
 
 let lastChorus: { key: unknown[]; sources: unknown[]; value: RankedHighlight[] } | null = null;
@@ -503,6 +567,24 @@ function rankChorusesAt(
     }
   }
   return ranked.sort((x, y) => y.score - x.score);
+}
+
+const clipped = new WeakMap<
+  readonly NoteEvent[],
+  { start: number; end: number; notes: NoteEvent[] }
+>();
+
+/**
+ * The notes of a part a chorus take shows: those starting from `from` (the chorus's start
+ * after the intro, where nothing before it plays; -Infinity after a run-up of the song) up
+ * to the chorus's end (nothing after it plays). Memoised per notes array.
+ */
+export function clipNotes(notes: readonly NoteEvent[], h: Highlight, from = h.start): NoteEvent[] {
+  const memo = clipped.get(notes);
+  if (memo && memo.start === from && memo.end === h.end) return memo.notes;
+  const inside = notes.filter((n) => n.start >= from - 1e-6 && n.start < h.end - 1e-6);
+  clipped.set(notes, { start: from, end: h.end, notes: inside });
+  return inside;
 }
 
 const tiled = new WeakMap<

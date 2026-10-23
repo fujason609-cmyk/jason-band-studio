@@ -4,9 +4,11 @@ import { buildLanes, readPalette } from "@/features/timeline/lanes";
 import { getT } from "@/i18n/useT";
 import { getPlayedSong } from "@/stores/playedSong";
 import { useStudioStore } from "@/stores/useStudioStore";
+import type { NoteEvent } from "@/types/midi";
 import { drawRecordFrame } from "./drawRecordFrame";
 import { FrameRecorder, type Recording } from "./frameRecorder";
-import { clipSeconds, loopNotes, type Highlight } from "./highlight";
+import { clipNotes, clipSeconds, loopNotes, type Highlight } from "./highlight";
+import { introLength, type IntroPlan } from "./introSkit";
 import { OVERLAY_COLORS } from "./overlay";
 
 /** Video width in pixels; the height follows the frame shape (1080 × 1920 for 9:16). */
@@ -32,6 +34,20 @@ export function cueHighlight(clip: Highlight) {
 }
 
 /**
+ * Gets the engine ready for a chorus take without the skit: a bar of the song before the
+ * chorus as the run-up (what really leads into it; the highlight's run-up, the clip's own
+ * last bar, rang its ending into the chorus's first beat), the recorder starting on the
+ * chorus's first beat. The range keeps the song's own end out of the way.
+ */
+export function cueChorus(clip: Highlight, barSeconds: number) {
+  audioEngine.setLoopRange({ start: clip.start, end: clip.end });
+  audioEngine.seek(Math.max(0, clip.start - barSeconds));
+}
+
+/** A chorus take (it ends, letting the last notes ring), not the looping highlight. */
+const isChorus = (clip: Highlight) => clip.ring !== undefined;
+
+/**
  * The stage pets in a highlight take: their paths repeat once per clip. A clip that
  * plays its stretch twice spans two loops, so it counts the loops as they come round.
  */
@@ -50,6 +66,16 @@ function pauseTake(text: string) {
   studio.notify({ kind: "info", text });
 }
 
+/** A take that opens with the intro skit: when it plays (audio clock) and from where. */
+export interface IntroTake {
+  plan: IntroPlan;
+  /** song seconds the music starts from */
+  from: number;
+  /** audio-clock seconds the skit starts, and the music */
+  introAt: number;
+  songAt: number;
+}
+
 export interface FrameLayout {
   width: number;
   height: number;
@@ -66,8 +92,12 @@ interface Session {
   recorder: FrameRecorder;
   /** a highlight take: the recorder waits for the loop to come round, then records one loop */
   clip: Highlight | null;
+  /** the opening skit and count-in, when the take has one */
+  intro: IntroTake | null;
   /** highlight: the recorder is running (it starts at the loop point, not at once) */
   rolling: boolean;
+  /** audio-clock time the clip ends (NaN until known): a stop after it keeps the take */
+  endAt: number;
   /** highlight: where the sound was when the take began (NaN until the first frame), to see it move */
   cuedAt: number;
   /** highlight: times the loop has come round, and the position on the last frame (for the turtle) */
@@ -100,11 +130,19 @@ interface Session {
  * still ringing from the last bar is in the first, as it is when Instagram loops it). The
  * picture draws the clip's notes looped too. `cueing` is true until the recorder starts.
  */
-export function useFrameRecording(armed: boolean, rolling: boolean, layout: FrameLayout, clip: Highlight | null = null) {
+export function useFrameRecording(
+  armed: boolean,
+  rolling: boolean,
+  layout: FrameLayout,
+  clip: Highlight | null = null,
+  intro: IntroTake | null = null,
+) {
   const [recording, setRecording] = useState(false);
   const [cueing, setCueing] = useState(false);
   const latestClip = useRef(clip);
   latestClip.current = clip;
+  const latestIntro = useRef(intro);
+  latestIntro.current = intro;
   const [result, setResult] = useState<Recording | null>(null);
   const session = useRef<Session | null>(null);
   const discardSession = useCallback((s: Session) => {
@@ -143,6 +181,30 @@ export function useFrameRecording(armed: boolean, rolling: boolean, layout: Fram
   }, []);
 
   /**
+   * A clip ends at audio-clock `endAt` (one loop for the highlight, the chorus's end). A
+   * chorus stops playing new notes there and lets the ones sounding ring on for its `ring`
+   * (cut at the bar line, a held chord or the last word stopped dead), then the take ends.
+   */
+  const finishClipAt = useCallback((s: Session, endAt: number) => {
+    const clip = s.clip!;
+    const { baseBpm, bpm } = getPlayedSong().project;
+    const ring = ((clip.ring ?? 0) * baseBpm) / Math.max(1, bpm);
+    s.endAt = endAt;
+    if (isChorus(clip)) {
+      // a moment early: a note on the next downbeat (the loop's start) mustn't sneak in
+      const at = endAt - 0.005;
+      s.timers.push(
+        window.setTimeout(() => {
+          if (session.current === s) audioEngine.ringOutAt(at);
+        }, Math.max(0, (at - audioEngine.audioTime() - 0.25) * 1000)),
+      );
+    }
+    s.timers.push(
+      window.setTimeout(() => void endClip(s), (endAt - audioEngine.audioTime() + ring + PICTURE_DELAY_SECONDS) * 1000),
+    );
+  }, [endClip]);
+
+  /**
    * Highlight: start the recorder at the loop point, `waitMs` from now, and stop it one loop
    * later. Timed from the audio clock, not from frames: a slow frame noticed the loop come
    * round late (0.7 s in headless Chrome).
@@ -154,16 +216,15 @@ export function useFrameRecording(armed: boolean, rolling: boolean, layout: Fram
     // later puts the downbeat at the start of the file. The length is what has to be exact
     // (the loop's), and both ends share the same delay.
     const { baseBpm, bpm } = getPlayedSong().project;
-    const loopMs = clipSeconds(clip, baseBpm, bpm) * 1000;
+    finishClipAt(s, audioEngine.audioTime() + waitMs / 1000 + clipSeconds(clip, baseBpm, bpm));
     s.timers.push(
       window.setTimeout(() => {
         if (session.current !== s) return;
         s.recorder.start();
         setCueing(false);
-        s.timers.push(window.setTimeout(() => void endClip(s), loopMs));
       }, waitMs + PICTURE_DELAY_SECONDS * 1000),
     );
-  }, [endClip]);
+  }, [finishClipAt]);
 
   const begin = useCallback(() => {
     if (session.current || latestLayout.current.width === 0) return;
@@ -186,10 +247,12 @@ export function useFrameRecording(armed: boolean, rolling: boolean, layout: Fram
     const ripples = !matchMedia("(prefers-reduced-motion: reduce)").matches;
 
     const clip = latestClip.current;
+    // a take with the skit records from the skit's first frame, a chorus one included
+    const intro = latestIntro.current;
     let recorder: FrameRecorder;
     try {
       recorder = new FrameRecorder(canvas, audio, useStudioStore.getState().settings.overlay.fps);
-      if (!clip) recorder.start();
+      if (!clip || intro) recorder.start();
     } catch {
       // the browser said it could record this type, then couldn't: no take, and say so
       canvas.remove();
@@ -206,8 +269,10 @@ export function useFrameRecording(armed: boolean, rolling: boolean, layout: Fram
     const s: Session = {
       recorder,
       clip,
-      rolling: clip === null,
+      intro,
+      rolling: clip === null || intro !== null,
       cuedAt: NaN,
+      endAt: NaN,
       wraps: 0,
       loopPos: 0,
       timers: [],
@@ -219,14 +284,24 @@ export function useFrameRecording(armed: boolean, rolling: boolean, layout: Fram
       unlisten: () => document.removeEventListener("visibilitychange", onVisibility),
     };
     const paint = () => {
-      if (audioEngine.status === "playing") s.lastPos = Math.max(0, audioEngine.getAudiblePosition() - PICTURE_DELAY_SECONDS);
+      const heardAt = audioEngine.audioTime() - PICTURE_DELAY_SECONDS;
+      const { baseBpm, bpm } = getPlayedSong().project;
+      if (s.intro && heardAt < s.intro.songAt) {
+        // before the music: the notes already come down towards where it starts
+        if (audioEngine.status === "playing") s.lastPos = s.intro.from - ((s.intro.songAt - heardAt) * bpm) / baseBpm;
+      } else if (audioEngine.status === "playing") {
+        s.lastPos = Math.max(0, audioEngine.getAudiblePosition() - PICTURE_DELAY_SECONDS);
+      }
       if (s.clip && !s.rolling && audioEngine.status === "playing") {
         const heard = audioEngine.getAudiblePosition();
-        const { baseBpm, bpm } = getPlayedSong().project;
         if (Number.isNaN(s.cuedAt)) s.cuedAt = heard;
         // once the sound is moving (after a count-in, if any): the loop point is this far off
         else if (heard < s.cuedAt - 0.01) startClip(s, 0); // already came round
-        else if (heard > s.cuedAt + 0.01) startClip(s, (((s.clip.end - heard) * baseBpm) / Math.max(1, bpm)) * 1000);
+        else if (heard > s.cuedAt + 0.01) {
+          // a chorus starts after its run-up, a highlight at the loop point
+          const target = isChorus(s.clip) ? s.clip.start : s.clip.end;
+          startClip(s, Math.max(0, ((target - heard) * baseBpm) / Math.max(1, bpm)) * 1000);
+        }
       }
       if (s.frozenAt === null && performance.now() - s.startedAt > MAX_TAKE_MINUTES * 60_000 && audioEngine.status === "playing") {
         pauseTake(getT().recordingTooLong(MAX_TAKE_MINUTES));
@@ -234,8 +309,16 @@ export function useFrameRecording(armed: boolean, rolling: boolean, layout: Fram
       const { project, spots } = getPlayedSong();
       const { settings } = useStudioStore.getState();
       const lanes = buildLanes(project, palette, getT().memberName, settings.selectedMember, settings.vocals, s.clip ? [] : spots);
-      const shown = s.clip
-        ? lanes.map((lane) => ({ ...lane, notes: loopNotes(lane.notes, s.clip!), vocal: lane.vocal && { ...lane.vocal, notes: loopNotes(lane.vocal.notes, s.clip!) } }))
+      // a highlight's notes looped; a chorus's up to its end (after the skit, from its start:
+      // nothing before it comes down in the count-in)
+      const clip = s.clip;
+      const take = !clip
+        ? null
+        : isChorus(clip)
+          ? (notes: readonly NoteEvent[]) => clipNotes(notes, clip, s.intro ? clip.start : -Infinity)
+          : (notes: readonly NoteEvent[]) => loopNotes(notes, clip);
+      const shown = take
+        ? lanes.map((lane) => ({ ...lane, notes: take(lane.notes), vocal: lane.vocal && { ...lane.vocal, notes: take(lane.vocal.notes) } }))
         : lanes;
       ctx.setTransform(scale, 0, 0, scale, 0, 0);
       drawRecordFrame(ctx, {
@@ -246,7 +329,8 @@ export function useFrameRecording(armed: boolean, rolling: boolean, layout: Fram
         baseBpm: project.baseBpm,
         beatsPerBar: project.beatsPerBar,
         lanes: shown,
-        loop: s.clip ? clipLoop(s, s.clip) : undefined,
+        loop: s.clip && !isChorus(s.clip) ? clipLoop(s, s.clip) : undefined,
+        intro: s.intro && heardAt < s.intro.introAt + introLength(s.intro.plan) ? { plan: s.intro.plan, t: Math.max(0, heardAt - s.intro.introAt) } : undefined,
         palette,
         keyColor: OVERLAY_COLORS[settings.overlay.color],
         ripples: ripples && audioEngine.status === "playing",
@@ -255,18 +339,35 @@ export function useFrameRecording(armed: boolean, rolling: boolean, layout: Fram
       s.frame = requestAnimationFrame(paint);
     };
     session.current = s;
+    if (intro && clip) {
+      // the chorus ends the take: timed from the audio clock, like the highlight's
+      const { baseBpm, bpm } = getPlayedSong().project;
+      finishClipAt(s, intro.songAt + clipSeconds(clip, baseBpm, bpm));
+    }
     paint();
     setRecording(true);
-    setCueing(clip !== null);
-  }, [startClip]);
+    setCueing(clip !== null && intro === null);
+  }, [startClip, finishClipAt]);
 
   const finish = useCallback(async () => {
     const s = session.current;
     if (!s || s.frozenAt !== null) return;
-    if (s.clip) {
-      // stopped before the loop was recorded whole: a part of a loop doesn't loop
+    if (s.intro && audioEngine.audioTime() < s.intro.songAt) {
+      // stopped during the skit: no song in it, nothing to keep (as with the 3-2-1)
       discardSession(s);
-      useStudioStore.getState().notify({ kind: "info", text: getT().highlightCut });
+      return;
+    }
+    if (s.clip && audioEngine.audioTime() >= s.endAt - 0.01) {
+      // stopped while the chorus's last notes rang on: the chorus is whole, keep it
+      void endClip(s);
+      return;
+    }
+    if (s.clip) {
+      // stopped before the clip was recorded whole: a part of a loop doesn't loop, and a
+      // chorus cut short isn't the chorus
+      const text = isChorus(s.clip) ? getT().chorusCut : getT().highlightCut;
+      discardSession(s);
+      useStudioStore.getState().notify({ kind: "info", text });
       return;
     }
     // where the picture last was while playing: after Stop or the song's end the clock
@@ -286,7 +387,7 @@ export function useFrameRecording(armed: boolean, rolling: boolean, layout: Fram
     setResult(video);
     // Play pressed again during the tail: that's the next take
     if (wants.current.armed && wants.current.rolling) begin();
-  }, [begin, discardSession]);
+  }, [begin, discardSession, endClip]);
 
   useEffect(() => {
     if (rolling && armed) begin();

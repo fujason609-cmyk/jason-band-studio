@@ -131,9 +131,17 @@ const en = {
   recordClipHint: (from: number, to: number, seconds: number, repeats: number, rank: number, of: number) =>
     `Highlight ${rank}/${of}: bars ${from}–${to}${repeats > 1 ? ` twice` : ""} (${seconds} s), chosen so its end runs straight back into its start.`,
   highlightNext: "Next highlight: another good stretch of the song",
+  introScore: (name: string) =>
+    `Opening skit on: the band acts out a 2-second scene under a sign with the score's title, "${name}", then Ritsu counts the song in. Tap to name it by the file instead`,
+  introFile: (name: string) =>
+    `Opening skit on, the sign showing the file name: "${name}". Tap to switch the skit off`,
+  introOff: "Opening skit off: the take starts after a 3-2-1. Tap to switch it on",
+  introLoops: "The looping highlight has no opening skit (its end runs back into its start)",
   chorusHint: (from: number, to: number, seconds: number, _repeats: number, rank: number, of: number) =>
     `Chorus ${rank}/${of}: bars ${from}–${to} (${seconds} s), the whole chorus where the song peaks.`,
   highlightCueing: "Getting to the highlight…",
+  chorusCueing: "Getting to the chorus…",
+  chorusCut: "The chorus take was stopped before the chorus ended, so it wasn't kept.",
   highlightCut: "A highlight take needs one whole loop to loop smoothly. It was stopped early, so it wasn't kept.",
   highlightTooShort: "No highlight or repeated chorus was found in this song: record the whole song instead.",
   recordFrame: "Frame",
@@ -346,9 +354,15 @@ const zh: Strings = {
   recordClipHint: (from: number, to: number, seconds: number, repeats: number, rank: number, of: number) =>
     `精华 ${rank}/${of}：第 ${from}–${to} 小节${repeats > 1 ? `（演奏两遍）` : ""}，共 ${seconds} 秒，结尾能顺接回开头。`,
   highlightNext: "换一段：歌里另一段精华",
+  introScore: (name: string) => `开场小剧场：开，招牌显示谱里的标题「${name}」，演完由律数拍开始。点击改用文件名`,
+  introFile: (name: string) => `开场小剧场：开，招牌显示文件名「${name}」。点击关闭小剧场`,
+  introOff: "开场小剧场：关。录制前倒数 3-2-1。点击开启",
+  introLoops: "精华片段要首尾相接，所以没有开场小剧场",
   chorusHint: (from: number, to: number, seconds: number, _repeats: number, rank: number, of: number) =>
     `副歌 ${rank}/${of}：第 ${from}–${to} 小节，共 ${seconds} 秒，全曲最高潮的一整段副歌。`,
   highlightCueing: "正在进入精华段落…",
+  chorusCueing: "正在进入副歌…",
+  chorusCut: "副歌还没录完就停止了，所以这次没有保存。",
   highlightCut: "精华片段要录完整一圈才能首尾相接，这次中途停止了，所以没有保存。",
   highlightTooShort: "这首歌找不到精华片段或重复的副歌，请改用整首录制。",
   recordFrame: "画框",

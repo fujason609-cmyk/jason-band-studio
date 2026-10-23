@@ -277,6 +277,16 @@ export class AudioTrack {
     this.vocalVoice?.releaseAll();
   }
 
+  /**
+   * One note on the part's own voice at audio-clock `time` (the recording intro's count-in
+   * on Ritsu's hi-hat). False while the voice isn't built yet.
+   */
+  hit(pitch: number, time: number, velocity: number): boolean {
+    if (!this.voice) return false;
+    this.voice.attackRelease(pitch, 0.1, time, velocity);
+    return true;
+  }
+
   liveAttack(pitch: number, velocity = 0.8) {
     // now, not Tone.now(): that is the look-ahead time, a tenth of a second late for a finger
     this.liveVoice?.attack(pitch, Tone.immediate(), velocity);

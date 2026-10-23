@@ -124,4 +124,20 @@ describe("chorus", () => {
   it("is null for a song shorter than a chorus", () => {
     expect(findChorus(song(chorus.slice(0, 6)))).toBeNull();
   });
+
+  it("runs on to finish a sung line that crosses its last bar line, and lets it ring", () => {
+    const p = song(bars, [8, 28, 48]);
+    // each chorus sung through, its last word held into the bar after it, then a breath
+    const sung = [8, 28, 48].flatMap((from) => [
+      ...Array.from({ length: 12 }, (_, i) => note((from + i) * BAR, 72, BAR - 0.1)),
+      note((from + 12) * BAR, 74, 1.5),
+    ]);
+    const withVocal = { ...p, tracks: [...p.tracks, { instrument: "lead-guitar", notes: [], vocal: sung }] };
+    const c = findChorus(withVocal as unknown as StudioProject)!;
+    expect(c.bars).toBe(13);
+    expect(c.end).toBe(c.start + 13 * BAR);
+    expect(c.ring).toBeGreaterThan(0);
+    // without the singer, the chorus ends on its own bar line
+    expect(findChorus(p)!.bars).toBe(12);
+  });
 });

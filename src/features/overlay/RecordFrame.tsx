@@ -1,5 +1,6 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties } from "react";
-import { Columns3, Pause, Play, Rows3, Shuffle, SkipBack, Square, Video, X, ZoomIn, ZoomOut } from "lucide-react";
+import { Columns3, Drama, FileMusic, Pause, Play, Rows3, Shuffle, SkipBack, Square, Video, X, ZoomIn, ZoomOut } from "lucide-react";
+import { audioEngine } from "@/audio/AudioEngine";
 import { IconButton } from "@/components/common/IconButton";
 import { NoticeBar } from "@/components/layout/NoticeBar";
 import { MEMBERS } from "@/features/band/members";
@@ -13,11 +14,13 @@ import { useStudioStore } from "@/stores/useStudioStore";
 import { BREATH_SCALE, breathAt, energyAt } from "./energy";
 import { canRecordVideo } from "./frameRecorder";
 import { chorusChoices, clipSeconds, highlightChoices, type Highlight } from "./highlight";
-import { OVERLAY_COLORS, RECORD_CLIPS, RECORD_FPS, RECORD_FRAMES, fallRightInset, recordLayout, safeArea, type OverlayColor, type RecordClip, type RecordFrame as Frame } from "./overlay";
+import { OVERLAY_COLORS, RECORD_CLIPS, RECORD_FPS, RECORD_FRAMES, fallRightInset, recordLayout, safeArea, type IntroTitle, type OverlayColor, type RecordClip, type RecordFrame as Frame } from "./overlay";
 import { Highway } from "./Highway";
+import { IntroOverlay } from "./IntroOverlay";
+import { INTRO_SECONDS, introTitle, planIntro } from "./introSkit";
 import { FALL_TOP_SHARE } from "./drawRecordFrame";
 import { SaveVideoDialog } from "./SaveVideoDialog";
-import { cueHighlight, useFrameRecording } from "./useFrameRecording";
+import { cueChorus, cueHighlight, useFrameRecording, type IntroTake } from "./useFrameRecording";
 
 const ZOOM_STEP = 1.4;
 /** An info notice (a new highlight picked) goes after this long; errors stay until closed. */
@@ -137,6 +140,10 @@ export function RecordFrame() {
   // a take starts with a 3-2-1 on screen: the video is already recording the still frame,
   // so it doesn't open on the first note
   const [countdown, setCountdown] = useState<number | null>(null);
+  // a take that opens with the skit: when it plays, for the recorder and the screen
+  const [introTake, setIntroTake] = useState<IntroTake | null>(null);
+  // the looping highlight has none: its end runs back into its start
+  const withIntro = overlay.intro && overlay.clip !== "highlight";
   const { recording, cueing, result, dismiss, discard } = useFrameRecording(armed && supported, playing || countdown !== null, {
     width: size.width,
     height: size.height,
@@ -147,7 +154,7 @@ export function RecordFrame() {
     keySide: safe.keySide,
     safeBottom: safe.bottom,
     fallRightInset: rightInset,
-  }, highlight);
+  }, highlight, introTake);
   saving.current = result !== null;
   const loading = useSoundsLoading();
   // the 800 ms tail after a take: the picture is frozen and the video still being written
@@ -186,13 +193,40 @@ export function RecordFrame() {
     // unlock audio now, inside the tap: the countdown's timer isn't a user gesture
     if (!(await ensureAudio())) return;
     if (overlay.clip !== "full") {
-      // no countdown: the video opens on the clip's first beat (and a highlight loops back to it)
       if (!highlight) return useStudioStore.getState().notify({ kind: "info", text: t.highlightTooShort });
-      cueHighlight(highlight);
+      if (withIntro) {
+        // the chorus, straight after the skit and count-in (no run-up bar)
+        audioEngine.setLoopRange({ start: highlight.start, end: highlight.end });
+        audioEngine.seek(highlight.start);
+        return startIntro(highlight.start, highlight.end);
+      }
+      // no countdown: the video opens on the clip's first beat (and a highlight loops back to it)
+      if (overlay.clip === "chorus") cueChorus(highlight, (60 / project.baseBpm) * project.beatsPerBar);
+      else cueHighlight(highlight);
       return void play();
     }
     if (fromTop) stop();
+    if (withIntro) {
+      const at = audioEngine.getPosition();
+      return startIntro(at >= project.durationSeconds - 0.01 ? 0 : at, songEnd);
+    }
     setCountdown(COUNTDOWN_SECONDS);
+  };
+  const introLabel = (on: boolean, title: IntroTitle) =>
+    overlay.clip === "highlight"
+      ? t.introLoops
+      : !on
+        ? t.introOff
+        : title === "file"
+          ? t.introFile(introTitle(project, "file"))
+          : t.introScore(introTitle(project, "score"));
+  /** The skit for this stretch of the song, Ritsu's count-in, then the music. */
+  const startIntro = (from: number, to: number) => {
+    const plan = planIntro(project, from, to, overlay.introTitle);
+    const timing = audioEngine.playAfterIntro(INTRO_SECONDS, plan.beats);
+    if (!timing) return;
+    setIntroTake({ plan, from, ...timing });
+    useStudioStore.getState().setTransport("playing");
   };
   const cancelCountdown = () => {
     countdownRun.current += 1;
@@ -219,9 +253,19 @@ export function RecordFrame() {
           style={fall ? undefined : { paddingTop: safe.top, paddingInline: safe.side, paddingBottom: safe.bottom }}
         >
           {size.height > 0 && (overlay.view === "fall" ? <Highway rightInset={rightInset} insets={{ top: safe.top * FALL_TOP_SHARE, side: safe.side, bottom: safe.bottom }} /> : <Timeline laneHeight={laneHeight} labels forceFollow showcase />)}
+          {introTake && playing && (
+            <IntroOverlay
+              take={introTake}
+              width={size.width}
+              height={size.height - keyHeight}
+              safeTop={safe.top}
+              safeSide={safe.side}
+              safeBottom={safe.bottom}
+            />
+          )}
           {cueing && (
             <div className="record-cue" role="status">
-              {t.highlightCueing}
+              {overlay.clip === "chorus" ? t.chorusCueing : t.highlightCueing}
             </div>
           )}
           {countdown !== null && countdown > 0 && (
@@ -361,6 +405,28 @@ export function RecordFrame() {
                 </option>
               ))}
             </select>
+          )}
+          {supported && (
+            // one button, three states (no room on a phone for two): the skit with the score's
+            // title on its sign → with the file's name → no skit; each tap says which, and the name
+            <IconButton
+              label={introLabel(overlay.intro, overlay.introTitle)}
+              variant="quiet"
+              pressed={withIntro}
+              disabled={recording || overlay.clip === "highlight"}
+              onClick={() => {
+                const next =
+                  !overlay.intro
+                    ? { intro: true, introTitle: "score" as const }
+                    : overlay.introTitle === "score"
+                      ? { intro: true, introTitle: "file" as const }
+                      : { intro: false, introTitle: "score" as const };
+                set(next);
+                useStudioStore.getState().notify({ kind: "info", text: introLabel(next.intro, next.introTitle) });
+              }}
+            >
+              {withIntro && overlay.introTitle === "file" ? <FileMusic size={16} /> : <Drama size={16} />}
+            </IconButton>
           )}
           {supported && choices > 1 && (
             <IconButton

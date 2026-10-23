@@ -31,9 +31,15 @@ export interface OverlaySettings {
   view: RecordView;
   /** a take is the whole song, the 15–20 s highlight that loops, or the climactic chorus, whole (highlight.ts) */
   clip: RecordClip;
+  /** a take opens with the pixel band's skit and Ritsu's count-in (introSkit.ts; not the looping highlight) */
+  intro: boolean;
+  /** the name on the skit's sign: the score's own title, or the file's name */
+  introTitle: IntroTitle;
 }
 
-export const DEFAULT_OVERLAY: OverlaySettings = { color: "green", frame: "9:16", fps: 30, keyStrip: true, view: "scroll", clip: "full" };
+export type IntroTitle = "score" | "file";
+
+export const DEFAULT_OVERLAY: OverlaySettings = { color: "green", frame: "9:16", fps: 30, keyStrip: true, view: "scroll", clip: "full", intro: true, introTitle: "score" };
 export const RECORD_CLIPS = ["full", "highlight", "chorus"] as const;
 export type RecordClip = (typeof RECORD_CLIPS)[number];
 
@@ -64,6 +70,8 @@ export function sanitizeOverlay(raw: unknown): OverlaySettings {
     view: r.view === "fall" ? "fall" : "scroll",
     // "highlight20" was a separate 20 s take before the highlight's length went free (15–20 s)
     clip: r.clip === "highlight" || r.clip === "highlight20" ? "highlight" : r.clip === "chorus" ? "chorus" : "full",
+    intro: r.intro !== false,
+    introTitle: r.introTitle === "file" ? "file" : "score",
   };
 }
 

@@ -1358,6 +1358,15 @@ select {
 }
 
 // a highlight take waiting for the loop to come round (on screen only: the video doesn't show it)
+// the opening skit on screen, over the score (the video paints the same)
+.record-intro {
+  position: absolute;
+  top: 0;
+  left: 0;
+  z-index: 1;
+  pointer-events: none;
+}
+
 .record-cue {
   position: absolute;
   left: 50%;

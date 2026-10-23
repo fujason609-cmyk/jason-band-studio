@@ -106,6 +106,15 @@ export class TransportController {
     this.onCut();
   }
 
+  /**
+   * Pause at audio-clock `time` without cutting the notes still sounding: they ring on (the
+   * end of a chorus take). A later pause() or stop() cuts them.
+   */
+  pauseAt(time: number) {
+    this.startsAt = null;
+    this.transport.pause(time);
+  }
+
   stop() {
     this.startsAt = null;
     this.transport.stop();

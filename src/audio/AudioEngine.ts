@@ -50,6 +50,8 @@ export class AudioEngine {
   private countIn = false;
   private metronomeOn = false;
   private metronome: Metronome | null = null;
+  /** timers of an intro count-in's hits still to schedule (cancelled by pause and stop) */
+  private introHits: number[] = [];
   private vocals: VocalSwitches = DEFAULT_VOCALS;
   private vocalSounds: VocalSounds = DEFAULT_VOCAL_SOUNDS;
   private band: { sources: readonly (readonly NoteEvent[])[]; key: string; value: BandContext } | null = null;
@@ -208,11 +210,57 @@ export class AudioEngine {
     const beats = this.lastProject?.beatsPerBar ?? 4;
     this.transport.play(this.metronome.countIn(Tone.now() + 0.05, beats, secondsPerBeat));
   }
+  /**
+   * The recording intro: `leadSeconds` of nothing (the pixel band's skit plays), then
+   * `beats` counted in by Ritsu on her closed hi-hat, through her channel (so, unlike the
+   * metronome's clicks, it is in the video), then the music. Returns the audio-clock times
+   * the lead and the music start, or null when it can't play now.
+   */
+  playAfterIntro(leadSeconds: number, beats: number): { introAt: number; songAt: number } | null {
+    if (!this.transport || this.transport.status === "playing") return null;
+    const secondsPerBeat = 60 / Tone.getTransport().bpm.value;
+    const introAt = this.audioTime() + 0.05;
+    const countAt = introAt + leadSeconds;
+    const drummer = [...this.tracks.values()].find((t) => t.currentInstrument === "drums");
+    this.cancelIntro();
+    for (let i = 0; i < beats; i++) {
+      const at = countAt + i * secondsPerBeat;
+      // each hit goes to the audio clock just ahead of time, so a pause still cancels the
+      // ones to come (a sample already scheduled on a Sampler can't be taken back)
+      const id = window.setTimeout(() => {
+        // no drummer: plain clicks (heard, but not in the video)
+        if (!drummer?.hit(42, at, i === 0 ? 0.9 : 0.65)) this.metronome?.countIn(at, 1, secondsPerBeat);
+      }, Math.max(0, (at - this.audioTime() - 0.15) * 1000));
+      this.introHits.push(id);
+    }
+    const songAt = countAt + beats * secondsPerBeat;
+    this.transport.play(songAt);
+    return { introAt, songAt };
+  }
+
+  private cancelIntro() {
+    this.introHits.forEach((id) => clearTimeout(id));
+    this.introHits = [];
+  }
+
+  /** The audio clock: the time of what is coming out of the speakers now, in seconds. */
+  audioTime(): number {
+    return Tone.getContext().rawContext.currentTime;
+  }
+
+  /** Stop playing new notes at audio-clock `time`, letting those sounding ring on (a chorus take's end). */
+  ringOutAt(time: number) {
+    this.cancelIntro();
+    this.transport?.pauseAt(time);
+  }
+
   pause() {
+    this.cancelIntro();
     this.metronome?.cancelCountIn();
     this.transport?.pause();
   }
   stop() {
+    this.cancelIntro();
     this.metronome?.cancelCountIn();
     this.transport?.stop();
   }

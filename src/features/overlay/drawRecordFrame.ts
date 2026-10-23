@@ -1,6 +1,7 @@
 import { drawTimeline, type LaneInput, type Palette } from "@/features/timeline/drawTimeline";
 import { drawHighway } from "./drawHighway";
 import { BREATH_SCALE, breathAt, energyAt } from "./energy";
+import { drawIntro, type IntroPlan } from "./introSkit";
 import type { RecordView } from "./overlay";
 import { cameraLeft } from "@/features/timeline/camera";
 import { RULER_HEIGHT, TIMELINE_GUTTER } from "@/features/timeline/layout";
@@ -33,6 +34,8 @@ export interface RecordScene {
   fallRightInset: number;
   /** a looping take (the highlight), song seconds: the stage pets' paths repeat once per loop */
   loop?: { start: number; length: number; at: number };
+  /** the opening skit, `t` seconds in, painted over the score */
+  intro?: { plan: IntroPlan; t: number };
 }
 
 // the same guitar pick the page's playhead uses (Playhead.tsx), 20 × 22
@@ -40,6 +43,9 @@ const PICK = "M10 21C6 16 1.5 10.5 1.5 6.2 1.5 2.8 5.2 1 10 1s8.5 1.8 8.5 5.2C18
 
 /** Paint one frame: score on top (same drawing as the page), playhead, flat key colour below. */
 export function drawRecordFrame(ctx: CanvasRenderingContext2D, s: RecordScene) {
+  // before the music (the intro), the falling notes are already on their way; the
+  // scrolling score waits at the start
+  if (s.view !== "fall" && s.position < 0) s = { ...s, position: 0 };
   const keyTop = s.height - s.keyHeight - s.safeBottom;
   // the score's own box, inside the safe area
   const width = s.width - 2 * s.safeSide;
@@ -92,6 +98,7 @@ export function drawRecordFrame(ctx: CanvasRenderingContext2D, s: RecordScene) {
       rightInset: s.fallRightInset,
     });
     ctx.restore();
+    paintIntro(ctx, s);
     paintKey(ctx, s, keyTop);
     return;
   }
@@ -138,7 +145,15 @@ export function drawRecordFrame(ctx: CanvasRenderingContext2D, s: RecordScene) {
   ctx.stroke(pick);
   ctx.restore();
   ctx.restore(); // the safe-area box
+  paintIntro(ctx, s);
   paintKey(ctx, s, keyTop);
+}
+
+/** The opening skit, over everything above the key strip. */
+function paintIntro(ctx: CanvasRenderingContext2D, s: RecordScene) {
+  if (!s.intro) return;
+  const area = { width: s.width, height: s.height - s.keyHeight, safeTop: s.safeTop, safeSide: s.safeSide, safeBottom: s.safeBottom };
+  drawIntro(ctx, area, s.intro.plan, s.intro.t, s.lanes, s.palette.ink);
 }
 
 /** How far into the Reels top band the falling view's road starts (its far end is faint). */

@@ -83,7 +83,7 @@ const FIGURE_TALL = (FIGURE_W * FIGURE_ROWS) / FIGURE_COLS;
 const RISER = 12;
 const BACK_SCALE = 0.86;
 const LABEL_H = FIGURE_TALL + 12;
-const STAGE = { floor: "#7a4f2e", plank: "#5f3b21", riser: "#5a3820", edge: "#b07a44" };
+export const STAGE = { floor: "#7a4f2e", plank: "#5f3b21", riser: "#5a3820", edge: "#b07a44" };
 const BACK_ROW = new Set(["drums", "keys"]);
 const DRUM_GLOW_SECONDS = 0.14;
 /** The road's far end against its near end (smaller: a steeper view). */

@@ -208,6 +208,11 @@ describe("recording frame maths and settings", () => {
     expect(sanitizeOverlay({ fps: 24 }).fps).toBe(30);
     // the take length setting was removed: an old stored one is dropped
     expect(sanitizeOverlay({ length: 45 })).toEqual(DEFAULT_OVERLAY);
+    // the opening skit is on unless switched off
+    expect(sanitizeOverlay({}).intro).toBe(true);
+    expect(sanitizeOverlay({ intro: false }).intro).toBe(false);
+    expect(sanitizeOverlay({}).introTitle).toBe("score");
+    expect(sanitizeOverlay({ introTitle: "file" }).introTitle).toBe("file");
   });
 
 });
