@@ -74,12 +74,20 @@ export const VOCAL_TRIM_DB: Record<VocalRole, number> = {
  * Measured like the other trims; "voice" is the singer, already trimmed by VOCAL_TRIM_DB.
  */
 /**
- * Video recordings only: makeup gain up to Reels loudness (about -14 LUFS from the measured
- * -17.5) and the limiter ceiling that keeps peaks clear of clipping. Re-measure a take with
- * ffmpeg's ebur128 filter after changing the mix.
+ * Video recordings only: makeup gain into the look-ahead limiter (recordLimiter.ts) and the
+ * ceiling it keeps every sample under (headroom for the AAC encoder). Measured on five songs'
+ * choruses (BS.1770 integrated loudness of the raw takes, -15.9 to -17.6 LUFS, run through
+ * the limiter): +6 dB gives -10.8 to -12.3 LUFS, with the gain down more than 3 dB for at
+ * most 1.3% of the time (more than 1 dB: 14-24%); +7 only adds 0.5 LU but pulls the gain down
+ * 1 dB or more a third of the time, which starts to pump. Re-measure after changing the mix.
  */
-export const RECORD_GAIN_DB = 3.5;
+export const RECORD_GAIN_DB = 6;
 export const RECORD_CEILING_DB = -1.5;
+/**
+ * Where the browser can't run the limiter (no AudioWorklet), a soft clipper at the old,
+ * gentler gain: it bends the peaks themselves, so pushing it harder would distort.
+ */
+export const RECORD_CLIPPER_GAIN_DB = 3.5;
 
 export const VOCAL_SOUND_GAIN_DB: Record<VocalRole, Record<VocalSound, number>> = {
   lead: { voice: 0, guitar: 2, synth: 9.5, piano: 9, strings: 9.5 },

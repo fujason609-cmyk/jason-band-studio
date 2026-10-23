@@ -9,7 +9,8 @@ import { clampBpm, secondsToTicks } from "@/lib/time";
 import type { InstrumentId, InstrumentLoadState, TransportStatus } from "@/types/audio";
 import type { NoteEvent } from "@/types/midi";
 import type { StudioProject } from "@/types/project";
-import { LOOK_AHEAD, PPQ, RECORD_CEILING_DB, RECORD_GAIN_DB, ROOM_BUS } from "./audioConfig";
+import { LOOK_AHEAD, PPQ, RECORD_CEILING_DB, RECORD_CLIPPER_GAIN_DB, RECORD_GAIN_DB, ROOM_BUS } from "./audioConfig";
+import { LIMITER_PROCESSOR, limiterModuleUrl } from "./recordLimiter";
 import { AudioTrack } from "./AudioTrack";
 import { Metronome } from "./Metronome";
 import { SampleManager } from "./SampleManager";
@@ -55,7 +56,9 @@ export class AudioEngine {
   private vocals: VocalSwitches = DEFAULT_VOCALS;
   private vocalSounds: VocalSounds = DEFAULT_VOCAL_SOUNDS;
   private band: { sources: readonly (readonly NoteEvent[])[]; key: string; value: BandContext } | null = null;
-  private capture: { destination: MediaStreamAudioDestinationNode; nodes: Tone.ToneAudioNode[] } | null = null;
+  private capture: { destination: MediaStreamAudioDestinationNode; dispose: () => void } | null = null;
+  /** the recording limiter's AudioWorklet module is loaded (it loads at start, in the background) */
+  private limiterReady = false;
 
   setEvents(events: EngineEvents) {
     this.events = events;
@@ -83,6 +86,17 @@ export class AudioEngine {
     try {
       await Tone.start();
       Tone.getContext().lookAhead = LOOK_AHEAD;
+      // the video recording's limiter. Straight on the raw context: Tone's own
+      // addAudioWorkletModule keeps only the first module it is given
+      const worklet = (Tone.getContext().rawContext as unknown as BaseAudioContext).audioWorklet;
+      if (worklet) {
+        const url = limiterModuleUrl();
+        worklet
+          .addModule(url)
+          .then(() => (this.limiterReady = true))
+          .catch(() => undefined)
+          .finally(() => URL.revokeObjectURL(url));
+      }
       this.master = new Tone.Volume(0).toDestination();
       // the band bus: every track and the shared room, gently glued by one compressor
       // (a couple of dB on the loudest hits, so the parts move together), then the master
@@ -352,12 +366,33 @@ export class AudioEngine {
   captureAudio(): MediaStream | null {
     if (!this.master) return null;
     if (!this.capture) {
-      // Reels loudness: the band comes out around -17.5 LUFS (measured, EBU R128), quieter
-      // than the -14 most Reels are mastered to, and Instagram turns loud videos down but
-      // not quiet ones up. Brought up by RECORD_GAIN_DB, peaks held under -1 dB; only the
-      // recording, never what plays in the room.
+      // Reels loudness: the band comes out around -16 to -17.5 LUFS (measured, EBU R128),
+      // quiet next to other Reels. Brought up by RECORD_GAIN_DB into a look-ahead limiter,
+      // every sample held under RECORD_CEILING_DB; only the recording, never what plays in
+      // the room.
       const destination = Tone.getContext().createMediaStreamDestination();
-      const makeup = new Tone.Gain(Tone.dbToGain(RECORD_GAIN_DB));
+      if (this.limiterReady) {
+        const limiter = Tone.getContext().createAudioWorkletNode(LIMITER_PROCESSOR, {
+          numberOfInputs: 1,
+          numberOfOutputs: 1,
+          outputChannelCount: [2],
+          channelCount: 2,
+          channelCountMode: "explicit",
+          processorOptions: { gainDb: RECORD_GAIN_DB, ceilingDb: RECORD_CEILING_DB },
+        });
+        const master = this.master;
+        master.connect(limiter);
+        limiter.connect(destination);
+        this.capture = {
+          destination,
+          dispose: () => {
+            master.disconnect(limiter);
+            limiter.disconnect();
+          },
+        };
+        return destination.stream;
+      }
+      const makeup = new Tone.Gain(Tone.dbToGain(RECORD_CLIPPER_GAIN_DB));
       // a soft clipper, not Tone.Limiter: the browser's compressor behind it has a 30 dB knee
       // and its own makeup gain, so peaks went past the ceiling (measured +0.2 dBFS)
       const ceiling = Tone.dbToGain(RECORD_CEILING_DB);
@@ -370,13 +405,13 @@ export class AudioEngine {
       this.master.connect(makeup);
       makeup.connect(limiter);
       limiter.connect(destination);
-      this.capture = { destination, nodes: [makeup, limiter] };
+      this.capture = { destination, dispose: () => [makeup, limiter].forEach((n) => n.dispose()) };
     }
     return this.capture.destination.stream;
   }
   stopAudioCapture() {
     if (!this.capture) return;
-    this.capture.nodes.forEach((n) => n.dispose());
+    this.capture.dispose();
     this.capture = null;
   }
 

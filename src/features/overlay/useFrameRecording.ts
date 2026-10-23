@@ -17,10 +17,11 @@ export const VIDEO_WIDTH = 1080;
 const TAIL_MS = 800;
 /**
  * The captured sound reaches the recorder a little after the audio clock says it plays
- * (measured in Chrome: 27–88 ms, about 50 on average, at a 30 fps frame resolution), so
- * the picture is drawn this much later to keep the video in sync.
+ * (measured in Chrome: 27–88 ms, about 50 on average, at a 30 fps frame resolution), plus
+ * the recording limiter's 5 ms look-ahead, so the picture is drawn this much later to keep
+ * the video in sync.
  */
-const PICTURE_DELAY_SECONDS = 0.04;
+const PICTURE_DELAY_SECONDS = 0.045;
 /** A take ends by itself after this long (with Loop on a forgotten one would fill the memory). */
 export const MAX_TAKE_MINUTES = 20;
 
