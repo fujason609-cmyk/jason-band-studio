@@ -1,10 +1,22 @@
 import type { NoteEvent } from "@/types/midi";
 import type { StudioProject } from "@/types/project";
-import { GOOD_SEAM, clipLengths, findChorus, findHighlight, loopNotes, rankHighlights } from "./highlight";
+import {
+  GOOD_SEAM,
+  clipLengths,
+  findChorus,
+  findHighlight,
+  loopNotes,
+  rankHighlights,
+} from "./highlight";
 
 // 120 BPM in 4/4: a bar is 2 s, so a 15–20 s clip is 8 to 10 bars
 const BAR = 2;
-const note = (start: number, pitch = 60, duration = 0.2): NoteEvent => ({ pitch, start, duration, velocity: 0.8 });
+const note = (start: number, pitch = 60, duration = 0.2): NoteEvent => ({
+  pitch,
+  start,
+  duration,
+  velocity: 0.8,
+});
 
 /** One guitar part, `k` notes of `pitch` in each bar, plus a crash on the downbeat of bars in `crashes`. */
 function song(bars: (number | [number, number])[], crashes: number[] = []): StudioProject {
@@ -50,7 +62,9 @@ describe("highlight clip", () => {
     const ranked = rankHighlights(song(Array.from({ length: 48 }, (_, b) => cycle(b))));
     for (const c of ranked) expect(c.end - c.start).toBeLessThanOrEqual(22);
     // a song repeating every 2 bars loops fine in range: no stretching
-    const riff = rankHighlights(song(Array.from({ length: 32 }, (_, b): [number, number] => [12, b % 2 ? 67 : 60])));
+    const riff = rankHighlights(
+      song(Array.from({ length: 32 }, (_, b): [number, number] => [12, b % 2 ? 67 : 60])),
+    );
     expect(riff[0]!.seam).toBeGreaterThanOrEqual(GOOD_SEAM);
     expect(riff[0]!.end - riff[0]!.start).toBeGreaterThanOrEqual(15);
     expect(riff[0]!.end - riff[0]!.start).toBeLessThanOrEqual(20);
@@ -100,9 +114,14 @@ describe("chorus", () => {
     expect(findChorus(song(bars, [8, 28, 48]))!.firstBar).toBe(48);
   });
 
-  it("is null when nothing comes back", () => {
-    // every bar its own: a different number of notes and a different pitch
-    const once = Array.from({ length: 24 }, (_, i): [number, number] => [2 + (i % 7), 40 + i]);
-    expect(findChorus(song(once))).toBeNull();
+  it("still finds the big section when nothing comes back (a TV-size cut)", () => {
+    // every bar its own pitch: quiet for 12 bars, then busy for 12
+    const once = Array.from({ length: 24 }, (_, i): [number, number] => [i < 12 ? 2 : 12, 40 + i]);
+    const c = findChorus(song(once))!;
+    expect(c.firstBar).toBeGreaterThanOrEqual(10);
+  });
+
+  it("is null for a song shorter than a chorus", () => {
+    expect(findChorus(song(chorus.slice(0, 6)))).toBeNull();
   });
 });

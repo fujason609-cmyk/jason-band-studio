@@ -343,14 +343,20 @@ function analyse(project: StudioProject, barSeconds: number, total: number) {
 export const CHORUS_CHOICES = 3;
 /** Chorus lengths tried, in bars: any from 8 to 32 (a chorus can be 15 bars and a break). */
 const CHORUS_BARS = Array.from({ length: 25 }, (_, i) => 8 + i);
-/** A block counts as coming back elsewhere when its bars sound this alike on average. */
-const REPEATED = 0.7;
+/**
+ * A block counts as coming back elsewhere when its bars sound this alike on average. A song
+ * where nothing comes back that closely (a TV-size cut has one chorus; a tab with every
+ * repeat written out differently) is searched again with the next, looser bar, rather than
+ * offering no chorus at all (lowering it for every song picked worse ones where the strict
+ * bar worked).
+ */
+const REPEATED = [0.7, 0.5, 0];
 /** A change this big between two bars is a new section (bars inside one section change less). */
 const INSIDE_CHANGE = 0.45;
 
 /**
- * The song's climactic chorus, whole, however long it is: a stretch starting on a phrase
- * line that the song plays again elsewhere (a verse doesn't come back as often, and a
+ * The song's climactic chorus, whole, however long it is: a stretch that the song plays
+ * again elsewhere (a verse doesn't come back as often, and a
  * bridge doesn't come back at all), standing out from what comes before it and after it
  * (a section boundary at each end: the music changes there), busy, sung, and, all else
  * equal, late (the last chorus is usually the biggest). `choice` picks the next ones.
@@ -395,6 +401,18 @@ export function rankChoruses(
   project: StudioProject,
   songEnd = project.durationSeconds,
 ): RankedHighlight[] {
+  for (const repeated of REPEATED) {
+    const ranked = rankChorusesAt(project, songEnd, repeated);
+    if (ranked.length) return ranked;
+  }
+  return [];
+}
+
+function rankChorusesAt(
+  project: StudioProject,
+  songEnd: number,
+  repeated: number,
+): RankedHighlight[] {
   const barSeconds = (60 / project.baseBpm) * project.beatsPerBar;
   const end = Math.min(project.durationSeconds, songEnd);
   const total = Math.floor(end / barSeconds + 1e-6);
@@ -432,7 +450,7 @@ export function rankChoruses(
       let repeat = 0;
       for (let c = 0; c + n <= total; c++)
         if (Math.abs(c - b) >= n) repeat = Math.max(repeat, block(b, c, n));
-      if (repeat < REPEATED) continue;
+      if (repeat < repeated) continue;
       const e = b + n;
       // the music changes going in, and going out (and doesn't just carry on like its start)
       // a change between two bars: how unlike the bars either side of the line are
@@ -472,7 +490,7 @@ export function rankChoruses(
         (n >= 12 && n <= 24 ? 0.15 : n > 24 ? 0.05 : 0) +
         (n % 8 === 0 ? 0.05 : n % 4 === 0 ? 0.03 : 0) +
         ((b - firstPlayed) % 4 === 0 ? 0.04 : 0);
-            ranked.push({
+      ranked.push({
         start: b * barSeconds,
         end: e * barSeconds,
         firstBar: b,

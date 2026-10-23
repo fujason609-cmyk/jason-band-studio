@@ -106,7 +106,7 @@ Packs load lazily and are shared by every track that uses them. Each mixer strip
 
 ## Testing
 
-`pnpm test` runs 204 tests covering:
+`pnpm test` runs 205 tests covering:
 - mute and solo rules
 - tick and second conversions, and tempo scaling
 - the keyboard map
