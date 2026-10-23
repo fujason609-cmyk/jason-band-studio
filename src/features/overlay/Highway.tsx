@@ -11,7 +11,14 @@ import { energyAt } from "./energy";
  * The falling-notes view on screen, in the recording frame (the video draws the same with
  * drawRecordFrame). Redrawn on every playback frame from the position, without React state.
  */
-export function Highway({ rightInset = 0 }: { rightInset?: number }) {
+export function Highway({
+  rightInset = 0,
+  insets,
+}: {
+  rightInset?: number;
+  /** the frame's safe area (drawHighway `insets`) */
+  insets?: { top: number; side: number; bottom: number };
+}) {
   const { project, spots } = usePlayedSong();
   const { zoom, selectedMember, theme, vocals } = useStudioStore((s) => s.settings);
   const playing = useStudioStore((s) => s.transport === "playing");
@@ -60,8 +67,11 @@ export function Highway({ rightInset = 0 }: { rightInset?: number }) {
       ripples,
       energy: ripples ? energyAt(project.tracks.map((tr) => tr.notes), barSeconds, position.current) : 0,
       rightInset,
+      insets,
     });
-  }, [project, spots, zoom, size, selectedMember, vocals, t, playing, reducedMotion, rightInset]);
+    // the insets are rebuilt each render; their numbers are what matter
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [project, spots, zoom, size, selectedMember, vocals, t, playing, reducedMotion, rightInset, insets?.top, insets?.side, insets?.bottom]);
 
   useEffect(() => {
     palette.current = null;

@@ -2,7 +2,7 @@
 
 A small browser DAW for a five-piece light-music club band. Listen to each member's part, mix them, import a MIDI file and hand its tracks to the band, and play along live on your computer keyboard. It's a static site with no backend or accounts, and it runs on GitHub Pages for free.
 
-> A fan-made project, not affiliated with the rights holders of K-ON!. The repo ships no character artwork, official recordings or scores. The instruments are free CC0 recordings of real guitars, bass, piano and drums by Karoryfer Samples and Versilian Studios (see [public/instruments/CREDITS.md](public/instruments/CREDITS.md)), and the demo song, *After School Jam*, was written for this project.
+> A fan-made project, not affiliated with the rights holders of K-ON!. The repo ships no official character artwork, recordings or scores; the members appear only as tiny pixel figures drawn from scratch for this project. The instruments are free CC0 recordings of real guitars, bass, piano and drums by Karoryfer Samples and Versilian Studios (see [public/instruments/CREDITS.md](public/instruments/CREDITS.md)), and the demo song, *After School Jam*, was written for this project.
 
 ## What it does
 
@@ -106,7 +106,7 @@ Packs load lazily and are shared by every track that uses them. Each mixer strip
 
 ## Testing
 
-`pnpm test` runs 198 tests covering:
+`pnpm test` runs 201 tests covering:
 - mute and solo rules
 - tick and second conversions, and tempo scaling
 - the keyboard map

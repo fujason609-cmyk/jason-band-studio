@@ -1295,7 +1295,7 @@ select {
 }
 
 .record-frame {
-  position: relative; // holds the tea corner
+  position: relative; // holds the countdown and notices
   flex: none;
   display: flex;
   flex-direction: column;
@@ -1372,20 +1372,6 @@ select {
   font-weight: 700;
   box-shadow: 0 2px 10px rgba(0, 0, 0, 0.25);
   pointer-events: none;
-}
-
-// Reels: the tea table and turtle over the top band (the score box's top padding)
-.tea-corner {
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  z-index: 1;
-  pointer-events: none;
-  canvas {
-    display: block;
-    image-rendering: pixelated;
-  }
 }
 
 // the falling-notes view fills the score box (drawHighway draws into it)

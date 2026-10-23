@@ -47,6 +47,7 @@ export function buildLanes(
       selected: m.id === selectedMember,
       ...(track.vocal?.length ? { vocal: { notes: track.vocal, on: vocals[vocalRoleOf(m.id) ?? "lead"] } } : {}),
       solos: spots.filter((s) => s.member === m.id),
+      member: m.id,
       instrument: track.instrument,
       leftHanded: m.leftHanded === true,
       gear: gearFor(m.id, track.instrument),

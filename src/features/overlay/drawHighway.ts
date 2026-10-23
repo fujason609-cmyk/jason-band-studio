@@ -1,4 +1,6 @@
-import { drawPixelInstrument, poseAt } from "@/features/band/pixelInstruments";
+import { poseAt } from "@/features/band/pixelInstruments";
+import { drawCritters } from "./stageCritters";
+import { FIGURE_COLS, FIGURE_ROWS, IDLE_MEMBER, drawMemberPlaying, memberPoseAt } from "@/features/band/pixelMembers";
 import { drumVoiceFor } from "@/lib/drums";
 import type { NoteEvent } from "@/types/midi";
 import {
@@ -52,15 +54,37 @@ export interface HighwayInput {
   energy: number;
   /** px kept clear on the right for Reels' icon column (overlay.fallRightInset); the left keeps the same, so the road stays centred */
   rightInset?: number;
+  /**
+   * The frame's safe area, when the box is the whole frame: the road starts `top` down and
+   * keeps `side` in from each edge, and the band stands `bottom` up; the stage floor and
+   * the wall behind still run to the edges (the stage fills the bottom, under Reels' caption)
+   */
+  insets?: { top: number; side: number; bottom: number };
+  /** a looping take (the highlight): the pets' paths repeat once per loop */
+  loop?: { start: number; length: number; at?: number };
+  /** the outline colour of the pets (the theme's ink) */
+  ink?: string;
 }
 
 /** Falling speed against the horizontal zoom: the frame is taller than it is wide. */
 export const FALL_SPEED = 2.2;
 /** lanes touch: one road, not five (the width a gap took goes to the notes) */
 const LANE_GAP = 0;
-/** under the hit line: the member's pixel instrument (no name: the instrument says who it is) */
-const SPRITE = 36;
-const LABEL_H = SPRITE + 18;
+/**
+ * Under the hit line, a stage: the band stands on it as it does live, seen from the
+ * audience (STAGE_ORDER: Mugi at her keyboard on the left, Mio, Yui in the middle, Azusa,
+ * Ritsu's kit at the back on the right), each under her own lane, so the lanes follow the
+ * same order in this view. Mugi and Ritsu are on the riser at the back, a little smaller.
+ */
+export const STAGE_ORDER = ["tsumugi", "mio", "yui", "azusa", "ritsu"] as const;
+const FIGURE_W = 42;
+const FIGURE_TALL = (FIGURE_W * FIGURE_ROWS) / FIGURE_COLS;
+/** how much higher the riser puts the back row, and how much smaller it looks */
+const RISER = 12;
+const BACK_SCALE = 0.86;
+const LABEL_H = FIGURE_TALL + 12;
+const STAGE = { floor: "#7a4f2e", plank: "#5f3b21", riser: "#5a3820", edge: "#b07a44" };
+const BACK_ROW = new Set(["drums", "keys"]);
 const DRUM_GLOW_SECONDS = 0.14;
 /** The road's far end against its near end (smaller: a steeper view). */
 const FAR_SCALE = 0.65;
@@ -82,12 +106,13 @@ const LEGATO_SECONDS = 0.3;
 const TIME_KEEPERS = new Set(["closed-hat", "open-hat", "ride"]);
 
 /** The road: hit line, lane width, and the perspective (`scale`, `project`) for a time ahead. */
-export function highwayGeometry(width: number, height: number, lanes: number, zoom: number) {
-  const hitY = height - LABEL_H - 8;
+export function highwayGeometry(width: number, height: number, lanes: number, zoom: number, top = 0, bottom = 0) {
+  const hitY = height - bottom - LABEL_H - 8;
+  const roadTop = ROAD_TOP + top;
   const laneW = (width - LANE_GAP * (lanes - 1)) / lanes;
   const pps = zoom * FALL_SPEED;
   // the vanishing point sits above the box, so the far end lands on ROAD_TOP at FAR_SCALE
-  const vanishY = (ROAD_TOP - FAR_SCALE * hitY) / (1 - FAR_SCALE);
+  const vanishY = (roadTop - FAR_SCALE * hitY) / (1 - FAR_SCALE);
   /** seconds ahead at which a note is drawn half size */
   const depth = (hitY - vanishY) / (pps * NEAR_BOOST);
   const ahead = depth * (1 / FAR_SCALE - 1);
@@ -100,7 +125,7 @@ export function highwayGeometry(width: number, height: number, lanes: number, zo
   };
   /** the time ahead that is drawn at screen height `y` */
   const timeAt = (y: number) => depth * ((hitY - vanishY) / (y - vanishY) - 1);
-  return { hitY, laneW, pps, ahead, depth, scale, project, timeAt };
+  return { hitY, roadTop, laneW, pps, ahead, depth, scale, project, timeAt };
 }
 
 type Geometry = ReturnType<typeof highwayGeometry>;
@@ -123,12 +148,15 @@ function quad(ctx: CanvasRenderingContext2D, g: Geometry, xl: number, xr: number
 const farFade = (s: number) => Math.min(1, Math.max(0, (s - FAR_SCALE) / FAR_FADE));
 
 export function drawHighway(input: HighwayInput) {
-  const { ctx, width, height, lanes, position, palette } = input;
+  const { ctx, width, height, position, palette } = input;
+  const place = (m: string | undefined) => (m ? (STAGE_ORDER as readonly string[]).indexOf(m) : -1);
+  const lanes = [...input.lanes].sort((a, b) => place(a.member) - place(b.member));
   // the same margin on both sides, so the road (and its vanishing point) stays centred
-  // under the tea corner while its right edge keeps clear of Reels' icons
-  const side = input.rightInset ?? 0;
+  // while its right edge keeps clear of Reels' icons
+  const insets = input.insets ?? { top: 0, side: 0, bottom: 0 };
+  const side = insets.side + (input.rightInset ?? 0);
   const roadW = width - 2 * side;
-  const g = highwayGeometry(roadW, height, lanes.length, input.zoom);
+  const g = highwayGeometry(roadW, height, lanes.length, input.zoom, insets.top, insets.bottom);
   const { hitY, laneW, ahead } = g;
   const near = g.timeAt(hitY + 4); // a little past the line, so the lanes run under the pads
   const live = input.ripples;
@@ -171,6 +199,20 @@ export function drawHighway(input: HighwayInput) {
   ctx.setLineDash([]);
   ctx.globalAlpha = 1;
 
+  drawStage(ctx, -side, width, hitY, height, insets.bottom);
+  // the pets wander the front of the stage (in the bottom band when there is one, at the
+  // band's feet when not)
+  drawCritters({
+    ctx,
+    x: -side + 8,
+    width: width - 16,
+    floorY: insets.bottom > 24 ? height - insets.bottom * 0.35 : height - 3,
+    unit: Math.max(1.5, Math.min(3, width / 140)),
+    position,
+    live,
+    ink: input.ink ?? palette.ink,
+    loop: input.loop,
+  });
   const keys: { x0: number; color: string; audible: boolean; flash: number; sparks: Spark[] }[] = [];
   lanes.forEach((lane, i) => {
     const x0 = i * (laneW + LANE_GAP);
@@ -179,7 +221,7 @@ export function drawHighway(input: HighwayInput) {
     // the lane: a wash of the member's colour, deeper towards the hit line, brighter while
     // she plays (quiet lanes dim, so the eye goes to whoever plays) and in her solo
     const playing = live && lane.audible ? laneActivity(lane.notes, position, lane.isDrums) : 0;
-    const wash = ctx.createLinearGradient(0, ROAD_TOP, 0, hitY);
+    const wash = ctx.createLinearGradient(0, g.roadTop, 0, hitY);
     wash.addColorStop(0, "rgba(255,255,255,0)");
     wash.addColorStop(1, lane.color);
     ctx.fillStyle = soloing ? lane.color : wash;
@@ -188,7 +230,7 @@ export function drawHighway(input: HighwayInput) {
     ctx.fill();
     // a stage light down the lane from the far end, up while she plays
     if (playing > 0) {
-      const beam = ctx.createLinearGradient(0, ROAD_TOP, 0, ROAD_TOP + (hitY - ROAD_TOP) * 0.55);
+      const beam = ctx.createLinearGradient(0, g.roadTop, 0, g.roadTop + (hitY - g.roadTop) * 0.55);
       beam.addColorStop(0, lane.color);
       beam.addColorStop(1, "rgba(255,255,255,0)");
       ctx.fillStyle = beam;
@@ -222,28 +264,45 @@ export function drawHighway(input: HighwayInput) {
 
     keys.push({ x0, color: lane.color, audible: lane.audible, flash, sparks });
 
-    // under the line: her pixel instrument, playing along; on each hit its tile lights up
-    // in her colour and it lifts a little (only hers: the flash is her own notes)
-    const size = Math.min(SPRITE, laneW - 8);
-    if (lane.instrument) {
+    // on the stage: the member playing (a hop on her notes, her hands on a hit, a blink, her
+    // mouth open while she sings), in a spotlight of her colour that flares on her hits
+    if (lane.instrument && lane.member) {
+      const back = BACK_ROW.has(lane.instrument);
+      const w = Math.min(FIGURE_W, laneW - 2) * (back ? BACK_SCALE : 1);
+      const tall = (w * FIGURE_ROWS) / FIGURE_COLS;
+      const feet = height - insets.bottom - 4 - (back ? RISER : 0);
       const cx = x0 + laneW / 2;
-      const cy = hitY + 8 + size / 2;
       ctx.save();
-      ctx.translate(cx, cy);
-      ctx.scale(1 + 0.06 * flash, 1 + 0.06 * flash);
-      ctx.translate(-cx, -cy);
-      // on a light tile of her colour, so the ink outline shows on the dark frame
       ctx.fillStyle = lane.color;
-      ctx.globalAlpha = (lane.audible ? 1 : 0.4) * (0.2 + 0.12 * playing + 0.2 * flash);
-      if (flash > 0) {
-        ctx.shadowColor = lane.color;
-        ctx.shadowBlur = 10 * flash;
-      }
-      roundRect(ctx, x0 + (laneW - size) / 2 - 3, hitY + 8 - 3, size + 6, size + 6, 8);
+      ctx.globalAlpha = (lane.audible ? 1 : 0.4) * (0.18 + 0.15 * playing + 0.35 * flash);
+      ctx.beginPath();
+      ctx.ellipse(cx, feet - 2, w * 0.55, 5, 0, 0, Math.PI * 2);
       ctx.fill();
-      ctx.shadowBlur = 0;
+      const beam = ctx.createLinearGradient(0, feet - tall, 0, feet);
+      beam.addColorStop(0, "rgba(255,255,255,0)");
+      beam.addColorStop(1, lane.color);
+      ctx.fillStyle = beam;
+      ctx.globalAlpha = (lane.audible ? 1 : 0.4) * (0.08 + 0.2 * flash);
+      ctx.fillRect(cx - w * 0.55, feet - tall, w * 1.1, tall);
+      ctx.translate(cx, feet);
+      ctx.scale(1 + 0.04 * flash, 1 + 0.04 * flash);
+      ctx.translate(-cx, -feet);
       ctx.globalAlpha = lane.audible ? 1 : 0.4;
-      drawPixelInstrument(ctx, lane.instrument, poseAt(lane.notes, position, lane.instrument), x0 + (laneW - size) / 2, hitY + 8, size, lane.color, lane.leftHanded, lane.gear);
+      const member = live ? memberPoseAt(lane.member, lane.notes, lane.vocal?.on ? lane.vocal.notes : undefined, position, lane.isDrums) : IDLE_MEMBER;
+      drawMemberPlaying(
+        ctx,
+        lane.member,
+        lane.instrument,
+        member,
+        poseAt(lane.notes, position, lane.instrument),
+        cx - w / 2,
+        feet - tall,
+        w,
+        lane.color,
+        lane.leftHanded,
+        lane.gear,
+        palette.ink,
+      );
       ctx.restore();
     }
     if (soloing) {
@@ -253,9 +312,9 @@ export function drawHighway(input: HighwayInput) {
       ctx.textBaseline = "middle";
       ctx.font = `800 11px ${FONT}`;
       ctx.fillStyle = lane.color;
-      pill(ctx, cx - 26, ROAD_TOP + 2, 52, 18);
+      pill(ctx, cx - 26, g.roadTop + 2, 52, 18);
       ctx.fillStyle = "#fff";
-      ctx.fillText("SOLO ★", cx, ROAD_TOP + 11.5);
+      ctx.fillText("SOLO ★", cx, g.roadTop + 11.5);
       ctx.textAlign = "start";
     }
   });
@@ -330,6 +389,25 @@ function drawKey(ctx: CanvasRenderingContext2D, x: number, hitY: number, w: numb
     roundRect(ctx, x + 3, top + 2, w - 6, 2, 1);
     ctx.fill();
   }
+  ctx.restore();
+}
+
+/** The stage under the hit line: a plank floor, the riser across the back. */
+function drawStage(ctx: CanvasRenderingContext2D, x: number, width: number, hitY: number, height: number, bottom: number) {
+  const top = hitY + 8;
+  const riserFront = height - bottom - 4 - RISER;
+  ctx.save();
+  ctx.translate(x, 0);
+  ctx.fillStyle = STAGE.riser;
+  ctx.fillRect(0, top, width, riserFront - top);
+  ctx.fillStyle = STAGE.floor;
+  ctx.fillRect(0, riserFront, width, height - riserFront);
+  ctx.fillStyle = STAGE.plank;
+  for (let y = riserFront + 5; y < height; y += 5) ctx.fillRect(0, Math.round(y), width, 1);
+  for (let y = top + 6; y < riserFront - 2; y += 6) ctx.fillRect(0, Math.round(y), width, 1);
+  // the riser's front edge, catching the light
+  ctx.fillStyle = STAGE.edge;
+  ctx.fillRect(0, riserFront - 2, width, 2);
   ctx.restore();
 }
 

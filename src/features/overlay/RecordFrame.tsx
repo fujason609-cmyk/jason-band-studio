@@ -15,7 +15,7 @@ import { canRecordVideo } from "./frameRecorder";
 import { clipSeconds, findHighlight, highlightChoices, type Highlight } from "./highlight";
 import { OVERLAY_COLORS, RECORD_CLIPS, RECORD_FPS, RECORD_FRAMES, fallRightInset, recordLayout, safeArea, type OverlayColor, type RecordClip, type RecordFrame as Frame } from "./overlay";
 import { Highway } from "./Highway";
-import { TeaCorner } from "./TeaCorner";
+import { FALL_TOP_SHARE } from "./drawRecordFrame";
 import { SaveVideoDialog } from "./SaveVideoDialog";
 import { cueHighlight, useFrameRecording } from "./useFrameRecording";
 
@@ -69,6 +69,8 @@ export function RecordFrame() {
   const { keyWidth, keyHeight, laneHeight } = recordLayout(size.width, size.height, RULER_HEIGHT, MEMBERS.length, safe, overlay.keyStrip);
   const playing = status === "playing";
   const rightInset = fallRightInset(overlay.frame, size.width, overlay.keyStrip);
+  // the falling view takes the whole frame and keeps to the safe area itself (its stage runs to the bottom)
+  const fall = overlay.view === "fall";
 
   // the score swells a little on a crash or a busy bar's downbeat, as the video does
   const { project, songEnd } = usePlayedSong();
@@ -205,9 +207,12 @@ export function RecordFrame() {
         data-testid="record-frame"
         style={{ "--rw": rw, "--rh": rh } as CSSProperties}
       >
-        {safe.top > 0 && size.width > 0 && <TeaCorner height={safe.top} />}
-        <div ref={scoreRef} className="record-frame__score" style={{ paddingTop: safe.top, paddingInline: safe.side, paddingBottom: safe.bottom }}>
-          {size.height > 0 && (overlay.view === "fall" ? <Highway rightInset={rightInset} /> : <Timeline laneHeight={laneHeight} labels forceFollow showcase />)}
+        <div
+          ref={scoreRef}
+          className="record-frame__score"
+          style={fall ? undefined : { paddingTop: safe.top, paddingInline: safe.side, paddingBottom: safe.bottom }}
+        >
+          {size.height > 0 && (overlay.view === "fall" ? <Highway rightInset={rightInset} insets={{ top: safe.top * FALL_TOP_SHARE, side: safe.side, bottom: safe.bottom }} /> : <Timeline laneHeight={laneHeight} labels forceFollow showcase />)}
           {cueing && (
             <div className="record-cue" role="status">
               {t.highlightCueing}

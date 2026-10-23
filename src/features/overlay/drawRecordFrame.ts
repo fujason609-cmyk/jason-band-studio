@@ -1,6 +1,5 @@
 import { drawTimeline, type LaneInput, type Palette } from "@/features/timeline/drawTimeline";
 import { drawHighway } from "./drawHighway";
-import { drawTeaCorner } from "./drawTeaCorner";
 import { BREATH_SCALE, breathAt, energyAt } from "./energy";
 import type { RecordView } from "./overlay";
 import { cameraLeft } from "@/features/timeline/camera";
@@ -32,7 +31,7 @@ export interface RecordScene {
   view: RecordView;
   /** falling notes: px kept clear on the right (Reels' icons) */
   fallRightInset: number;
-  /** a looping take (the highlight), song seconds: the tea corner's turtle keeps to it */
+  /** a looping take (the highlight), song seconds: the stage pets' paths repeat once per loop */
   loop?: { start: number; length: number; at: number };
 }
 
@@ -67,14 +66,20 @@ export function drawRecordFrame(ctx: CanvasRenderingContext2D, s: RecordScene) {
   }
 
   if (s.view === "fall") {
-    ctx.translate(s.safeSide, s.safeTop);
+    // the whole frame above the key strip: the road keeps to the safe area (starting part
+    // way into the top band, its faint far end can go under Reels' bar), the stage runs
+    // to the bottom edge, under the caption, with the band standing where it did
+    const boxHeight = s.height - s.keyHeight;
     ctx.beginPath();
-    ctx.rect(0, 0, width, scoreHeight);
+    ctx.rect(0, 0, s.width, boxHeight);
     ctx.clip();
     drawHighway({
       ctx,
-      width,
-      height: scoreHeight,
+      width: s.width,
+      height: boxHeight,
+      insets: { top: s.safeTop * FALL_TOP_SHARE, side: s.safeSide, bottom: s.safeBottom },
+      loop: s.loop,
+      ink: s.palette.ink,
       lanes: s.lanes,
       position: s.position,
       zoom: s.zoom,
@@ -87,7 +92,6 @@ export function drawRecordFrame(ctx: CanvasRenderingContext2D, s: RecordScene) {
       rightInset: s.fallRightInset,
     });
     ctx.restore();
-    paintTeaCorner(ctx, s);
     paintKey(ctx, s, keyTop);
     return;
   }
@@ -134,15 +138,11 @@ export function drawRecordFrame(ctx: CanvasRenderingContext2D, s: RecordScene) {
   ctx.stroke(pick);
   ctx.restore();
   ctx.restore(); // the safe-area box
-  paintTeaCorner(ctx, s);
   paintKey(ctx, s, keyTop);
 }
 
-/** Reels: the club room's tea table and turtle in the top band (nothing else is there). */
-function paintTeaCorner(ctx: CanvasRenderingContext2D, s: RecordScene) {
-  if (s.safeTop <= 0) return;
-  drawTeaCorner({ ctx, x: 0, y: 0, width: s.width, height: s.safeTop, lanes: s.lanes, position: s.position, live: s.ripples, ink: s.palette.ink, loop: s.loop });
-}
+/** How far into the Reels top band the falling view's road starts (its far end is faint). */
+export const FALL_TOP_SHARE = 0.5;
 
 /** The key colour: one flat rectangle, nothing drawn over it. */
 function paintKey(ctx: CanvasRenderingContext2D, s: RecordScene, keyTop: number) {

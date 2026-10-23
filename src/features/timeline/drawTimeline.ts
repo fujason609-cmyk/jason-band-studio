@@ -1,5 +1,7 @@
 import { drumVoiceFor, type DrumVoice } from "@/lib/drums";
-import { drawPixelInstrument, poseAt, type Gear } from "@/features/band/pixelInstruments";
+import { poseAt, type Gear } from "@/features/band/pixelInstruments";
+import { IDLE_MEMBER, drawMemberPlaying, memberPoseAt } from "@/features/band/pixelMembers";
+import type { MemberId } from "@/features/band/types";
 import type { InstrumentId } from "@/types/audio";
 import type { NoteEvent } from "@/types/midi";
 import { LANE_HEIGHT, RULER_HEIGHT, TIMELINE_GUTTER } from "./layout";
@@ -15,6 +17,8 @@ export interface LaneInput {
   vocal?: { notes: readonly NoteEvent[]; on: boolean };
   /** this member's turns in the solo round (song seconds): the lane is lit and tagged SOLO */
   solos?: readonly { start: number; end: number }[];
+  /** whose lane, for the recording frame's pixel member */
+  member?: MemberId;
   /** what the member plays, for the recording frame's pixel instrument beside the name */
   instrument?: InstrumentId;
   /** draw that instrument the other way round (Mio) */
@@ -722,19 +726,22 @@ export function drawTimeline(input: DrawInput) {
       ctx.font = `800 12px ${FONT}`;
       const textW = ctx.measureText(lane.label).width;
       const tagH = laneH < 40 ? 16 : 20;
-      // showcase: the member's pixel instrument, playing along, before the name
-      const sprite = input.showcase && lane.instrument && laneH >= 44 ? 28 : 0;
+      // showcase: the member with her pixel instrument, playing along, before the name
+      // (full length: `sprite` wide, 1.5 × that tall, as tall as the lane allows)
+      const sprite = input.showcase && lane.instrument && lane.member && laneH >= 44 ? Math.min(36, Math.floor((laneH - 8) / 1.55)) : 0;
       if (sprite > 0) {
         // on a light tile of her colour, as the page's badges, so the ink outline shows on dark
         ctx.fillStyle = lane.color;
       ctx.globalAlpha = (lane.audible ? 1 : 0.4) * 0.28;
-      roundRect(ctx, 6 - 3, top + 3 - 3, sprite + 6, sprite + 6, 8);
+      roundRect(ctx, 6 - 3, top + 3 - 3, sprite + 6, sprite * 1.55 + 4, 8);
       ctx.fill();
       ctx.globalAlpha = lane.audible ? 1 : 0.4;
         const pose = position === undefined ? poseAt([], 0, lane.instrument!) : poseAt(lane.notes, position, lane.instrument!);
-        drawPixelInstrument(ctx, lane.instrument!, pose, 6, top + 3, sprite, lane.color, lane.leftHanded, lane.gear);
+        const moves = position !== undefined && input.ripples;
+        const member = moves ? memberPoseAt(lane.member!, lane.notes, lane.vocal?.on ? lane.vocal.notes : undefined, position, lane.isDrums) : IDLE_MEMBER;
+        drawMemberPlaying(ctx, lane.member!, lane.instrument!, member, pose, 6, top + 2, sprite, lane.color, lane.leftHanded, lane.gear, palette.ink);
       }
-      const tagX = sprite > 0 ? 6 + sprite + 8 : 8;
+      const tagX = sprite > 0 ? 6 + sprite + 6 : 8;
       ctx.fillStyle = lane.color;
       ctx.globalAlpha = lane.audible ? 0.95 : 0.4;
       pill(ctx, tagX, top + 5, textW + 16, tagH);

@@ -32,7 +32,7 @@ export function cueHighlight(clip: Highlight) {
 }
 
 /**
- * The tea corner's turtle in a highlight take: there and back once per clip. A clip that
+ * The stage pets in a highlight take: their paths repeat once per clip. A clip that
  * plays its stretch twice spans two loops, so it counts the loops as they come round.
  */
 function clipLoop(s: { lastPos: number; wraps: number; loopPos: number }, clip: Highlight) {
