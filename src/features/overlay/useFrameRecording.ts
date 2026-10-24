@@ -298,7 +298,20 @@ export function useFrameRecording(
       startedAt: performance.now(),
       unlisten: () => document.removeEventListener("visibilitychange", onVisibility),
     };
+    // a frame that fails to draw ends the take, with a notice: thrown inside React's effect
+    // (the first frame) or every animation frame, it blanked the whole app
     const paint = () => {
+      try {
+        paintFrame();
+      } catch (err) {
+        console.error("recording frame failed", err);
+        discardSession(s);
+        pauseTake(getT().recordingBroke);
+        return;
+      }
+      s.frame = requestAnimationFrame(paint);
+    };
+    const paintFrame = () => {
       const heardAt = audioEngine.audioTime() - PICTURE_DELAY_SECONDS;
       const { baseBpm, bpm } = getPlayedSong().project;
       if (s.intro && heardAt < s.intro.songAt) {
@@ -358,7 +371,6 @@ export function useFrameRecording(
         ripples: ripples && audioEngine.status === "playing",
         view: settings.overlay.view,
       });
-      s.frame = requestAnimationFrame(paint);
     };
     session.current = s;
     if (!Number.isNaN(s.openAt)) setOpenedAt(s.openAt);
@@ -368,9 +380,11 @@ export function useFrameRecording(
       finishClipAt(s, intro.songAt + clipSeconds(clip, baseBpm, bpm));
     }
     paint();
+    // the first frame failed (and the take was thrown away): nothing is recording
+    if (session.current !== s) return;
     setRecording(true);
     setCueing(clip !== null && intro === null);
-  }, [startClip, finishClipAt]);
+  }, [startClip, finishClipAt, discardSession]);
 
   const finish = useCallback(async () => {
     const s = session.current;
