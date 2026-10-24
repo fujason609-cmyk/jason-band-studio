@@ -17,10 +17,19 @@ export type RecordFps = 30 | 60;
 export const RECORD_FPS: RecordFps[] = [30, 60];
 
 /**
- * How the frame shows the score: the scrolling timeline, or notes falling down one upright
- * lane per member, like a rhythm game (drawHighway.ts).
+ * How the frame shows the score: the scrolling timeline, notes falling down one upright lane
+ * per member like a rhythm game (drawHighway.ts), the band big on a stage the whole time, or
+ * the stage over a smaller falling-notes road (drawStageView.ts).
  */
-export type RecordView = "scroll" | "fall";
+export const RECORD_VIEWS = ["stage", "stageRoad", "fall", "scroll"] as const;
+export type RecordView = (typeof RECORD_VIEWS)[number];
+
+/**
+ * How a take opens: straight on the music (with the hook text and the song's name), with the
+ * pixel band's skit and Ritsu's count-in (introSkit.ts), or after a 3-2-1 on screen.
+ */
+export const OPENINGS = ["cold", "skit", "countdown"] as const;
+export type Opening = (typeof OPENINGS)[number];
 
 export interface OverlaySettings {
   color: OverlayColor;
@@ -31,15 +40,17 @@ export interface OverlaySettings {
   view: RecordView;
   /** a take is the whole song, the 15–20 s highlight that loops, or the climactic chorus, whole (highlight.ts) */
   clip: RecordClip;
-  /** a take opens with the pixel band's skit and Ritsu's count-in (introSkit.ts; not the looping highlight) */
-  intro: boolean;
-  /** the name on the skit's sign: the score's own title, or the file's name */
+  /** how a take opens (the looping highlight always starts on its music) */
+  opening: Opening;
+  /** the song's name on the marquee: the score's own title, or the file's name */
   introTitle: IntroTitle;
+  /** hook text over a take's first seconds: up to two lines, the English one first (opening.ts) */
+  hook: string;
 }
 
 export type IntroTitle = "score" | "file";
 
-export const DEFAULT_OVERLAY: OverlaySettings = { color: "green", frame: "9:16", fps: 30, keyStrip: true, view: "scroll", clip: "full", intro: true, introTitle: "score" };
+export const DEFAULT_OVERLAY: OverlaySettings = { color: "green", frame: "9:16", fps: 30, keyStrip: true, view: "stage", clip: "full", opening: "cold", introTitle: "score", hook: "" };
 export const RECORD_CLIPS = ["full", "highlight", "chorus"] as const;
 export type RecordClip = (typeof RECORD_CLIPS)[number];
 
@@ -67,11 +78,13 @@ export function sanitizeOverlay(raw: unknown): OverlaySettings {
     frame: pick(r.frame, RECORD_FRAMES, DEFAULT_OVERLAY.frame),
     fps: r.fps === 60 ? 60 : DEFAULT_OVERLAY.fps,
     keyStrip: r.keyStrip !== false,
-    view: r.view === "fall" ? "fall" : "scroll",
+    view: pick(r.view, RECORD_VIEWS, DEFAULT_OVERLAY.view),
     // "highlight20" was a separate 20 s take before the highlight's length went free (15–20 s)
     clip: r.clip === "highlight" || r.clip === "highlight20" ? "highlight" : r.clip === "chorus" ? "chorus" : "full",
-    intro: r.intro !== false,
+    // (an older "intro" switch is dropped: the skit before the music lost most viewers)
+    opening: pick(r.opening, OPENINGS, DEFAULT_OVERLAY.opening),
     introTitle: r.introTitle === "file" ? "file" : "score",
+    hook: typeof r.hook === "string" ? r.hook.slice(0, 200) : "",
   };
 }
 

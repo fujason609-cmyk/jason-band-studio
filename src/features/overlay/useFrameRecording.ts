@@ -9,7 +9,8 @@ import type { NoteEvent } from "@/types/midi";
 import { drawRecordFrame } from "./drawRecordFrame";
 import { FrameRecorder, type Recording } from "./frameRecorder";
 import { clipNotes, clipSeconds, loopNotes, type Highlight } from "./highlight";
-import { introLength, type IntroPlan } from "./introSkit";
+import { introLength, introTitle, type IntroPlan } from "./introSkit";
+import { hookLines, openingFrame } from "./opening";
 import { OVERLAY_COLORS } from "./overlay";
 
 /** Video width in pixels; the height follows the frame shape (1080 × 1920 for 9:16). */
@@ -100,6 +101,12 @@ interface Session {
   rolling: boolean;
   /** audio-clock time the clip ends (NaN until known): a stop after it keeps the take */
   endAt: number;
+  /**
+   * When the video's first frame shows, on the clock the picture is drawn from (heard time:
+   * the audio clock less PICTURE_DELAY_SECONDS); NaN until known (a clip's recorder waits
+   * for its first beat). The hook text and the name count from it.
+   */
+  openAt: number;
   /** highlight: where the sound was when the take began (NaN until the first frame), to see it move */
   cuedAt: number;
   /** highlight: times the loop has come round, and the position on the last frame (for the turtle) */
@@ -141,6 +148,8 @@ export function useFrameRecording(
 ) {
   const [recording, setRecording] = useState(false);
   const [cueing, setCueing] = useState(false);
+  /** the audio-clock time the video's first frame shows (the screen's opening overlay times from it) */
+  const [openedAt, setOpenedAt] = useState<number | null>(null);
   const latestClip = useRef(clip);
   latestClip.current = clip;
   const latestIntro = useRef(intro);
@@ -219,6 +228,8 @@ export function useFrameRecording(
     // (the loop's), and both ends share the same delay.
     const { baseBpm, bpm } = getPlayedSong().project;
     finishClipAt(s, audioEngine.audioTime() + waitMs / 1000 + clipSeconds(clip, baseBpm, bpm));
+    s.openAt = audioEngine.audioTime() + waitMs / 1000;
+    setOpenedAt(s.openAt);
     s.timers.push(
       window.setTimeout(() => {
         if (session.current !== s) return;
@@ -275,6 +286,8 @@ export function useFrameRecording(
       rolling: clip === null || intro !== null,
       cuedAt: NaN,
       endAt: NaN,
+      // the recorder starts now (the skit: as it begins); a clip's when its first beat comes
+      openAt: intro ? intro.introAt : clip ? NaN : audioEngine.audioTime() - PICTURE_DELAY_SECONDS,
       wraps: 0,
       loopPos: 0,
       timers: [],
@@ -310,6 +323,7 @@ export function useFrameRecording(
       }
       const { project, spots } = getPlayedSong();
       const { settings } = useStudioStore.getState();
+      const hook = hookLines(settings.overlay.hook);
       const lanes = buildLanes(project, palette, getT().memberName, settings.selectedMember, settings.vocals, s.clip ? [] : spots, drumsGenerated(settings.playStyle, settings.autoDrums));
       // a highlight's notes looped; a chorus's up to its end (after the skit, from its start:
       // nothing before it comes down in the count-in)
@@ -334,6 +348,11 @@ export function useFrameRecording(
         lanes: shown,
         loop: s.clip && !isChorus(s.clip) ? clipLoop(s, s.clip) : undefined,
         intro: s.intro && heardAt < s.intro.introAt + introLength(s.intro.plan) ? { plan: s.intro.plan, t: Math.max(0, heardAt - s.intro.introAt) } : undefined,
+        opening: {
+          frame: openingFrame(Number.isNaN(s.openAt) ? 0 : Math.max(0, heardAt - s.openAt), hook.length > 0, s.intro !== null),
+          hook,
+          title: introTitle(project, settings.overlay.introTitle),
+        },
         palette,
         keyColor: OVERLAY_COLORS[settings.overlay.color],
         ripples: ripples && audioEngine.status === "playing",
@@ -342,6 +361,7 @@ export function useFrameRecording(
       s.frame = requestAnimationFrame(paint);
     };
     session.current = s;
+    if (!Number.isNaN(s.openAt)) setOpenedAt(s.openAt);
     if (intro && clip) {
       // the chorus ends the take: timed from the audio clock, like the highlight's
       const { baseBpm, bpm } = getPlayedSong().project;
@@ -414,5 +434,5 @@ export function useFrameRecording(
     });
   }, []);
 
-  return { recording, cueing, result, dismiss, discard };
+  return { recording, cueing, result, dismiss, discard, openedAt: recording ? openedAt : null };
 }

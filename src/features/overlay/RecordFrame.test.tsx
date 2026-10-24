@@ -79,6 +79,8 @@ describe("Instagram recording frame", () => {
   });
 
   it("puts the score and a flat key colour in an IG-shaped frame", () => {
+    const { settings } = useStudioStore.getState();
+    useStudioStore.setState({ settings: { ...settings, overlay: { ...settings.overlay, view: "scroll" } } });
     render(<RecordFrame />);
     const frame = screen.getByTestId("record-frame");
     expect(frame.style.getPropertyValue("--rw")).toBe("9");
@@ -123,18 +125,49 @@ describe("Instagram recording frame", () => {
     expect(screen.getByTestId("record-key")).toHaveStyle({ background: "#0000ff" });
   });
 
-  it("switches to falling notes and back", async () => {
+  it("opens on the stage and steps through the views", async () => {
     const user = userEvent.setup();
     render(<RecordFrame />);
-    expect(screen.getByTestId("timeline")).toBeInTheDocument();
-    await user.click(screen.getByRole("button", { name: /Switch to falling notes/ }));
-    expect(useStudioStore.getState().settings.overlay.view).toBe("fall");
+    const view = () => useStudioStore.getState().settings.overlay.view;
+    const next = () => user.click(screen.getByRole("button", { name: /Tap for the next view/ }));
+    expect(view()).toBe("stage");
+    expect(screen.getByTestId("stage-view")).toBeInTheDocument();
+    await next();
+    expect(view()).toBe("stageRoad");
+    expect(screen.getByTestId("stage-view")).toBeInTheDocument();
+    await next();
+    expect(view()).toBe("fall");
     expect(screen.getByTestId("highway")).toBeInTheDocument();
-    expect(screen.queryByTestId("timeline")).not.toBeInTheDocument();
-    await user.click(screen.getByRole("button", { name: /Switch to the scrolling score/ }));
-    expect(useStudioStore.getState().settings.overlay.view).toBe("scroll");
+    await next();
+    expect(view()).toBe("scroll");
+    expect(screen.getByTestId("timeline")).toBeInTheDocument();
+    await next();
+    expect(view()).toBe("stage");
     expect(sanitizeOverlay({ view: "fall" }).view).toBe("fall");
-    expect(sanitizeOverlay({ view: "sideways" }).view).toBe("scroll");
+    expect(sanitizeOverlay({ view: "sideways" }).view).toBe("stage");
+  });
+
+  it("steps through the openings, and keeps the hook text in the take settings", async () => {
+    // a browser that can record (jsdom can't): the take controls show
+    vi.stubGlobal("MediaRecorder", { isTypeSupported: () => true });
+    HTMLCanvasElement.prototype.captureStream = vi.fn() as never;
+    onTestFinished(() => {
+      delete (HTMLCanvasElement.prototype as { captureStream?: unknown }).captureStream;
+    });
+    const user = userEvent.setup();
+    render(<RecordFrame />);
+    const opening = () => useStudioStore.getState().settings.overlay.opening;
+    expect(opening()).toBe("cold");
+    await user.click(screen.getByRole("button", { name: /Tap for the opening skit/ }));
+    expect(opening()).toBe("skit");
+    await user.click(screen.getByRole("button", { name: /Tap for a 3-2-1/ }));
+    expect(opening()).toBe("countdown");
+    await user.click(screen.getByRole("button", { name: /Tap to start straight on the music/ }));
+    expect(opening()).toBe("cold");
+    await user.click(screen.getByRole("button", { name: "Hook text and take settings" }));
+    // (jsdom doesn't open a <dialog>: its fields count as hidden)
+    await user.type(screen.getByRole("textbox", { name: /Hook text/, hidden: true }), "K-ON! plays IRIS OUT");
+    expect(useStudioStore.getState().settings.overlay.hook).toBe("K-ON! plays IRIS OUT");
   });
 
   it("switches the frame shape", async () => {
@@ -208,9 +241,10 @@ describe("recording frame maths and settings", () => {
     expect(sanitizeOverlay({ fps: 24 }).fps).toBe(30);
     // the take length setting was removed: an old stored one is dropped
     expect(sanitizeOverlay({ length: 45 })).toEqual(DEFAULT_OVERLAY);
-    // the opening skit is on unless switched off
-    expect(sanitizeOverlay({}).intro).toBe(true);
-    expect(sanitizeOverlay({ intro: false }).intro).toBe(false);
+    // a take opens on the music unless set otherwise (an old skit switch is dropped)
+    expect(sanitizeOverlay({ intro: true }).opening).toBe("cold");
+    expect(sanitizeOverlay({ opening: "countdown" }).opening).toBe("countdown");
+    expect(sanitizeOverlay({ hook: 7 }).hook).toBe("");
     expect(sanitizeOverlay({}).introTitle).toBe("score");
     expect(sanitizeOverlay({ introTitle: "file" }).introTitle).toBe("file");
   });

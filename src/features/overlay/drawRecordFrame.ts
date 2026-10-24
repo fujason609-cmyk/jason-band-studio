@@ -2,6 +2,8 @@ import { drawTimeline, type LaneInput, type Palette } from "@/features/timeline/
 import { drawHighway } from "./drawHighway";
 import { BREATH_SCALE, breathAt, energyAt } from "./energy";
 import { drawIntro, type IntroPlan } from "./introSkit";
+import { drawStageView } from "./drawStageView";
+import { drawOpening, type OpeningFrame } from "./opening";
 import type { TempoPoint } from "@/types/midi";
 import type { RecordView } from "./overlay";
 import { cameraLeft } from "@/features/timeline/camera";
@@ -39,6 +41,8 @@ export interface RecordScene {
   loop?: { start: number; length: number; at: number };
   /** the opening skit, `t` seconds in, painted over the score */
   intro?: { plan: IntroPlan; t: number };
+  /** the take's opening: the hook text and the song's name (opening.ts) */
+  opening?: { frame: OpeningFrame; hook: readonly string[]; title: string };
 }
 
 // the same guitar pick the page's playhead uses (Playhead.tsx), 20 × 22
@@ -48,7 +52,7 @@ const PICK = "M10 21C6 16 1.5 10.5 1.5 6.2 1.5 2.8 5.2 1 10 1s8.5 1.8 8.5 5.2C18
 export function drawRecordFrame(ctx: CanvasRenderingContext2D, s: RecordScene) {
   // before the music (the intro), the falling notes are already on their way; the
   // scrolling score waits at the start
-  if (s.view !== "fall" && s.position < 0) s = { ...s, position: 0 };
+  if (s.view === "scroll" && s.position < 0) s = { ...s, position: 0 };
   const keyTop = s.height - s.keyHeight - s.safeBottom;
   // the score's own box, inside the safe area
   const width = s.width - 2 * s.safeSide;
@@ -72,6 +76,42 @@ export function drawRecordFrame(ctx: CanvasRenderingContext2D, s: RecordScene) {
     ctx.translate(cx, cy);
     ctx.scale(1 + breath * BREATH_SCALE, 1 + breath * BREATH_SCALE);
     ctx.translate(-cx, -cy);
+  }
+
+  if (s.view === "stage" || s.view === "stageRoad") {
+    // the whole frame above the key strip: the band big on the stage, clear of the caption
+    const boxHeight = s.height - s.keyHeight;
+    ctx.beginPath();
+    ctx.rect(0, 0, s.width, boxHeight);
+    ctx.clip();
+    const f = s.opening?.frame;
+    drawStageView({
+      ctx,
+      width: s.width,
+      height: boxHeight,
+      safeTop: s.safeTop,
+      safeSide: s.safeSide,
+      safeBottom: s.safeBottom,
+      mode: s.view === "stage" ? "stage" : "split",
+      lanes: s.lanes,
+      position: s.position,
+      baseBpm: s.baseBpm,
+      beatsPerBar: s.beatsPerBar,
+      tempos: s.tempos,
+      durationSeconds: s.durationSeconds,
+      zoom: s.zoom,
+      palette: s.palette,
+      ripples: s.ripples,
+      energy,
+      rightInset: s.fallRightInset,
+      loop: s.loop,
+      sign: s.opening && f ? { title: s.opening.title, alpha: f.stageSign, since: f.signSince } : undefined,
+    });
+    ctx.restore();
+    paintIntro(ctx, s);
+    paintOpening(ctx, s, true);
+    paintKey(ctx, s, keyTop);
+    return;
   }
 
   if (s.view === "fall") {
@@ -103,6 +143,7 @@ export function drawRecordFrame(ctx: CanvasRenderingContext2D, s: RecordScene) {
     });
     ctx.restore();
     paintIntro(ctx, s);
+    paintOpening(ctx, s, false);
     paintKey(ctx, s, keyTop);
     return;
   }
@@ -151,7 +192,15 @@ export function drawRecordFrame(ctx: CanvasRenderingContext2D, s: RecordScene) {
   ctx.restore();
   ctx.restore(); // the safe-area box
   paintIntro(ctx, s);
+  paintOpening(ctx, s, false);
   paintKey(ctx, s, keyTop);
+}
+
+/** The hook text over everything (the skit included), and in the score views the name card. */
+function paintOpening(ctx: CanvasRenderingContext2D, s: RecordScene, stage: boolean) {
+  if (!s.opening) return;
+  const f = stage ? { ...s.opening.frame, card: false } : s.opening.frame;
+  drawOpening(ctx, { width: s.width, height: s.height - s.keyHeight, safeTop: s.safeTop, safeSide: s.safeSide }, f, s.opening.hook, s.opening.title, s.palette.ink);
 }
 
 /** The opening skit, over everything above the key strip. */

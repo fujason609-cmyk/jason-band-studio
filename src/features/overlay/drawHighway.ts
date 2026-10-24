@@ -69,7 +69,15 @@ export interface HighwayInput {
   loop?: { start: number; length: number; at?: number };
   /** the outline colour of the pets (the theme's ink) */
   ink?: string;
+  /**
+   * The stage, the band and the pets under the line (default true); false when the road is
+   * the lower half of the stage view, whose big stage above already has the band
+   */
+  band?: boolean;
 }
+
+/** The pads' room under the hit line when there's no band under it. */
+const PAD_ROOM = 30;
 
 /** Falling speed against the horizontal zoom: the frame is taller than it is wide. */
 export const FALL_SPEED = 2.2;
@@ -111,8 +119,8 @@ const LEGATO_SECONDS = 0.3;
 const TIME_KEEPERS = new Set(["closed-hat", "open-hat", "ride"]);
 
 /** The road: hit line, lane width, and the perspective (`scale`, `project`) for a time ahead. */
-export function highwayGeometry(width: number, height: number, lanes: number, zoom: number, top = 0, bottom = 0) {
-  const hitY = height - bottom - LABEL_H - 8;
+export function highwayGeometry(width: number, height: number, lanes: number, zoom: number, top = 0, bottom = 0, band = true) {
+  const hitY = height - bottom - (band ? LABEL_H : PAD_ROOM) - 8;
   const roadTop = ROAD_TOP + top;
   const laneW = (width - LANE_GAP * (lanes - 1)) / lanes;
   const pps = zoom * FALL_SPEED;
@@ -162,7 +170,8 @@ export function drawHighway(input: HighwayInput) {
   const insets = input.insets ?? { top: 0, side: 0, bottom: 0 };
   const side = insets.side + (input.rightInset ?? 0);
   const roadW = width - 2 * side;
-  const g = highwayGeometry(roadW, height, lanes.length, input.zoom, insets.top, insets.bottom);
+  const band = input.band !== false;
+  const g = highwayGeometry(roadW, height, lanes.length, input.zoom, insets.top, insets.bottom, band);
   const { hitY, laneW, ahead } = g;
   const near = g.timeAt(hitY + 4); // a little past the line, so the lanes run under the pads
   const live = input.ripples;
@@ -205,10 +214,10 @@ export function drawHighway(input: HighwayInput) {
   ctx.setLineDash([]);
   ctx.globalAlpha = 1;
 
-  drawStage(ctx, -side, width, hitY, height, insets.bottom);
+  if (band) drawStage(ctx, -side, width, hitY, height, insets.bottom);
   // the pets wander the front of the stage (in the bottom band when there is one, at the
   // band's feet when not)
-  drawCritters({
+  if (band) drawCritters({
     ctx,
     x: -side + 8,
     width: width - 16,
@@ -272,7 +281,7 @@ export function drawHighway(input: HighwayInput) {
 
     // on the stage: the member playing (a hop on her notes, her hands on a hit, a blink, her
     // mouth open while she sings), in a spotlight of her colour that flares on her hits
-    if (lane.instrument && lane.member) {
+    if (band && lane.instrument && lane.member) {
       const back = BACK_ROW.has(lane.instrument);
       const w = Math.min(FIGURE_W, laneW - 2) * (back ? BACK_SCALE : 1);
       const tall = (w * FIGURE_ROWS) / FIGURE_COLS;

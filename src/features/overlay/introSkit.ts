@@ -1,5 +1,5 @@
 import { IDLE_POSE, pixelGrid } from "@/features/band/pixelInstruments";
-import { FIGURE_COLS, FIGURE_ROWS, drawMemberCheering, drawMemberPlaying } from "@/features/band/pixelMembers";
+import { drawMemberCheering, drawMemberPlaying } from "@/features/band/pixelMembers";
 import type { MemberId } from "@/features/band/types";
 import { FONT, cheers, type LaneInput } from "@/features/timeline/drawTimeline";
 import { detectKey } from "@/lib/soloRound";
@@ -7,7 +7,8 @@ import type { NoteEvent } from "@/types/midi";
 import type { StudioProject } from "@/types/project";
 import { songTitleFromFileName } from "@/services/file/midiFileService";
 import type { IntroTitle } from "./overlay";
-import { STAGE, STAGE_ORDER } from "./drawHighway";
+import { STAGE_ORDER } from "./drawHighway";
+import { CURTAIN, PLACES, cone, paintCurtains, paintStageSet, stageLayout } from "./stageScene";
 
 /**
  * The recording's opening hook: before the music, the pixel band acts out a tiny skit on a
@@ -261,19 +262,6 @@ const ICONS: Record<Bubble, { color: string; rows: readonly string[] }> = {
   },
 };
 
-/** Where each member stands in the intro (share of the stage's width): Mugi and Ritsu on the riser behind. */
-const PLACES: Record<MemberId, { x: number; back: boolean }> = {
-  tsumugi: { x: 0.27, back: true },
-  ritsu: { x: 0.73, back: true },
-  mio: { x: 0.17, back: false },
-  yui: { x: 0.5, back: false },
-  azusa: { x: 0.83, back: false },
-};
-const BACK_SCALE = 0.88;
-
-const CURTAIN = { cloth: "#8c1c2c", fold: "#6a1222", hem: "#d9a441" };
-const WALL = ["#2a1830", "#120a18"] as const;
-
 export interface IntroArea {
   width: number;
   /** the scene's height (the frame above the key strip) */
@@ -301,41 +289,13 @@ export function drawIntro(
   const { width, height, safeTop, safeSide, safeBottom } = area;
   const contentW = width - 2 * safeSide;
   const contentH = height - safeTop - safeBottom;
-  const fw = Math.min(contentW / 3.3, 150);
-  const tall = (fw * FIGURE_ROWS) / FIGURE_COLS;
   // the front row on the floor, the riser behind it, as tall as a girl, for the back row
-  const frontFeet = height - safeBottom - contentH * 0.1;
-  const frontFloor = frontFeet - fw * 0.28;
-  const riserTop = frontFeet - tall * 1.02 - fw * 0.15;
-  const place = (m: MemberId) => {
-    const p = PLACES[m];
-    const scale = p.back ? BACK_SCALE : 1;
-    return {
-      x: safeSide + contentW * p.x,
-      feet: p.back ? riserTop + fw * 0.1 : frontFeet,
-      w: fw * scale,
-      h: tall * scale,
-    };
-  };
-  const grid = pixelGrid(ctx);
+  const stage = stageLayout({ left: safeSide, width: contentW, feet: height - safeBottom - contentH * 0.1, maxFigure: 150 });
+  const { fw, riserTop, place } = stage;
 
   ctx.save();
   ctx.globalAlpha = f.fade;
-  const wall = ctx.createLinearGradient(0, 0, 0, riserTop);
-  wall.addColorStop(0, WALL[0]);
-  wall.addColorStop(1, WALL[1]);
-  ctx.fillStyle = wall;
-  ctx.fillRect(0, 0, width, riserTop);
-  ctx.fillStyle = STAGE.riser;
-  ctx.fillRect(0, riserTop, width, frontFloor - riserTop);
-  ctx.fillStyle = STAGE.edge;
-  ctx.fillRect(0, grid.y(riserTop), width, 3);
-  ctx.fillStyle = STAGE.floor;
-  ctx.fillRect(0, frontFloor, width, height - frontFloor);
-  ctx.fillStyle = STAGE.plank;
-  for (let y = frontFloor + 9; y < height; y += 9) ctx.fillRect(0, grid.y(y), width, 2);
-  ctx.fillStyle = STAGE.edge;
-  ctx.fillRect(0, grid.y(frontFloor), width, 3);
+  paintStageSet(ctx, width, stage, 0, height);
 
   // each member's light, in her colour (only the spotlight while the stage is dark)
   const laneOf = (m: MemberId) => lanes.find((l) => l.member === m);
@@ -422,32 +382,8 @@ export function drawIntro(
   }
 
   // the curtains open from the middle, leaving a drape at each side; a valance on top
-  const drape = width * 0.07;
-  const closed = (width / 2) * (1 - f.curtain);
-  for (const side of [0, 1]) {
-    const w = drape + closed;
-    const x = side === 0 ? 0 : width - w;
-    ctx.fillStyle = CURTAIN.cloth;
-    ctx.fillRect(x, 0, w, height);
-    ctx.fillStyle = CURTAIN.fold;
-    const step = Math.max(8, drape / 2.5);
-    for (let fx = x + step / 2; fx < x + w; fx += step)
-      ctx.fillRect(grid.x(fx), 0, Math.max(2, step * 0.28), height);
-    ctx.fillStyle = CURTAIN.hem;
-    ctx.fillRect(x, height - safeBottom - 6, w, 4);
-  }
   const valance = safeTop * 0.6 + 14;
-  ctx.fillStyle = CURTAIN.cloth;
-  ctx.fillRect(0, 0, width, valance);
-  ctx.fillStyle = CURTAIN.fold;
-  const scallop = width / 12;
-  for (let x = 0; x < width; x += scallop) {
-    ctx.beginPath();
-    ctx.ellipse(x + scallop / 2, valance, scallop / 2, 8, 0, 0, Math.PI);
-    ctx.fill();
-  }
-  ctx.fillStyle = CURTAIN.hem;
-  ctx.fillRect(0, valance - 3, width, 3);
+  paintCurtains(ctx, width, height, valance, f.curtain, height - safeBottom);
   // the song's name on a sign hung from it, already there behind the closed curtains (below
   // Reels' top bar, which covers the valance)
   if (plan.title)
@@ -458,9 +394,9 @@ export function drawIntro(
 /**
  * A theatre marquee: a dark board with a gold frame and bulbs chasing round it, hanging on
  * two cords, the title in cream. It drops in over the first 0.3 s with a little bounce. The
- * title shrinks to fit, then takes two lines, then ends in "…".
+ * title shrinks to fit, then takes two lines, then ends in "…". Returns its bottom.
  */
-function drawSign(
+export function drawSign(
   ctx: CanvasRenderingContext2D,
   title: string,
   cx: number,
@@ -557,35 +493,7 @@ function drawSign(
     ctx.fillText(line, cx, y + h / 2 + (i - (lines.length - 1) / 2) * lineH),
   );
   ctx.restore();
-}
-
-function cone(
-  ctx: CanvasRenderingContext2D,
-  x: number,
-  top: number,
-  feet: number,
-  fw: number,
-  color: string,
-  alpha: number,
-) {
-  if (alpha <= 0) return;
-  ctx.save();
-  ctx.globalAlpha *= alpha;
-  const g = ctx.createLinearGradient(0, top, 0, feet);
-  g.addColorStop(0, "rgba(255,255,255,0)");
-  g.addColorStop(1, color);
-  ctx.fillStyle = g;
-  ctx.beginPath();
-  ctx.moveTo(x - fw * 0.12, top);
-  ctx.lineTo(x + fw * 0.12, top);
-  ctx.lineTo(x + fw * 0.62, feet);
-  ctx.lineTo(x - fw * 0.62, feet);
-  ctx.closePath();
-  ctx.fill();
-  ctx.beginPath();
-  ctx.ellipse(x, feet, fw * 0.62, fw * 0.12, 0, 0, Math.PI * 2);
-  ctx.fill();
-  ctx.restore();
+  return y + h;
 }
 
 /** A white speech bubble with a pixel icon, popping in (a little overshoot). */

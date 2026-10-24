@@ -1,5 +1,5 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties } from "react";
-import { Columns3, Drama, FileMusic, Pause, Play, Rows3, Shuffle, SkipBack, Square, Video, X, ZoomIn, ZoomOut } from "lucide-react";
+import { Columns3, Drama, LayoutPanelTop, Pause, Play, Rows3, Shuffle, SkipBack, Square, Theater, Type, Video, X, ZoomIn, ZoomOut } from "lucide-react";
 import { audioEngine } from "@/audio/AudioEngine";
 import { IconButton } from "@/components/common/IconButton";
 import { NoticeBar } from "@/components/layout/NoticeBar";
@@ -14,11 +14,15 @@ import { useStudioStore } from "@/stores/useStudioStore";
 import { BREATH_SCALE, breathAt, energyAt } from "./energy";
 import { canRecordVideo } from "./frameRecorder";
 import { chorusChoices, clipSeconds, highlightChoices, type Highlight } from "./highlight";
-import { OVERLAY_COLORS, RECORD_CLIPS, RECORD_FPS, RECORD_FRAMES, fallRightInset, recordLayout, safeArea, type IntroTitle, type OverlayColor, type RecordClip, type RecordFrame as Frame } from "./overlay";
+import { OPENINGS, OVERLAY_COLORS, RECORD_CLIPS, RECORD_FRAMES, RECORD_VIEWS, fallRightInset, recordLayout, safeArea, type OverlayColor, type RecordClip, type RecordFrame as Frame, type RecordView } from "./overlay";
 import { Highway } from "./Highway";
 import { IntroOverlay } from "./IntroOverlay";
 import { INTRO_SECONDS, introTitle, planIntro } from "./introSkit";
 import { FALL_TOP_SHARE } from "./drawRecordFrame";
+import { hookLines, openingFrame } from "./opening";
+import { OpeningOverlay } from "./OpeningOverlay";
+import { StageView } from "./StageView";
+import { TakeSettingsDialog } from "./TakeSettingsDialog";
 import { SaveVideoDialog } from "./SaveVideoDialog";
 import { cueChorus, cueHighlight, useFrameRecording, type IntroTake } from "./useFrameRecording";
 
@@ -142,9 +146,13 @@ export function RecordFrame() {
   const [countdown, setCountdown] = useState<number | null>(null);
   // a take that opens with the skit: when it plays, for the recorder and the screen
   const [introTake, setIntroTake] = useState<IntroTake | null>(null);
-  // the looping highlight has none: its end runs back into its start
-  const withIntro = overlay.intro && overlay.clip !== "highlight";
-  const { recording, cueing, result, dismiss, discard } = useFrameRecording(armed && supported, playing || countdown !== null, {
+  // the looping highlight opens on its music, whatever the setting: its end runs back into its start
+  const opening = overlay.clip === "highlight" ? "cold" : overlay.opening;
+  const withIntro = opening === "skit";
+  const hook = useMemo(() => hookLines(overlay.hook), [overlay.hook]);
+  const signTitle = introTitle(project, overlay.introTitle);
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const { recording, cueing, result, dismiss, discard, openedAt } = useFrameRecording(armed && supported, playing || countdown !== null, {
     width: size.width,
     height: size.height,
     keyHeight,
@@ -210,19 +218,23 @@ export function RecordFrame() {
       const at = audioEngine.getPosition();
       return startIntro(at >= project.durationSeconds - 0.01 ? 0 : at, songEnd);
     }
+    // straight on the music: the recorder starts with it
+    if (opening === "cold") return void play();
     setCountdown(COUNTDOWN_SECONDS);
   };
-  const introLabel = (on: boolean, title: IntroTitle) =>
+  const openingLabel =
     overlay.clip === "highlight"
-      ? t.introLoops
-      : !on
-        ? t.introOff
-        : title === "file"
-          ? t.introFile(introTitle(project, "file"))
-          : t.introScore(introTitle(project, "score"));
+      ? t.openingLoops
+      : opening === "cold"
+        ? t.openingCold
+        : opening === "skit"
+          ? t.openingSkit
+          : t.openingCountdown;
   /** The skit for this stretch of the song, Ritsu's count-in, then the music. */
   const startIntro = (from: number, to: number) => {
     const plan = planIntro(project, from, to, overlay.introTitle);
+    // with hook text at the top, the skit's own sign stays away
+    if (hook.length) plan.title = "";
     const timing = audioEngine.playAfterIntro(INTRO_SECONDS, plan.beats);
     if (!timing) return;
     setIntroTake({ plan, from, ...timing });
@@ -250,9 +262,37 @@ export function RecordFrame() {
         <div
           ref={scoreRef}
           className="record-frame__score"
-          style={fall ? undefined : { paddingTop: safe.top, paddingInline: safe.side, paddingBottom: safe.bottom }}
+          style={overlay.view === "scroll" ? { paddingTop: safe.top, paddingInline: safe.side, paddingBottom: safe.bottom } : undefined}
         >
-          {size.height > 0 && (overlay.view === "fall" ? <Highway rightInset={rightInset} insets={{ top: safe.top * FALL_TOP_SHARE, side: safe.side, bottom: safe.bottom }} /> : <Timeline laneHeight={laneHeight} labels forceFollow showcase />)}
+          {size.height > 0 &&
+            (overlay.view === "stage" || overlay.view === "stageRoad" ? (
+              <StageView
+                mode={overlay.view === "stage" ? "stage" : "split"}
+                insets={{ top: safe.top, side: safe.side, bottom: safe.bottom }}
+                rightInset={rightInset}
+                sign={() => {
+                  const f = openingFrame(openedAt === null ? null : Math.max(0, audioEngine.audioTime() - openedAt), hook.length > 0, withIntro);
+                  return { title: signTitle, alpha: f.stageSign, since: f.signSince };
+                }}
+              />
+            ) : fall ? (
+              <Highway rightInset={rightInset} insets={{ top: safe.top * FALL_TOP_SHARE, side: safe.side, bottom: safe.bottom }} />
+            ) : (
+              <Timeline laneHeight={laneHeight} labels forceFollow showcase />
+            ))}
+          {size.height > 0 && (openedAt !== null || (!playing && !recording && countdown === null)) && (
+            <OpeningOverlay
+              openedAt={openedAt}
+              hook={hook}
+              title={signTitle}
+              skit={withIntro}
+              stage={overlay.view === "stage" || overlay.view === "stageRoad"}
+              width={size.width}
+              height={size.height - keyHeight}
+              safeTop={safe.top}
+              safeSide={safe.side}
+            />
+          )}
           {introTake && playing && (
             <IntroOverlay
               take={introTake}
@@ -313,14 +353,26 @@ export function RecordFrame() {
             <ZoomIn size={16} />
           </IconButton>
           <IconButton
-            label={overlay.view === "fall" ? t.fallViewOn : t.fallViewOff}
+            label={t.viewNow(t.recordViews[overlay.view])}
             variant="quiet"
             className="record-controls__exit"
-            pressed={overlay.view === "fall"}
             disabled={recording}
-            onClick={() => set({ view: overlay.view === "fall" ? "scroll" : "fall" })}
+            onClick={() => {
+              // stage → stage over the road → falling notes → scrolling score → stage
+              const next: RecordView = RECORD_VIEWS[(RECORD_VIEWS.indexOf(overlay.view) + 1) % RECORD_VIEWS.length]!;
+              set({ view: next });
+              useStudioStore.getState().notify({ kind: "info", text: t.viewNow(t.recordViews[next]) });
+            }}
           >
-            {overlay.view === "fall" ? <Columns3 size={18} /> : <Rows3 size={18} />}
+            {overlay.view === "stage" ? (
+              <Theater size={18} />
+            ) : overlay.view === "stageRoad" ? (
+              <LayoutPanelTop size={18} />
+            ) : overlay.view === "fall" ? (
+              <Columns3 size={18} />
+            ) : (
+              <Rows3 size={18} />
+            )}
           </IconButton>
           {supported && (
             <IconButton
@@ -378,21 +430,6 @@ export function RecordFrame() {
           </select>
           {supported && (
             <select
-              aria-label={t.recordFps}
-              title={t.recordFpsHint}
-              value={overlay.fps}
-              disabled={recording}
-              onChange={(e) => set({ fps: Number(e.currentTarget.value) === 60 ? 60 : 30 })}
-            >
-              {RECORD_FPS.map((fps) => (
-                <option key={fps} value={fps}>
-                  {t.recordFpsOptions[fps]}
-                </option>
-              ))}
-            </select>
-          )}
-          {supported && (
-            <select
               aria-label={t.recordClip}
               title={highlight ? clipHint : t.recordClip}
               value={overlay.clip}
@@ -407,25 +444,25 @@ export function RecordFrame() {
             </select>
           )}
           {supported && (
-            // one button, three states (no room on a phone for two): the skit with the score's
-            // title on its sign → with the file's name → no skit; each tap says which, and the name
+            // how the take opens: on the music → the skit → a 3-2-1; each tap says which
             <IconButton
-              label={introLabel(overlay.intro, overlay.introTitle)}
+              label={openingLabel}
               variant="quiet"
-              pressed={withIntro}
+              pressed={opening !== "cold"}
               disabled={recording || overlay.clip === "highlight"}
               onClick={() => {
-                const next =
-                  !overlay.intro
-                    ? { intro: true, introTitle: "score" as const }
-                    : overlay.introTitle === "score"
-                      ? { intro: true, introTitle: "file" as const }
-                      : { intro: false, introTitle: "score" as const };
-                set(next);
-                useStudioStore.getState().notify({ kind: "info", text: introLabel(next.intro, next.introTitle) });
+                const next = OPENINGS[(OPENINGS.indexOf(overlay.opening) + 1) % OPENINGS.length]!;
+                set({ opening: next });
+                const label = next === "cold" ? t.openingCold : next === "skit" ? t.openingSkit : t.openingCountdown;
+                useStudioStore.getState().notify({ kind: "info", text: label });
               }}
             >
-              {withIntro && overlay.introTitle === "file" ? <FileMusic size={16} /> : <Drama size={16} />}
+              <Drama size={16} />
+            </IconButton>
+          )}
+          {supported && (
+            <IconButton label={t.takeSettings} variant="quiet" disabled={recording} onClick={() => setSettingsOpen(true)}>
+              <Type size={16} />
             </IconButton>
           )}
           {supported && choices > 1 && (
@@ -453,6 +490,7 @@ export function RecordFrame() {
         )}
       </div>
       {result && <SaveVideoDialog video={result} onClose={dismiss} />}
+      {settingsOpen && <TakeSettingsDialog onClose={() => setSettingsOpen(false)} />}
     </div>
   );
 }
