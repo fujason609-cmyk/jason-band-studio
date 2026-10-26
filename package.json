@@ -14,7 +14,8 @@
     "lint": "eslint .",
     "format": "prettier --write .",
     "demo:midi": "vite-node scripts/generate-demo-midi.ts",
-    "samples:build": "vite-node scripts/build-sample-packs.ts"
+    "samples:build": "vite-node scripts/build-sample-packs.ts",
+    "pk": "vite-node scripts/pk.ts --"
   },
   "dependencies": {
     "@coderline/alphatab": "1.8.4",

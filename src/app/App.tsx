@@ -12,6 +12,9 @@ import { Timeline } from "@/features/timeline/Timeline";
 import { TimelineToolbar } from "@/features/timeline/TimelineToolbar";
 import { useAudioEngineBridge } from "@/hooks/useAudioEngine";
 import { useT } from "@/i18n/useT";
+import { PkLab } from "@/pk/PkLab";
+import { PkPage } from "@/pk/PkPage";
+import { usePkRoute } from "@/pk/route";
 import { useStudioStore } from "@/stores/useStudioStore";
 import { PersistenceProvider } from "./providers/PersistenceProvider";
 import { ThemeProvider } from "./providers/ThemeProvider";
@@ -22,7 +25,11 @@ function Studio() {
   const { openFile } = useMidiImport();
   const [dragging, setDragging] = useState(false);
   const recordMode = useStudioStore((s) => s.recordMode);
+  const pk = usePkRoute();
   const layoutVars = { "--lane-h": `${LANE_HEIGHT}px`, "--ruler-h": `${RULER_HEIGHT}px` } as CSSProperties;
+
+  // PK mode (#/pk): the engine bridge above stays mounted, so the song plays as in the studio
+  if (pk) return pk === "lab" ? <PkLab /> : <PkPage />;
 
   if (recordMode) {
     return (

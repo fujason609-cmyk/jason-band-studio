@@ -11,10 +11,12 @@ import { recordingFileName, type Recording } from "./frameRecorder";
  * opens the share sheet (on iPhone, "Save Video" puts it in Photos, where Instagram
  * picks it up); elsewhere, and if sharing isn't possible, it downloads the file.
  */
-export function SaveVideoDialog({ video, onClose }: { video: Recording; onClose: () => void }) {
+export function SaveVideoDialog({ video, onClose, frame: shape }: { video: Recording; onClose: () => void; frame?: string }) {
   const t = useT();
   const song = useProjectStore((s) => s.project.name);
-  const frame = useStudioStore((s) => s.settings.overlay.frame);
+  const chosen = useStudioStore((s) => s.settings.overlay.frame);
+  // a PK video is always 9:16, whatever the recording frame is set to
+  const frame = shape ?? chosen;
   const touch = useMediaQuery(TOUCH_QUERY);
   const dialogRef = useRef<HTMLDialogElement>(null);
   const titleId = useId();

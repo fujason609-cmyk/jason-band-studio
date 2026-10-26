@@ -497,7 +497,7 @@ export function drawSign(
 }
 
 /** A white speech bubble with a pixel icon, popping in (a little overshoot). */
-function drawBubble(
+export function drawBubble(
   ctx: CanvasRenderingContext2D,
   cx: number,
   bottom: number,

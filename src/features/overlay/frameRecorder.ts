@@ -62,6 +62,7 @@ export class FrameRecorder {
     canvas: HTMLCanvasElement,
     audio: MediaStream,
     private readonly fps = 30,
+    bitrate = videoBitrate(fps),
   ) {
     const type = pickRecordingType();
     if (!type) throw new Error("No video type this browser can record");
@@ -69,7 +70,7 @@ export class FrameRecorder {
     const stream = new MediaStream([...canvas.captureStream(fps).getVideoTracks(), ...audio.getAudioTracks()]);
     this.recorder = new MediaRecorder(stream, {
       mimeType: type.mimeType,
-      videoBitsPerSecond: videoBitrate(fps),
+      videoBitsPerSecond: bitrate,
       audioBitsPerSecond: 160_000,
     });
     this.recorder.ondataavailable = (e) => {

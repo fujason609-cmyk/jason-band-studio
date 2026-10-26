@@ -1,7 +1,8 @@
-import { Crosshair, Drum, Guitar, Smartphone, Sparkles, Star, ZoomIn, ZoomOut } from "lucide-react";
+import { Crosshair, Drum, Guitar, Smartphone, Sparkles, Star, Swords, ZoomIn, ZoomOut } from "lucide-react";
 import { IconButton } from "@/components/common/IconButton";
 import { useT } from "@/i18n/useT";
 import { PLAY_STYLES, isPlayStyle } from "@/lib/playStyle";
+import { goTo } from "@/pk/route";
 import { useStudioStore } from "@/stores/useStudioStore";
 import { MAX_ZOOM, MIN_ZOOM } from "./layout";
 
@@ -76,6 +77,9 @@ export function TimelineToolbar() {
         </IconButton>
         <IconButton label={t.recordMode} variant="quiet" onClick={() => setRecordMode(true)}>
           <Smartphone size={16} />
+        </IconButton>
+        <IconButton label={t.pkOpen} variant="quiet" onClick={() => goTo("pk")}>
+          <Swords size={16} />
         </IconButton>
       </div>
     </div>
